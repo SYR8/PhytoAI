@@ -1,0 +1,14 @@
+Hardware list:
+- esp32 wroom
+- ESP32 30-Pin Expansion Board
+- ESP32-CAM 
+- esp32 expantion board (16 headers + 16 extra)
+- USB 3.1 Type C Socket
+- 5v 4-Channel Relay Module
+- DHT22 Sensor Module
+- DC 3V Small Submersible Water Pump
+- Capacitive Soil Moisture Sensor Module
+- 3x SG90 Micro Servo Motor
+- 5v 10w USB Aquarium Fish Tank Submersible Heater
+- 2x DS18B20 Temperature Sensor Module 
+- 1kg Load Cell Weight Sensor + HX711
