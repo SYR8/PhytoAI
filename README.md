@@ -96,7 +96,7 @@ Every agent node shares one wiring: Gemma via OpenRouter (OpenRouter Chat Model 
 One spreadsheet, six tabs (full column lists and seed values in `Plan.md` §2):
 
 - **`Events`** — raw episodic history, one row per sensor/photo event; `ReasoningSummary` must cite concrete historical values.
-- **`SystemConfig`** — key/value store incl. `dry_run_mode`, `min_rewater_interval_hours`, `camera_battery_percent`, `scan_session_active`, sun times, species; `last_watered_utc` provisional until firmware confirms pump completion.
+- **`SystemConfig`** — key/value store incl. `dry_run_mode`, `min_rewater_interval_hours`, `camera_battery_percent` + `camera_battery_min_percent` (default `30`, user-tunable), `scan_session_active`, sun times, species; `last_watered_utc` provisional until firmware confirms pump completion.
 - **`DiseaseScans`** — the new scan-panel schema: drive links, vision + YOLO opinions, judge verdict + reasoning, treatment plan, user verdict, treatment outcome.
 - **`Notifications`** — the HITL queue: pending rows with `resume_url`, `response_options`, `response`, `context_ref`, status `pending/done/expired`.
 - **`PushSubscriptions`** — Web Push subscription registry (written by the dashboard, read by n8n).
@@ -112,6 +112,16 @@ The single place where everything about the plant lives.
 - **Full version (later):** charts/trends of all sensor history, full disease history, AgentNotes/profile visibility, camera battery status, service-worker Web Push.
 - **Stack:** static HTML/CSS/JS on GitHub Pages; Sheets API for reads (OAuth for writes); dashboard → n8n resume calls through a **persistent named Cloudflare tunnel** (quick-tunnel URLs change on every restart and would invalidate stored resume URLs).
 
+### Implementation (`dashboard/`)
+
+- `dashboard/index.html`, `dashboard/styles.css`, `dashboard/app.js` — no build step, no dependencies.
+- `dashboard/config.js` — the only file to edit: Google OAuth **client ID** and spreadsheet ID (already set to the fixed `10a3YXWBN4-hFJQQT4sLERmyu8D2TxYKNkXW-k3QRyLI`).
+- **Flow:** `Connect Google` → Google Identity Services token (scopes `spreadsheets` + `drive.readonly`, token kept in `sessionStorage`) → reads `SystemConfig`, `Events`, `Notifications`, `DiseaseScans` via the Sheets API v4 → renders the four sections.
+- **Answering a question:** button click calls the stored `resume_url` with `?response=<label>&comment=<text>` (the exact contract the Wait nodes read), then the dashboard writes `status=done` + `response` back to the `Notifications` row (columns resolved by header name). The workflow itself also updates `Notifications` and logs `user_verdict`/`treatment_outcome` to `DiseaseScans` when resumed.
+- **Push is intentionally not in the minimal version** — Change 6 lists service-worker Web Push under the FULL version, so it stays deferred with the full dashboard.
+- **Setup:** enable Sheets API + Drive API in a Google Cloud project; create an OAuth Client ID (type *Web application*) with authorized JavaScript origins `https://<your-username>.github.io` (and `http://localhost:8000` for local testing); put the client ID in `config.js`; add yourself as a test user on the OAuth consent screen (Testing mode is fine for a single owner). For local preview: `npx serve dashboard` (or any static server). For production: GitHub Pages from the repo root/folder.
+- **Tunnel requirement:** resume URLs stored in `Notifications` are absolute and point at the n8n tunnel — the persistent named Cloudflare tunnel must be configured before the workflow produces real rows.
+
 ## Web Push
 
 The dashboard registers a service worker and a VAPID push subscription, stored in `PushSubscriptions`. n8n sends browser push notifications for urgent events only: tank empty, low camera battery, disease/anomaly detected, scan verdicts. This (like resume URLs) requires the persistent named tunnel.
@@ -126,6 +136,7 @@ Every weekly scan logs the photo plus the vision opinion, the YOLO opinion, the 
 - `SmartPot-Full-Engineering-Spec-PRD.md` — the full engineering specification (hardware, wiring, firmware behavior, safety notes).
 - `phytoai-workflowone.json` — n8n export of the workflow; the live instance in n8n is the source of truth.
 - `phytoai-workflowone.backup.json` — pre-redesign backup of the workflow.
+- `dashboard/` — minimal static dashboard (HTML/CSS/JS, no build step); setup in the Dashboard section.
 - `Hardware/` — hardware documentation (parts list, wiring notes).
 - `phytoai-redesign-prompt.md` — the redesign spec this architecture was rebuilt from.
 
@@ -133,8 +144,9 @@ Every weekly scan logs the photo plus the vision opinion, the YOLO opinion, the 
 
 - [ ] Persistent named Cloudflare tunnel to the n8n instance
 - [ ] n8n credentials created by the owner (Google Sheets, Google Drive, OpenRouter)
-- [ ] Google Sheets tabs created per `Plan.md` §2 (`BranchMap` deleted)
-- [ ] Minimal dashboard built and deployed (GitHub Pages)
+- [ ] Google Sheets tabs created per `Plan.md` §2 (`BranchMap` deleted) — **blocking dependency for the Phase 5 wiring test**
+- [x] Minimal dashboard built (`dashboard/`; OAuth client ID + GitHub Pages deploy still to do)
+- [ ] Minimal dashboard deployed to GitHub Pages (config: see Dashboard section)
 - [ ] Workflow smoke-tested end to end (still inactive, dry-run)
 - [ ] ESP32 WROOM firmware (sensor routine, NTP re-sync, pump/heater execution)
 - [ ] ESP32-CAM firmware (capture, battery ADC, capture-button debounce, uploads)

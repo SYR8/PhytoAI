@@ -1,0 +1,71 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+<meta charset="UTF-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>PhytoAI Dashboard</title>
+<link rel="stylesheet" href="styles.css">
+</head>
+<body>
+<header class="topbar">
+  <div class="brand">
+    <span class="brand-mark">PhytoAI</span>
+    <span class="brand-sub">Smart Pot</span>
+  </div>
+  <div class="topbar-actions">
+    <span id="auth-status" class="auth-status"></span>
+    <button id="connect-btn" class="btn btn-primary" hidden>Connect Google</button>
+    <button id="refresh-btn" class="btn" hidden>Refresh</button>
+  </div>
+</header>
+
+<main>
+  <div id="banner" class="banner" hidden></div>
+
+  <section class="panel" id="status-section">
+    <div class="panel-head">
+      <h2>Plant status</h2>
+      <span id="status-updated" class="muted"></span>
+    </div>
+    <div id="status-card" class="status-grid"></div>
+  </section>
+
+  <section class="panel" id="pending-section">
+    <div class="panel-head">
+      <h2>Pending questions</h2>
+      <span id="pending-count" class="badge" hidden></span>
+    </div>
+    <div id="pending-list" class="pending-list"></div>
+  </section>
+
+  <section class="panel" id="events-section">
+    <div class="panel-head">
+      <h2>Event history</h2>
+      <span class="muted" id="events-count"></span>
+    </div>
+    <div class="table-wrap">
+      <table id="events-table">
+        <thead></thead>
+        <tbody></tbody>
+      </table>
+    </div>
+  </section>
+
+  <section class="panel" id="scans-section">
+    <div class="panel-head">
+      <h2>Scan reports</h2>
+      <span class="muted" id="scans-count"></span>
+    </div>
+    <div id="scans-list" class="scans-list"></div>
+  </section>
+</main>
+
+<footer>
+  <p>Resume links require the persistent named Cloudflare tunnel. Workflow stays inactive with <code>dry_run_mode=true</code> until the owner tests it.</p>
+</footer>
+
+<script src="config.js"></script>
+<script src="app.js"></script>
+<script src="https://accounts.google.com/gsi/client" async defer></script>
+</body>
+</html>

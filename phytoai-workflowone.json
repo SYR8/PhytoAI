@@ -2167,7 +2167,7 @@
         "responseMode": "responseNode",
         "options": {}
       },
-      "webhookId": "9c2dcb22-d210-4795-8ab1-6c10eedad261"
+      "webhookId": "17edc7c5-40ae-441e-9174-01b815ce6499"
     },
     {
       "id": "b1b424bc-498d-4125-a9fc-f8cc4a2964b3",
@@ -2924,7 +2924,7 @@
           "responseData": "{\"status\":\"received\"}"
         }
       },
-      "webhookId": "df2434c5-e864-422f-a2bb-9ffd476a8e56"
+      "webhookId": "2b90056b-4b5a-4934-bdd4-947d49b83681"
     },
     {
       "id": "c35311f9-ed13-42f3-9db4-03c861541efe",
@@ -3208,7 +3208,7 @@
         "responseMode": "responseNode",
         "options": {}
       },
-      "webhookId": "64a9ef0f-63a2-400d-8c92-2075ed6bd2b3"
+      "webhookId": "b5bd620d-718e-47df-8d2d-3046de022cff"
     },
     {
       "id": "0dc652fa-ba0d-45a2-993a-09b26bf6e3b1",
@@ -3318,7 +3318,7 @@
           "responseData": "{\"status\":\"ok\"}"
         }
       },
-      "webhookId": "3da08730-6233-49b0-a8d6-cf29ae1b9f9a"
+      "webhookId": "cc308e04-0841-41bf-80a0-3ec917da45a4"
     },
     {
       "id": "15556762-4b96-4146-a5c7-94000171a363",
@@ -3510,7 +3510,7 @@
         "responseMode": "lastNode",
         "options": {}
       },
-      "webhookId": "8da82eef-3878-4856-92b0-1401f8218078"
+      "webhookId": "feec4692-a17e-4bea-8447-c45995d61b44"
     },
     {
       "id": "980a6fbb-84ce-4cf1-b50a-5cf27c50ca17",
@@ -3836,7 +3836,7 @@
         1800
       ],
       "parameters": {
-        "jsCode": "const rows = $('Read SystemConfig Scan').all().map((i) => i.json);\nconst cfg = {};\nfor (const row of rows) {\nif (row.Key !== undefined && row.Key !== null && String(row.Key).trim() !== '') { cfg[String(row.Key).trim()] = row.Value; }\n}\nconst sessionActive = String(cfg['scan_session_active'] || 'false').toLowerCase() === 'true';\nconst batteryRaw = cfg['camera_battery_percent'];\nconst battery = (batteryRaw === undefined || batteryRaw === null || batteryRaw === '') ? null : Number(batteryRaw);\nconst batteryLow = battery !== null && battery < 30;\nreturn [{ json: {\nsession_active: sessionActive,\nbattery_percent: battery,\nbattery_low: batteryLow,\npostpone_reason: sessionActive ? 'a scan session is already active' : (batteryLow ? 'low camera battery' : ''),\n} }];"
+        "jsCode": "const rows = $('Read SystemConfig Scan').all().map((i) => i.json);\nconst cfg = {};\nfor (const row of rows) {\nif (row.Key !== undefined && row.Key !== null && String(row.Key).trim() !== '') { cfg[String(row.Key).trim()] = row.Value; }\n}\nconst sessionActive = String(cfg['scan_session_active'] || 'false').toLowerCase() === 'true';\nconst batteryRaw = cfg['camera_battery_percent'];\nconst battery = (batteryRaw === undefined || batteryRaw === null || batteryRaw === '') ? null : Number(batteryRaw);\nconst minBatteryPercent = Number(cfg['camera_battery_min_percent'] ?? 30);\nconst batteryLow = battery !== null && battery < minBatteryPercent;\nreturn [{ json: {\nsession_active: sessionActive,\nbattery_percent: battery,\nbattery_low: batteryLow,\npostpone_reason: sessionActive ? 'a scan session is already active' : (batteryLow ? 'low camera battery' : ''),\n} }];"
       }
     },
     {
@@ -3857,7 +3857,7 @@
         "resumeAmount": 60,
         "resumeUnit": "minutes"
       },
-      "webhookId": "93a752ae-d6f1-4c8f-9bc7-170c86007d64"
+      "webhookId": "a9bd1914-8f72-46a1-8a1a-10ac109028ef"
     },
     {
       "id": "f9bccba2-3c35-41f0-bd6e-211a001ea6f4",
@@ -4362,7 +4362,7 @@
         "resumeAmount": 7,
         "resumeUnit": "days"
       },
-      "webhookId": "d80533d6-d2c4-46fd-8836-9a0b28e4b58b"
+      "webhookId": "45e341b0-27de-46d6-801e-8926f66d4b58"
     },
     {
       "id": "7bede0f6-8db2-46d6-9542-821d4c8330a6",
@@ -4562,7 +4562,7 @@
         "resumeAmount": 7,
         "resumeUnit": "days"
       },
-      "webhookId": "3db16195-331b-4e31-acea-6e2ce06f8634"
+      "webhookId": "ee42a29e-2eba-4c33-ae46-3a1dbf6956d1"
     },
     {
       "id": "306186cf-7add-4dd6-b3fb-32ce924df932",

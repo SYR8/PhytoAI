@@ -53,6 +53,7 @@ Seeded keys:
 | min_rewater_interval_hours | `6` | seed (user-tunable) |
 | scan_session_active | `false` | Branch C |
 | camera_battery_percent | *(empty; latest value)* | every CAM webhook |
+| camera_battery_min_percent | `30` | seed (user-tunable; Branch C battery gate) |
 | drive_daily_photos_folder_id | *(empty until setup)* | one-time Drive setup |
 | drive_scan_photos_folder_id | *(empty until setup)* | one-time Drive setup |
 | push_vapid_public_key | *(empty; owner generates VAPID keys)* | manual prerequisite |
@@ -147,8 +148,8 @@ phytoai
 
 Scheduler path (Schedule Trigger "Weekly Scan", cron `0 6 * * 1` = Mon 06:00 UTC):
 
-1. **Read SystemConfig** (`camera_battery_percent`, `scan_session_active`).
-2. **IF "Battery low?"** → Notifications "charge camera" (type `alert_battery_low`) + log scan postponed → end.
+1. **Read SystemConfig** (`camera_battery_percent`, `camera_battery_min_percent` [default `30`], `scan_session_active`).
+2. **Code "Check Scan Preconditions"** → **IF "Battery low?"** (`battery_percent < camera_battery_min_percent`) → Notifications "charge camera" (type `alert_battery_low`) + log scan postponed → end.
 3. Else append **Notifications "position camera facing plant"** (type `scan_position`, options `["Camera positioned"]`, `resume_url`).
 4. **Wait node** — "Resume: On Webhook Call" with a timeout path: timeout → mark row `expired` + log scan postponed → end. *Exact Wait config to be confirmed during implementation (§8).*
 5. On resume: set `scan_session_active=true` → end (the paused execution's job is done; the photo arrives as a separate webhook execution).
@@ -382,7 +383,7 @@ anomaly_description (string|null), watering_review (string), ai_notes (string).
 Owner-side actions I cannot perform. Ordered by priority:
 
 - **M1 — Persistent named Cloudflare tunnel (top priority).** Set up a **named** Cloudflare tunnel to the n8n instance. Quick tunnels die on restart and change URLs — resume URLs stored in Notifications rows must remain valid, so the tunnel must be persistent and named. This is the production webhook base URL for the whole system.
-- **M2 — Google Sheets tab creation (per §2 schemas).** Manual paste steps in the Sheets UI: create the six tabs with the exact header rows and seed keys; delete `BranchMap`. (Historically the Sheets MCP lacks permission on this spreadsheet — manual application is the fallback and default this phase.)
+- **M2 — Google Sheets tab creation (per §2 schemas).** Manual paste steps in the Sheets UI: create the six tabs with the exact header rows and seed keys; delete `BranchMap`. (Historically the Sheets MCP lacks permission on this spreadsheet — manual application is the fallback and default this phase.) **Blocking dependency for Phase 5 (wiring test):** all six tabs + seed keys — including `camera_battery_min_percent` (`30`) — must exist first; a dry-run against a missing tab fails at the Sheets nodes.
 - **M3 — n8n Google credentials.** In the n8n UI: Google Sheets OAuth credential **"PhytoAI Google Sheets"** and Google Drive credential **"PhytoAI Google Drive"**.
 - **M4 — OpenRouter key.** Create the n8n AI credential **"PhytoAI OpenRouter"** with the owner's OpenRouter key (base URL override lives in the model subnode, not the credential).
 - **M5 — VAPID keypair generation.** Owner generates a VAPID keypair (e.g. via `web-push` CLI); public key goes into SystemConfig `push_vapid_public_key`, private key stays in n8n (push-send implementation — §8).
