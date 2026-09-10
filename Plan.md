@@ -268,6 +268,13 @@ Body: `{ "device_id": "...", "photos_uploaded": 1, "started_at_utc": "...", "end
 - Credential referenced as **"PhytoAI OpenRouter"** (owner creates it in the n8n UI — §7 M4); keys never hardcoded.
 - Each agent attaches an **outputParserStructured** subnode (`schemaType: fromJson`, per-agent schema, `autoFix: true`).
 
+**DEVIATION (as-built — for the Phase 6 docs sync):** the shared subnode was changed in the n8n UI from **lmChatOpenAi** to the native **lmChatOpenRouter** node (`@n8n/n8n-nodes-langchain.lmChatOpenRouter`, typeVersion 1), still named **"OpenRouter Gemma"**. As-built on the live workflow:
+- `model` is a plain string `google/gemma-4-26b-a4b-it` (not the `{ mode: 'id', value }` resource-locator shape).
+- `options.temperature: 0.2` (preserved).
+- `options.baseURL` and `responsesApiEnabled` **no longer apply** — the native OpenRouter node has the base URL built in, so the `responsesApiEnabled: false` requirement is obsolete (removed).
+- Credential type changes `openAiApi` → `openRouterApi`; as-built it references **"OpenRouter account"** (`oz9XKwRSjHP41p1G`), not the originally specified "PhytoAI OpenRouter" (§7 M4).
+- Wiring is unchanged: `ai_languageModel` → all 6 agents (History Analyst, Decision Agent, Photo Analysis Agent, Vision Analyst, Judge, Treatment Advisor) + their 6 parsers; each agent still attaches its own `outputParserStructured`.
+
 **AgentNotes rules (all agents, common to every prompt):** your context contains your own last ~10 `active` AgentNotes, explicitly labeled **UNVERIFIED HYPOTHESES** — useful context, never ground truth (prevents self-confirmation loops). At the end of your run you may append 1–3 short notes (hypotheses/observations/lessons) with `context_ref`. Notes must be short and factual.
 
 ### 5.1 History Analyst (Branch A)
