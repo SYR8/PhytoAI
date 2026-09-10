@@ -24,6 +24,10 @@
 | Events columns | Append `WaterAddedGrams` (already added by the owner), `WateringAborted`, `FinalWaterTempC`. **`HeaterDurationSeconds` is repurposed** to carry actual heater seconds — no separate `HeatingSeconds` column is added. |
 | SystemConfig additions | `max_pump_seconds` (60), `preheat_margin_c` (2), `preheat_lead_minutes` (25), `max_water_temp_c` (28, documentation/visibility), `heater_hysteresis_c` (2, documentation). |
 | Heater element type | Purchased; the listing did not state a thermostat — **treat as thermostat-less**; owner to confirm from the product page. The redundant firmware cutoff is kept regardless. |
+| Abort enums | **Approved as fixed:** `watering_aborted` ∈ {`null`, `"no_weight_rise"`, `"max_time_reached"`, `"tank_empty"`, `"probe_invalid"`, `"pump_error"`}; `heater_aborted` ∈ {`null`, `"probe_invalid"`, `"tank_empty"`, `"max_time_reached"`, `"cutoff"`}. |
+| Firmware dry-run refusal | **Approved:** the firmware refuses all actuation when the response carries `dry_run: true` — a second, device-local layer on top of the workflow's zeroing. |
+| `temperature_tolerance_c` / `water_warmer_than_soil_action` | **Approved: keep** in the response contract, **informational-only** for firmware (the explicit `target_water_temp_c` governs the stop condition). |
+| `last_watered_utc` on completion | **Approved:** the workflow sets it when a `/core/sensor/result` payload confirms completion; the Plan §2.2 note is updated in the Phase-6 docs sync. |
 
 ---
 
@@ -73,7 +77,7 @@ The current design is open-loop: the Decision Agent returns `water_duration_seco
 Firmware posts the outcome to `POST /core/sensor/result` (full contract in §4.3):
 
 - `water_added_grams` — measured weight delta during the last watering.
-- `watering_aborted` — `null`, `"no_weight_rise"`, `"max_time_reached"`, `"tank_empty"`, `"probe_invalid"`, or `"pump_error"` (enum finalized during implementation).
+- `watering_aborted` — `null`, `"no_weight_rise"`, `"max_time_reached"`, `"tank_empty"`, `"probe_invalid"`, or `"pump_error"` (enum fixed — see §4.3).
 - `watering_seconds` — actual pump ON time.
 
 ### 7.6 Sheets changes
@@ -113,7 +117,7 @@ The workflow already *decides* about heating (`heater_on`, `temperature_toleranc
 
 - Typically the current `soil_temp_c` (heat the water to what the roots already are), made explicit so firmware never infers it.
 - Workflow clamps it to **≤ 28 °C**.
-- Existing fields keep their meaning: `heater_on`, `temperature_tolerance_c`, `max_heater_seconds` (600), `water_warmer_than_soil_action` ("proceed"|"defer"). Firmware maps these to its explicit target: heating is requested only when `heater_on=true`; the stop condition is always `target_water_temp_c` (or timeout, or cutoff). `temperature_tolerance_c` and `water_warmer_than_soil_action` become informational for firmware; they do not override the explicit target.
+- Existing fields keep their meaning: `heater_on`, `temperature_tolerance_c`, `max_heater_seconds` (600), `water_warmer_than_soil_action` ("proceed"|"defer"). Firmware maps these to its explicit target: heating is requested only when `heater_on=true`; the stop condition is always `target_water_temp_c` (or timeout, or cutoff). `temperature_tolerance_c` and `water_warmer_than_soil_action` are **kept in the contract and are informational-only for firmware (owner-approved)**; they do not override the explicit target.
 
 ### 2.3 Firmware closed loop
 
@@ -197,6 +201,24 @@ At the event, firmware POSTs `/core/sensor` exactly as today. The Decision Agent
 - 28 °C cutoff, 2 °C hysteresis, and 600 s ceiling apply exactly as in Change 8.
 - Never pre-heat when either temperature probe is invalid.
 
+### 3.6 Wake scheduling (firmware)
+
+Two wake types: the **pre-heat wake** at `preheat_lead_minutes` (default 25 min) before a scheduled event, and the **event wake** at ~10 min before the event (existing behavior). The schedule comes from `GET /config` → `next_sunrise_utc` / `next_sunset_utc`.
+
+**Recommended mechanism: deep sleep + timer wakeup, with SNTP re-sync on every wake.**
+
+- Deep sleep gives the lowest idle current and is sufficient because the WROOM is idle between events; wake is by the internal RTC timer.
+- **Light sleep is not recommended as the primary mechanism:** its power saving over deep sleep is small when the radio is off between events, and it complicates deterministic wake timing and state retention.
+- **An external RTC (DS3231 over I2C) is not required now.** Keep it as a future resilience upgrade (already noted in the PRD) if NTP is unavailable for long stretches. Revisit after H4/H8.
+- **Timer accuracy and drift:** the ESP32 deep-sleep timer runs off the RTC slow clock (internal RC oscillator ≈ ±5% typical, worse over temperature; an external 32.768 kHz crystal on the board improves it if fitted). Over a 12 h sleep this can drift by minutes. Mitigations:
+  - SNTP re-sync on **every** wake (the radio comes up for the event POST anyway); recompute the next sleep schedule from `GET /config` after each sync.
+  - Keep a safety margin (e.g., wake 1–2 min earlier than strictly required).
+  - If a sleep span exceeds the single-shot timer range of the target core, chain sleep cycles (wake → check remaining time → sleep again). Verify the exact limit during bench bring-up.
+- **Wake sequence:** wake → Wi-Fi + SNTP → `GET /config` (refresh sun times) → if `tank_empty=false`, probes valid, and `water_temp_c < soil_temp_c − preheat_margin_c`, run the pre-heat loop (Change 9) → sleep to the event wake (or stay awake when the remaining time is shorter than the minimum sleep) → event wake → `POST /core/sensor` → actuate under guardrails → `POST /core/sensor/result` → all relays OFF → next sleep.
+- **Actuator safety across sleep:** all relay outputs are de-energized before entering deep sleep; sleep must never occur while the heater or pump is energized. Deep-sleep wake resets the MCU, so the fail-OFF boot initialization (§2.5) runs on every cycle.
+- **Timekeeping fallback:** if NTP fails on wake, use the last known time plus elapsed sleep; if the schedule cannot be trusted (sync failed and last-known time is stale beyond a documented limit), skip pre-heating and run only the event flow when a sync succeeds.
+- **Bench verification:** measure wake-timing drift over 24 h against a reference clock and confirm NTP correction before trusting the pre-heat window.
+
 ---
 
 ## 4. Consolidated webhook contracts
@@ -244,7 +266,7 @@ At the event, firmware POSTs `/core/sensor` exactly as today. The Decision Agent
 - ★ `target_water_grams` — null/0 when not watering, tank-empty, or dry-run.
 - ★ `max_pump_seconds` — guardrail ceiling (60).
 - ★ `target_water_temp_c` — typically `soil_temp_c`, clamped ≤ 28 °C; null when no heating.
-- `dry_run: true` and zeroed actuation whenever `dry_run_mode` is `true` (the cloud zeroes targets; the firmware **also** refuses to actuate in a dry-run build).
+- `dry_run: true` and zeroed actuation whenever `dry_run_mode` is `true` (the cloud zeroes targets; the firmware **also** refuses to actuate in a dry-run build — owner-approved second layer).
 - Firmware must tolerate ≥120 s HTTP timeout (AI latency).
 
 ### 4.3 `POST /core/sensor/result` — NEW (firmware → n8n, fire-and-forget with synchronous ack)
@@ -266,8 +288,8 @@ Request:
 
 - No AI call. The workflow upserts the `Events` row by `EventID`.
 - Response (synchronous, `onReceived`): `{"status":"ok"}`.
-- `watering_aborted` ∈ {`null`, `"no_weight_rise"`, `"max_time_reached"`, `"tank_empty"`, `"probe_invalid"`, `"pump_error"`}.
-- `heater_aborted` ∈ {`null`, `"probe_invalid"`, `"tank_empty"`, `"max_time_reached"`, `"cutoff"`}.
+- `watering_aborted` ∈ {`null`, `"no_weight_rise"`, `"max_time_reached"`, `"tank_empty"`, `"probe_invalid"`, `"pump_error"`} — **fixed, owner-approved**.
+- `heater_aborted` ∈ {`null`, `"probe_invalid"`, `"tank_empty"`, `"max_time_reached"`, `"cutoff"`} — **fixed, owner-approved**.
 - `HeaterDurationSeconds` in `Events` is populated from `heating_seconds` (see §6).
 
 ### 4.4 `GET /config` — additions (soft config; non-authoritative)
@@ -328,7 +350,7 @@ The owner adds these keys when this document is final. The actual sheet is not e
 1. `Decision Parser`: add `target_water_grams`.
 2. `Normalize Decision Output`: add `target_water_grams`.
 3. `Decision Agent` prompt: emit `target_water_grams`; keep `water_duration_seconds` as fallback/ceiling.
-4. `Safety Guardrails`: clamp `target_water_grams`; zero/null under dry-run and tank-empty; emit `target_water_grams_final`, `max_pump_seconds_final`, `target_water_temp_c_final` (clamped ≤ 28); **change `maxWaterTempC` from 30 to 28**.
+4. `Safety Guardrails`: **read `max_pump_seconds` from SystemConfig (single source of truth; fall back to 60 only if the key is missing/blank) instead of the hardcoded `maxPumpSeconds = 60`**; clamp `target_water_grams`; zero/null under dry-run and tank-empty; emit `target_water_grams_final`, `max_pump_seconds_final`, `target_water_temp_c_final` (clamped ≤ 28); **change `maxWaterTempC` from 30 to 28**.
 5. `Build Decision Response`: add `target_water_grams`, `max_pump_seconds`, `target_water_temp_c`.
 6. **New endpoint receiver:** `Webhook "POST /core/sensor/result"` (`responseMode: onReceived`) → normalize the payload → Google Sheets **upsert the Events row by `EventID`** (write `WaterAddedGrams`, `WateringAborted`, `FinalWaterTempC`, `HeaterDurationSeconds`); no AI call; ack `{"status":"ok"}`. Also set `last_watered_utc` on confirmed completion (removes the provisional caveat for completed waterings).
 7. `Build Event Row`: map the new fields from the result.
@@ -365,8 +387,9 @@ Safety first, each loop in isolation, integration last.
 
 ## 10. Documentation updates (when this document is approved)
 
-- **Plan.md:** firmware stage gains the three tasks; §4.1 contract updated in both directions; §2.1 `Events` gains `WaterAddedGrams`, `WateringAborted`, `FinalWaterTempC`; §2.2 gains the new SystemConfig keys; safety section lists the 28 °C absolute cutoff alongside the 600 s cap; Branch A notes the closed loops.
-- **Hardware notes:** HX711 drift caveat (tare on boot; trust deltas); heater mounting rule; PSU sizing / heat-then-water sequencing; relay fail-OFF verification; relay wiring (COM/NO) and polarity-unknown note.
+- **Plan.md:** firmware stage gains the three tasks; §4.1 contract updated in both directions; §2.1 `Events` gains `WaterAddedGrams`, `WateringAborted`, `FinalWaterTempC`; §2.2 gains the new SystemConfig keys **and updates the `last_watered_utc` note — it is written on confirmed completion via `/core/sensor/result` (the provisional caveat applies only until the firmware result path exists)**; §5.2 prompt gains `target_water_grams`; §11 hardware notes gain the relay/heater/HX711 items; the safety section lists the 28 °C absolute cutoff alongside the 600 s cap; Branch A notes the closed loops.
+- **README.md / PRD pump wording:** change the pump description to "rated 3V–5V per listing" (`README.md` hardware summary; `SmartPot-Full-Engineering-Spec-PRD.md` hardware inventory line for the pump).
+- **Hardware notes:** HX711 drift caveat (tare on boot; trust deltas); heater mounting rule; PSU sizing / heat-then-water sequencing; relay fail-OFF verification; relay wiring (COM/NO) and polarity-unknown note; wake-scheduling note.
 - **README:** one line in the council description — "code guards physics, the scale verifies them, the firmware watches the thermometer."
 
 ---
