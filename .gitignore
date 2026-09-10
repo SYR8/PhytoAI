@@ -3,3 +3,4 @@ opencode.json
 node_modules/
 *.env
 mcp-auth.json
+client_secret_*.json
