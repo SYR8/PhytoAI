@@ -6,9 +6,8 @@ Hardware list:
 - USB 3.1 Type C Socket
 - 5v 4-Channel Relay Module
 - DHT22 Sensor Module
-- DC 3V Small Submersible Water Pump
+- DC 3V–5V Small Submersible Water Pump (rated 3–5 V per listing)
 - Capacitive Soil Moisture Sensor Module
-- 3x SG90 Micro Servo Motor
 - 5v 10w USB Aquarium Fish Tank Submersible Heater
 - 2x DS18B20 Temperature Sensor Module 
 - 1kg Load Cell Weight Sensor + HX711
