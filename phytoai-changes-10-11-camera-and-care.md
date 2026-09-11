@@ -14,11 +14,13 @@ The daily photo loop already works this way (CAM wakes on schedule and POSTs `/c
 
 ### 10.1 Weekly scan scheduler path (replaces the HITL gate)
 
-At **T−30 min** before the scheduled scan (Weekly Scan schedule trigger):
+**Timing (canonical):** the weekly capture is **Mon 06:00 UTC**. A single schedule trigger fires **Mon 05:30 UTC (T−30)** for the announcement + session open; `next_scan_utc` = trigger + 30 min, computed and exposed via `GET /config`; the CAM wakes at `next_scan_utc`.
+
+At the **T−30** trigger (Weekly Scan schedule trigger):
 
 1. Read SystemConfig (`camera_battery_percent`, `scan_session_active`).
 2. Battery below `camera_battery_min_percent` → informational notification `charge camera` (type `alert_battery_low`), log "scan postponed", end. (Unchanged.)
-3. Otherwise: set `scan_session_active=true` and append an **informational** Notifications row — new type `scan_scheduled`: *"Weekly scan photo will be taken at {time} — make sure the camera is docked facing the plant."* **No `response_options`, no `resume_url`, no Wait node.** The row is created with `status=done` (nothing to answer); it is an announcement, not a question.
+3. Otherwise: **if `scan_session_active` is already `true`, the previous session never closed — log `stale scan session reset` (log line only, no notification) and continue.** `flag=true` at trigger time is stale by definition because the cron fires weekly and the close path clears the flag. Then set `scan_session_active=true` and append an **informational** Notifications row — new type `scan_scheduled`: *"Weekly scan photo will be taken at {time} — make sure the camera is docked facing the plant."* **No `response_options`, no `resume_url`, no Wait node.** The row is created with `status=done` (nothing to answer); it is an announcement, not a question. The close path is unchanged.
 4. The paused-execution machinery for positioning is **removed**: `Wait Camera Positioned`, its timeout/expire branch, and the `scan_position` interactive row type are deleted. The `scan_postponed` type stays (battery path).
 
 ### 10.2 Scheduled capture (firmware)
@@ -29,13 +31,13 @@ At **T−30 min** before the scheduled scan (Weekly Scan schedule trigger):
 
 ### 10.3 Quality safety net (replaces the human positioning step)
 
-The Vision Analyst's `framing_quality` assessment becomes the check the human used to provide: if framing is poor, append a notification *"scan photo quality was poor — check the camera is docked facing the plant."* The scan still completes and is logged either way.
+The Vision Analyst's `framing_quality` assessment becomes the check the human used to provide: if framing is poor, append an informational notification (type **`scan_quality`** — approved, `status=done`, no buttons) *"scan photo quality was poor — check the camera is docked facing the plant."* The scan still completes and is logged either way.
 
 ### 10.4 Cleanup
 
 - Remove the standard "return camera to charging dock" post-scan notification — the owner is never asked to move the camera anymore; docking is the standing default.
 - Open question Q3 (long-Wait execution timeouts) narrows to the verdict/follow-up Waits (7 days), which remain genuinely interactive and unchanged.
-- Plan §3.3 scheduler path, §8 Q3, and the Notifications type list get updated; README unchanged in substance.
+- Plan §3.3 scheduler path, §8 Q3, and the Notifications type list get updated; **README is also affected** — Branch C steps 2/3/8 and the council agent list still describe the permission gate and must be updated in the Phase-6 docs sync (tracked in `phytoai-firmware-changes-7-8-9.md` §10).
 
 ### 10.5 What does not change
 
@@ -75,12 +77,12 @@ Runs **only** when the thinker flags something (`placement_ok=false` OR `placeme
 
 - `placement_change_recommended` (bool), `urgency`, `recommendation`, `reasoning` — with explicit disagreement allowed ("thinker over-read a temporary heat spike").
 
-Conditional execution keeps cost near zero on normal days. Same shared LM node + own structured parser. This is agent #7 in the shared-LM wiring.
+Conditional execution keeps cost near zero on normal days — **the IF gates the entire chain** (AgentNotes reader → agent → parser → notes writer → advice append), so nothing executes on clean days. Same shared LM node + own structured parser (**`Placement Parser`**, name confirmed). This is agent #7 in the shared-LM wiring.
 
 ### 11.4 Output path — advisory, never a command
 
 - Confirmed placement need → Notifications row, new type `placement_advice`, **informational** (`status=done`, no buttons): title + recommendation + urgency. `urgent` marks the row urgent (future push).
-- Logged in the event's `ai_notes`; both agents may append AgentNotes (UNVERIFIED HYPOTHESES labeling applies).
+- Logged in the event's `ai_notes` — **merge point: extend `Build Photo Update Row` (approved)**; both agents may append AgentNotes (UNVERIFIED HYPOTHESES labeling applies).
 - The system advises; the owner moves the plant. No actuation, no Wait gate.
 
 ### 11.5 Guardrails
@@ -93,8 +95,8 @@ Conditional execution keeps cost near zero on normal days. Same shared LM node +
 
 - Photo Analysis Agent: prompt + parser schema gain the four new fields.
 - Build Multimodal Context: stress-signal fact block.
-- IF node + Placement Reviewer agent + parser, conditional on thinker flags.
-- Notifications type list gains `placement_advice`.
+- IF node + Placement Reviewer agent + `Placement Parser` (`outputParserStructured`), conditional on thinker flags — **the IF gates the entire chain** (reader → agent → parser → notes writer → advice append).
+- Notifications type list gains `placement_advice` (and `scan_quality` from Change 10).
 - Plan §3.2/§5.6 updated; README council description gains one line about placement advice.
 
 ### 11.7 What does not change
