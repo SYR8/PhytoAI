@@ -14,16 +14,18 @@
 |---|---|
 | Pump voltage contradiction | **Resolved:** listing states "DC 3V–5V Silent Mini Submersible Pump" — running it at 5 V on the shared rail is in spec. Actual current, stall current, flow rate (L/min) and tubing ID are measured on the bench (H2 bench item). |
 | Result reporting path | **Approved:** new `POST /core/sensor/result` endpoint. No AI call on result; synchronous `onReceived` ack `{"status":"ok"}`; the workflow upserts the `Events` row by `EventID`. |
-| 28 °C vs 30 °C cutoff | **Resolved:** firmware hard cutoff = **28 °C** and is the strictest layer ("firmware wins"). The workflow `maxWaterTempC` guardrail is aligned to **28** in the Phase-5 change; the 30 °C value is removed. |
+| 28 °C vs 30 °C cutoff | **Resolved:** firmware hard cutoff = **28 °C**, aligned to the workflow guardrail ("firmware wins"). It is a **redundant last-resort** — normal operation is bounded by the ≤ 25 °C target and the heater's fixed 26 °C thermostat. The workflow `maxWaterTempC` guardrail is aligned to **28** and the 30 °C value is removed. |
 | `max_pump_seconds` | **Resolved:** single source of truth = **60 s** (`SystemConfig` key `max_pump_seconds`, mirrored in the Safety Guardrails constant and surfaced in the decision response). |
-| Pre-heat stop target | **Resolved:** heat until `water_temp_c ≥ soil_temp_c − 1 °C`, never above the 28 °C hard cutoff. |
+| Pre-heat stop target | **Resolved:** heat until `water_temp_c ≥ soil_temp_c − 1 °C`, with the stop target **clamped ≤ 25 °C** so the loop always terminates before the heater's fixed 26 °C thermostat plateau. |
 | Hysteresis | **Resolved:** **2 °C** firmware constant (heater may re-enable only below `28 − 2 = 26 °C`). |
 | `preheat_margin_c` | **Approved default 2 °C** — new `SystemConfig` key, exposed via `GET /config`. |
 | `preheat_lead_minutes` | **Approved default 25 min** — new `SystemConfig` key, exposed via `GET /config`. |
 | No-rise abort threshold | Defined in **grams + seconds during HX711 calibration**; not hardcoded yet. |
 | Events columns | Append `WaterAddedGrams` (already added by the owner), `WateringAborted`, `FinalWaterTempC`. **`HeaterDurationSeconds` is repurposed** to carry actual heater seconds — no separate `HeatingSeconds` column is added. |
 | SystemConfig additions | `max_pump_seconds` (60), `preheat_margin_c` (2), `preheat_lead_minutes` (25), `max_water_temp_c` (28, documentation/visibility), `heater_hysteresis_c` (2, documentation). |
-| Heater element type | Purchased; the listing did not state a thermostat — **treat as thermostat-less**; owner to confirm from the product page. The redundant firmware cutoff is kept regardless. |
+| Heater element type | **Resolved (H3):** built-in **fixed thermostat at ~26 °C** (supply DC 5 V/2 A) — **not** thermostat-less. The thermostat is an independent physical layer; the firmware heating target is **clamped ≤ 25 °C** so the loop always ends before the plateau (at a target ≥ 26 °C the element plateaus and only the 600 s timeout would end the cycle). The **28 °C firmware cutoff is kept as a redundant last-resort** (documented as such). |
+| DS18B20 probes (H5) | **Resolved:** both probes are **waterproof stainless-steel probe-on-cable** types (suitable for the submerged tank probe and the root-zone probe). |
+| Tank volume (H6) | **Resolved:** tank ≈ **500 ml**. At ~10 W this is ≈ **1 °C per 3.5 min**, so the 25-min pre-heat window covers ≈ 7 °C of delta before losses (feasibility confirmed). Heater physical fit inside 500 ml remains a mounting check. |
 | Abort enums | **Approved as fixed:** `watering_aborted` ∈ {`null`, `"no_weight_rise"`, `"max_time_reached"`, `"tank_empty"`, `"probe_invalid"`, `"pump_error"`}; `heater_aborted` ∈ {`null`, `"probe_invalid"`, `"tank_empty"`, `"max_time_reached"`, `"cutoff"`}. |
 | Firmware dry-run refusal | **Approved:** the firmware refuses all actuation when the response carries `dry_run: true` — a second, device-local layer on top of the workflow's zeroing. |
 | `temperature_tolerance_c` / `water_warmer_than_soil_action` | **Approved: keep** in the response contract, **informational-only** for firmware (the explicit `target_water_temp_c` governs the stop condition). |
@@ -105,9 +107,9 @@ Firmware posts the outcome to `POST /core/sensor/result` (full contract in §4.3
 
 ### 2.1 Context
 
-The workflow already *decides* about heating (`heater_on`, `temperature_tolerance_c`, `water_warmer_than_soil_action`, capped by `max_heater_seconds=600` and a max-water-temperature guardrail). This change specifies the **in-flight control loop** on the ESP32: who watches the tank probe and who decides the exact moment to switch the heater off. Goal: heat tank water to roughly root-zone temperature so watering never cold-shocks the roots — with safety that depends on neither the cloud, nor the AI, nor the heater's own electronics.
+The workflow already *decides* about heating (`heater_on`, `temperature_tolerance_c`, `water_warmer_than_soil_action`, capped by `max_heater_seconds=600` and a max-water-temperature guardrail). This change specifies the **in-flight control loop** on the ESP32: who watches the tank probe and who decides the exact moment to switch the heater off. Goal: heat tank water to roughly root-zone temperature so watering never cold-shocks the roots — with safety that depends on neither the cloud, nor the AI, nor the heater's own electronics (the built-in 26 °C thermostat is an independent physical layer, not the safety mechanism).
 
-**Relay reality check.** A relay is a switch: it does not regulate temperature, limit current, or make the heater safe by itself. The DS18B20 loop and cutoff are the actual control, and the de-energized coil (fail-OFF) is the only fail-safe. The heater remains **thermostat-less per the listing** (owner to confirm); the firmware cutoff is kept regardless and is the authoritative layer. The heater must remain **fully submerged**, mounted below the lowest normal water line and below the tank-empty float's trigger level. Never energize the heater when the tank is empty or when the water-probe reading is invalid.
+**Relay reality check.** A relay is a switch: it does not regulate temperature, limit current, or make the heater safe by itself. The DS18B20 loop, the ≤ 25 °C target clamp, and the 28 °C cutoff are the actual control, and the de-energized coil (fail-OFF) is the only fail-safe. The heater has a **built-in fixed thermostat at ~26 °C** (H3, resolved) — an independent physical layer that is not relied on for safety. The heater must remain **fully submerged**, mounted below the lowest normal water line and below the tank-empty float's trigger level. Never energize the heater when the tank is empty or when the water-probe reading is invalid.
 
 ### 2.2 Decision-response addition (`POST /core/sensor`)
 
@@ -116,7 +118,7 @@ The workflow already *decides* about heating (`heater_on`, `temperature_toleranc
 ```
 
 - Typically the current `soil_temp_c` (heat the water to what the roots already are), made explicit so firmware never infers it.
-- Workflow clamps it to **≤ 28 °C**.
+- Workflow clamps it to **≤ 25 °C** (below the heater's 26 °C thermostat plateau — see §2.4).
 - Existing fields keep their meaning: `heater_on`, `temperature_tolerance_c`, `max_heater_seconds` (600), `water_warmer_than_soil_action` ("proceed"|"defer"). Firmware maps these to its explicit target: heating is requested only when `heater_on=true`; the stop condition is always `target_water_temp_c` (or timeout, or cutoff). `temperature_tolerance_c` and `water_warmer_than_soil_action` are **kept in the contract and are informational-only for firmware (owner-approved)**; they do not override the explicit target.
 
 ### 2.3 Firmware closed loop
@@ -126,13 +128,13 @@ On a decision with `heater_on: true`:
 1. Read the tank DS18B20 (water) and root-zone DS18B20 (soil).
 2. Validate the water probe: reading is **invalid** if NaN or ≤ −100 °C (also treat the DS18B20 power-on default 85 °C as suspect on a first read). On invalid: heater stays OFF, abort, report `heater_aborted: "probe_invalid"`.
 3. Heater relay ON → sample the tank probe at ≤5 s intervals.
-4. Stop at the **first** of: tank temp reaches `target_water_temp_c` (success) / `max_heater_seconds` (600) elapsed / tank temp reaches the **absolute cutoff 28 °C** / `tank_empty` becomes true / probe becomes invalid.
+4. Stop at the **first** of: tank temp reaches `target_water_temp_c` (success, always ≤ 25 °C) / `max_heater_seconds` (600) elapsed / tank temp reaches the **absolute cutoff 28 °C** / `tank_empty` becomes true / probe becomes invalid. The ≤ 25 °C target ensures the loop terminates before the heater's 26 °C thermostat plateau; at a target ≥ 26 °C the element would plateau and only the 600 s timeout would end the cycle.
 5. Couple the result with a safety pause before any pump action (see §2.6).
 6. Report `final_water_temp_c` and `heating_seconds` via `POST /core/sensor/result` (§4.3).
 
-### 2.4 The absolute firmware cutoff — non-negotiable
+### 2.4 The absolute firmware cutoff — redundant last-resort
 
-A hardcoded, cloud-independent maximum tank temperature: **28 °C** (firmware constant; the strictest layer — the cloud-side `maxWaterTempC` guardrail is aligned to 28 and can never raise the firmware limit).
+A hardcoded, cloud-independent maximum tank temperature: **28 °C** (firmware constant; the cloud-side `maxWaterTempC` guardrail is aligned to 28 and can never raise the firmware limit). This is a **redundant last-resort**: normal operation is bounded by the ≤ 25 °C target and the heater's fixed 26 °C thermostat, so 28 °C can only be reached if the thermostat fails (or the probe/heater misbehaves). It is kept precisely for that failure case.
 
 - If the tank probe ever reads ≥ 28 °C — during heating, between cycles, whatever the cause — the heater relay de-energizes and stays OFF until the temperature falls below **26 °C** (28 − 2 °C hysteresis).
 - If the probe reads invalid, the heater de-energizes immediately (no temperature reasoning on bad data).
@@ -164,6 +166,9 @@ Pump and heater must **never draw simultaneously**:
 - PSU decision: keep heat-then-water sequencing (§2.6) and verify the 5 V rail under worst-case load. If measurement shows margin, sequencing may be relaxed; until then it is the rule.
 - **USB-C PD caveat:** the input is a USB 3.1 Type-C socket. A standard USB-C source without PD negotiation provides 5 V up to **3 A**; a 4–5 A 5 V rail is not guaranteed through a passive USB-C socket. The actual DC brick/charger rating and PD behavior are open (H4); if higher sustained current is needed, a dedicated 5 V supply may be required — decide after measuring.
 - The ESP32-CAM has an independent 5 V branch (2 A peak). If it shares the same brick, account for it in the worst-case budget.
+- **Expansion-board wiring (H8):** the heater and pump current must **not** route through the ESP32 expansion board's 5 V pins. Distribute 5 V **directly from the PSU to the relay board's** load/COM side; route **only the GPIO control signals** through the expansion board.
+- **Barrel-jack warning (H8):** the ESP32 30-pin expansion board's barrel jack is a **6.5 V+ regulated input — never feed it 5 V**. Power the ESP32 via **micro-USB or the 5 V pin**.
+- Heater physical fit inside the ~500 ml tank is a mounting check (H6).
 
 ---
 
@@ -178,8 +183,8 @@ Watering events are tied to sunrise/sunset; the WROOM knows the schedule in adva
 - Wake earlier for conditioning: **~25 min before** the scheduled event (`preheat_lead_minutes`, SystemConfig, default 25). The existing ~10-min event wake is unchanged.
 - Read tank probe and root-zone probe.
 - If water probe or soil probe is invalid → skip pre-heating; the event proceeds normally.
-- If `water_temp_c < soil_temp_c − preheat_margin_c` (default margin 2 °C) → run the Change-8 closed loop with target `soil_temp_c − 1 °C`; hard limits unchanged (600 s, 28 °C cutoff, hysteresis 2 °C, tank-empty and invalid-probe guards).
-- If water is already within the margin, or the target would be ≥ 28 °C (hot soil), do nothing.
+- If `water_temp_c < soil_temp_c − preheat_margin_c` (default margin 2 °C) → run the Change-8 closed loop with target `soil_temp_c − 1 °C` **clamped ≤ 25 °C**; hard limits unchanged (600 s, 28 °C cutoff, hysteresis 2 °C, tank-empty and invalid-probe guards).
+- If water is already within the margin, or the target would be ≥ 25 °C (at/above the 26 °C thermostat plateau, or hot soil), do nothing.
 
 ### 3.3 The decision flow is untouched
 
@@ -191,14 +196,14 @@ At the event, firmware POSTs `/core/sensor` exactly as today. The Decision Agent
 
 - Pre-heating **never delays or suppresses the event POST**. The conditioning window is best-effort.
 - The event flow runs at its normal time; if the water is still too cold, the Decision Agent's response governs, and any `heater_on: true` top-up runs under the Change-8 loop limits before watering.
-- Physical context: ~10 W raises ~1 L of water by roughly **1 °C per 7 minutes**, so a 25-min window can gain on the order of ~3.5 °C before losses. Tank volume is not yet fixed (H6), so this figure is provisional; if the required delta exceeds what the window can deliver, the top-up path covers the rest.
+- Physical context (H6 resolved, tank ≈ 500 ml): ~10 W raises ~500 ml by roughly **1 °C per 3.5 minutes**, so a 25-min window can cover on the order of **~7 °C** of delta before losses. Feasibility of the pre-heat window is therefore confirmed for realistic soil/water gaps; if a required delta exceeds what the window can deliver, the top-up path covers the rest. Heater physical fit inside the 500 ml tank is a mounting check.
 - The result report records `heating_seconds` + `final_water_temp_c` so the cloud can learn how often the window was insufficient.
 
 ### 3.5 Guards (firmware-local, unconditional)
 
 - Never pre-heat when `tank_empty` is true.
 - Never pre-heat when the heater is not confirmed submerged. Confirmation is **by mounting rule** (heater physically mounted below the float's trigger level; `tank_empty=false` then implies covered) — there is no separate submersion sensor in the current hardware. If the owner wants positive confirmation, adding a sensor is a separate design item.
-- 28 °C cutoff, 2 °C hysteresis, and 600 s ceiling apply exactly as in Change 8.
+- The ≤ 25 °C target clamp, the heater's 26 °C thermostat plateau, the 28 °C cutoff (redundant last-resort), 2 °C hysteresis, and the 600 s ceiling apply exactly as in Change 8.
 - Never pre-heat when either temperature probe is invalid.
 
 ### 3.6 Wake scheduling (firmware)
@@ -265,7 +270,7 @@ Two wake types: the **pre-heat wake** at `preheat_lead_minutes` (default 25 min)
 
 - ★ `target_water_grams` — null/0 when not watering, tank-empty, or dry-run.
 - ★ `max_pump_seconds` — guardrail ceiling (60).
-- ★ `target_water_temp_c` — typically `soil_temp_c`, clamped ≤ 28 °C; null when no heating.
+- ★ `target_water_temp_c` — typically `soil_temp_c`, clamped ≤ 25 °C (below the heater's 26 °C thermostat plateau); null when no heating.
 - `dry_run: true` and zeroed actuation whenever `dry_run_mode` is `true` (the cloud zeroes targets; the firmware **also** refuses to actuate in a dry-run build — owner-approved second layer).
 - Firmware must tolerate ≥120 s HTTP timeout (AI latency).
 
@@ -302,7 +307,7 @@ Request:
 }
 ```
 
-The 28 °C hard cutoff, 2 °C hysteresis, and 600 s heater ceiling remain firmware constants, not cloud-configurable.
+The ≤ 25 °C target clamp, the heater's 26 °C thermostat plateau, the 28 °C hard cutoff (redundant last-resort), the 2 °C hysteresis, and the 600 s heater ceiling are firmware constraints, not cloud-configurable (the workflow also clamps the target to ≤ 25 °C).
 
 ---
 
@@ -311,10 +316,11 @@ The 28 °C hard cutoff, 2 °C hysteresis, and 600 s heater ceiling remain firmwa
 1. **Boot fail-OFF:** all relay outputs de-energized as the first initialization action; external pull-resistors pending H1; verify with control-wire and power-loss tests.
 2. **Tank-empty interlock:** heater and pump may never be energized when `tank_empty` is true; if `tank_empty` becomes true mid-cycle, de-energize immediately and abort.
 3. **Invalid-probe abort:** water probe NaN or ≤ −100 °C (or suspect first-read 85 °C) → heater OFF immediately, abort, report.
-4. **Absolute cutoff:** 28 °C hard, cloud-independent; re-enable only below 26 °C.
+4. **Absolute cutoff:** 28 °C hard, cloud-independent (redundant last-resort — normal operation is bounded by the ≤ 25 °C target and the heater's 26 °C thermostat); re-enable only below 26 °C.
 5. **Never simultaneous:** heater OFF ≥ 5 s before pump ON.
 6. **Ceilings:** `max_pump_seconds` (60) and `max_heater_seconds` (600) are never exceeded.
 7. **Submersion:** heater mounted below the float trigger level, fully submerged; never energized otherwise.
+8. **Thermostat (independent layer, not the safety):** the heater's built-in fixed ~26 °C thermostat self-limits the element; the firmware target is clamped ≤ 25 °C and never relies on the thermostat to end a cycle.
 
 Workflow-side safety stays unchanged: `tank_empty` force-off, `min_rewater_interval_hours`, hard caps, dry-run zeroing — all deterministic code no AI output can override. All gram/degree targets pass through the same guardrails.
 
@@ -350,7 +356,7 @@ The owner adds these keys when this document is final. The actual sheet is not e
 1. `Decision Parser`: add `target_water_grams`.
 2. `Normalize Decision Output`: add `target_water_grams`.
 3. `Decision Agent` prompt: emit `target_water_grams`; keep `water_duration_seconds` as fallback/ceiling.
-4. `Safety Guardrails`: **read `max_pump_seconds` from SystemConfig (single source of truth; fall back to 60 only if the key is missing/blank) instead of the hardcoded `maxPumpSeconds = 60`**; clamp `target_water_grams`; zero/null under dry-run and tank-empty; emit `target_water_grams_final`, `max_pump_seconds_final`, `target_water_temp_c_final` (clamped ≤ 28); **change `maxWaterTempC` from 30 to 28**.
+4. `Safety Guardrails`: **read `max_pump_seconds` from SystemConfig (single source of truth; fall back to 60 only if the key is missing/blank) instead of the hardcoded `maxPumpSeconds = 60`**; clamp `target_water_grams`; zero/null under dry-run and tank-empty; emit `target_water_grams_final`, `max_pump_seconds_final`, `target_water_temp_c_final` (clamped ≤ 25); **change `maxWaterTempC` from 30 to 28**.
 5. `Build Decision Response`: add `target_water_grams`, `max_pump_seconds`, `target_water_temp_c`.
 6. **New endpoint receiver:** `Webhook "POST /core/sensor/result"` (`responseMode: onReceived`) → normalize the payload → Google Sheets **upsert the Events row by `EventID`** (write `WaterAddedGrams`, `WateringAborted`, `FinalWaterTempC`, `HeaterDurationSeconds`); no AI call; ack `{"status":"ok"}`. Also set `last_watered_utc` on confirmed completion (removes the provisional caveat for completed waterings).
 7. `Build Event Row`: map the new fields from the result.
@@ -378,7 +384,7 @@ Safety first, each loop in isolation, integration last.
 
 1. **Relay logic (no load):** input threshold at 3.3 V; active level; coil current; boot/reset state; fail-OFF on control unplug and power loss; flyback/snubber check; COM/NO continuity and wiring.
 2. **PSU bench:** 5 V rail droop under simulated max load (heater 2 A + pump + ESP32); relay switching transients; no brown-outs; CAM branch interaction; USB-C PD actual capability.
-3. **Heater in water (no plant):** cutoff at ≤27.9 °C; hysteresis re-enable below 26 °C; probe-disconnect → off immediately; `tank_empty=true` → off; submerged mounting check; measure real °C/min rise.
+3. **Heater in water (no plant):** verify the built-in ~26 °C thermostat plateau; confirm a ≤ 25 °C target terminates the loop **before** the plateau; verify the 28 °C cutoff logic via a simulated high probe reading (last-resort path); hysteresis re-enable below 26 °C; probe-disconnect → off immediately; `tank_empty=true` → off; submerged mounting check; measure real °C/min rise.
 4. **Pump in water:** inrush/stall current, prime/airlock behavior, flow rate, no-run when `tank_empty`; verify tubing mechanical isolation from the scale.
 5. **HX711:** calibration with known mass, repeatability, vibration noise while the pump runs; set filter + no-rise constants; verify stop accuracy vs target grams; document drainage/saucer effects.
 6. **Integrated dry-run:** with `dry_run_mode=true`, confirm zero actuation even with nonzero targets, and that the workflow stays inactive throughout.
@@ -387,26 +393,33 @@ Safety first, each loop in isolation, integration last.
 
 ## 10. Documentation updates (when this document is approved)
 
-- **Plan.md:** firmware stage gains the three tasks; §4.1 contract updated in both directions; §2.1 `Events` gains `WaterAddedGrams`, `WateringAborted`, `FinalWaterTempC`; §2.2 gains the new SystemConfig keys **and updates the `last_watered_utc` note — it is written on confirmed completion via `/core/sensor/result` (the provisional caveat applies only until the firmware result path exists)**; §5.2 prompt gains `target_water_grams`; §11 hardware notes gain the relay/heater/HX711 items; the safety section lists the 28 °C absolute cutoff alongside the 600 s cap; Branch A notes the closed loops.
+- **Plan.md:** firmware stage gains the three tasks; §4.1 contract updated in both directions; §2.1 `Events` gains `WaterAddedGrams`, `WateringAborted`, `FinalWaterTempC`; §2.2 gains the new SystemConfig keys **and updates the `last_watered_utc` note — it is written on confirmed completion via `/core/sensor/result` (the provisional caveat applies only until the firmware result path exists)**; §5.2 prompt gains `target_water_grams`; §11 hardware notes gain the relay/heater/HX711/expansion-board items (incl. the 26 °C thermostat and the ≤ 25 °C target clamp); the safety section lists the 28 °C absolute cutoff as a redundant last-resort alongside the 600 s cap; Branch A notes the closed loops.
 - **README.md / PRD pump wording:** change the pump description to "rated 3V–5V per listing" (`README.md` hardware summary; `SmartPot-Full-Engineering-Spec-PRD.md` hardware inventory line for the pump).
-- **Hardware notes:** HX711 drift caveat (tare on boot; trust deltas); heater mounting rule; PSU sizing / heat-then-water sequencing; relay fail-OFF verification; relay wiring (COM/NO) and polarity-unknown note; wake-scheduling note.
+- **Hardware notes:** HX711 drift caveat (tare on boot; trust deltas); heater mounting rule (fully submerged, below the float trigger; fit in ~500 ml); heater 26 °C built-in thermostat + firmware ≤ 25 °C target + 28 °C redundant cutoff; PSU sizing / heat-then-water sequencing / USB-C PD caveat; relay fail-OFF verification; relay wiring (COM/NO) and polarity-unknown note; **expansion-board wiring: no pump/heater current through the board's 5 V pins; barrel jack is 6.5 V+ only, never 5 V — power the ESP32 via micro-USB or the 5 V pin**; wake-scheduling note.
 - **README:** one line in the council description — "code guards physics, the scale verifies them, the firmware watches the thermometer."
 
 ---
 
-## 11. Open hardware questions (blocking items for wiring)
+## 11. Hardware questions
+
+### 11.1 Resolved
+
+| # | Item | Resolution |
+|---|---|---|
+| H2 | Pump | Rated **DC 3–5 V per listing** — running at 5 V on the shared rail is in spec. Bench measurements (current, stall current, flow rate, tubing ID) remain a bench item. |
+| H3 | Heater | Has a built-in **fixed thermostat at ~26 °C** (supply DC 5 V/2 A) — **not** thermostat-less. Firmware target clamped **≤ 25 °C**; **28 °C** cutoff kept as redundant last-resort. |
+| H5 | DS18B20 probes | Both are **waterproof stainless-steel probe-on-cable** types (tank + root zone). |
+| H6 | Tank | Volume ≈ **500 ml**; at ~10 W that is ≈ 1 °C per 3.5 min, so the 25-min pre-heat window covers ≈ 7 °C of delta before losses (feasibility confirmed). Heater physical fit is a mounting check. |
+| H8 (partial) | Expansion board | ESP32 30-pin expansion board identified. Notes: (1) pump/heater current must **not** route through the board's 5 V pins — distribute 5 V directly from the PSU to the relay board, GPIO control signals only through the board; (2) the barrel jack is a **6.5 V+ regulated input — never feed it 5 V**; power the ESP32 via micro-USB or the 5 V pin. Remaining: confirm free GPIOs (25/26/13/14). |
+
+### 11.2 Still open (blocking for wiring)
 
 | # | Item | Exact info needed |
 |---|---|---|
 | H1 | Relay board | Photos (top + bottom) with silkscreen; brand/model; chip markings; input trigger voltage spec (is 3.3 V enough?); active-HIGH/LOW; JD-VCC / opto-isolation jumper; per-channel coil current; contact rating; on-board flyback diodes |
-| H3 | Heater | Product-page details: model, W at 5 V, **thermostat present or not**, length/diameter, cable/plug type. (Listing did not state a thermostat — treated as thermostat-less. Firmware cutoff kept regardless.) |
 | H4 | PSU / power | DC brick or USB-C charger label (5 V, A); PD behavior; USB-C socket wiring; expansion-board regulator rating |
-| H5 | DS18B20 probes | Photos; waterproof stainless probe vs TO-92 module; cable length; pull-up present |
-| H6 | Tank | Volume (L), shape, water-level range; float trigger height relative to the heater position |
 | H7 | Load-cell mounting | Photos of pot/cell arrangement; whether pump/tubing mechanically touch the pot or scale |
-| H8 | Expansion board | Photo/pinout confirming 5 V rail and free GPIOs (GPIO25/26/13/14) |
+| H8 (rest) | Expansion board | Confirm free GPIOs GPIO25/26/13/14 and the board's 5 V-pin behavior |
 | H9 | Relay board power | Confirm VCC can share the 5 V rail and that the rail can supply coil currents |
 
-**H2 is resolved** (pump rated DC 3–5 V per listing); its remaining measurements (current, stall current, flow rate, tubing ID) are a bench item, not a wiring blocker.
-
-No heater/pump wiring is final until H1–H5 are answered.
+No heater/pump wiring is final until **H1 and H4** are answered (H7 affects the weight-loop calibration, not the actuator wiring).
