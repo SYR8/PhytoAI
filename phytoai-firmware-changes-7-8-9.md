@@ -303,9 +303,12 @@ Request:
 {
   "preheat_margin_c": 2,
   "preheat_lead_minutes": 25,
-  "max_pump_seconds": 60
+  "max_pump_seconds": 60,
+  "next_scan_utc": "2026-08-24T06:30:00Z"
 }
 ```
+
+- `next_scan_utc` (Change 10) — the scheduled weekly scan capture time; the CAM wakes at this time and POSTs `/yolo-scan` autonomously. The schedule announcement (`scan_scheduled`) fires T−30 min before it.
 
 The ≤ 25 °C target clamp, the heater's 26 °C thermostat plateau, the 28 °C hard cutoff (redundant last-resort), the 2 °C hysteresis, and the 600 s heater ceiling are firmware constraints, not cloud-configurable (the workflow also clamps the target to ≤ 25 °C).
 
@@ -351,7 +354,9 @@ The owner adds these keys when this document is final. The actual sheet is not e
 
 ---
 
-## 7. Phase-5 / firmware-stage workflow changes required (do not apply yet)
+## 7. Phase-5 workflow change list (Changes 7–11; do not apply yet)
+
+### 7.1 Changes 7–9 — closed-loop actuation (firmware-facing workflow changes)
 
 1. `Decision Parser`: add `target_water_grams`.
 2. `Normalize Decision Output`: add `target_water_grams`.
@@ -361,8 +366,37 @@ The owner adds these keys when this document is final. The actual sheet is not e
 6. **New endpoint receiver:** `Webhook "POST /core/sensor/result"` (`responseMode: onReceived`) → normalize the payload → Google Sheets **upsert the Events row by `EventID`** (write `WaterAddedGrams`, `WateringAborted`, `FinalWaterTempC`, `HeaterDurationSeconds`); no AI call; ack `{"status":"ok"}`. Also set `last_watered_utc` on confirmed completion (removes the provisional caveat for completed waterings).
 7. `Build Event Row`: map the new fields from the result.
 8. `Build Context` + History Analyst prompt: use `WaterAddedGrams` vs moisture delta (actual flow-rate learning).
-9. `GET /config` (`Device Config` branch): expose `preheat_margin_c`, `preheat_lead_minutes`, `max_pump_seconds` from SystemConfig.
+9. `GET /config` (`Device Config` branch): expose `preheat_margin_c`, `preheat_lead_minutes`, `max_pump_seconds` from SystemConfig; **also add `next_scan_utc` (Change 10, item 15)**.
 10. Plan.md §4.1/§2.1/§2.2/§5.2/§11 + README updates (see §10).
+
+### 7.2 Change 10 — scheduled camera captures, no permission gate (Branch C)
+
+11. **Delete the positioning HITL chain:** `Build Position Camera Row`, `Append Position Camera`, `Wait Camera Positioned`, `Camera Positioned?`, the `Build Open Session Row` / `Build Expire Row` pair, and `Expire Position Notification`; drop the `scan_position` notification type.
+12. **Scheduler path (Weekly Scan trigger, T−30 min):** keep the battery check; on success set `scan_session_active=true` (SystemConfig upsert) and append an **informational** `scan_scheduled` Notifications row — `status=done`, **no `response_options`, no `resume_url`**, no Wait. (The battery path keeps `scan_postponed`.)
+13. **Close path:** delete the "return camera to charging dock" notification (`Build Return Camera Row`, `Append Return Camera`); keep `scan_session_active=false` via `Build Close Session Row` → `Update Close Session` → `Respond Scan Done`, rewired from `Scan Sweep Done` / `Read SystemConfig D2`.
+14. **Quality safety net:** after `Normalize Vision Output`, add an IF on poor `framing_quality` → append an informational notification advising to check camera docking; the scan completes and logs regardless. (Type name TBD — proposed `scan_quality`.)
+15. **`GET /config`:** add `next_scan_utc` (computed from the weekly-scan schedule) alongside `next_sunrise_utc` / `next_sunset_utc`.
+16. **Wait inventory:** 3 → **2** (`Wait Verdict Response`, `Wait Followup Response`, both 7 d). Plan §8 Q3 (long-Wait timeouts) narrows to those two HITLs.
+17. **Schedule definition:** the canonical weekly scan time must be fixed (currently the `Weekly Scan` cron fires Mon 06:00 UTC); the scheduler path fires T−30 min before it and `next_scan_utc` must match that scan time.
+
+### 7.3 Change 11 — placement & care review in the daily photo loop (Branch B)
+
+18. `Photo Parser` + `Photo Analysis Agent` prompt: add `placement_ok` (bool), `placement_recommendation` (string|null), `placement_urgency` ("none" | "soon" | "urgent"), `care_needs` (array of strings).
+19. `Normalize Photo Output`: add the four fields (null-safe).
+20. `Build Multimodal Context`: add the code-only **stress-signal fact block** (sustained high air temperature, direct-sun LDR signature around solar noon, soil temperature vs. species comfort, humidity extremes, rapid moisture drop) — facts only, **no thresholds/actions in code**.
+21. **Conditional judge branch:** new IF on thinker flags (`placement_ok=false` OR `placement_urgency≠none` OR non-trivial `care_needs`) → `Read AgentNotes Placement` → `Build Placement Prompt` → **`Placement Reviewer`** (agent #7, shared LM) with **`Placement Parser`** (`outputParserStructured`, own schema: `placement_change_recommended`, `urgency`, `recommendation`, `reasoning`) → `Normalize Placement Output` → `Build Placement Notes Rows` → `Append AgentNotes`; then IF `placement_change_recommended` → `Build Placement Advice Row` → `Append Placement Advice`.
+22. **Shared-LM wiring:** add `Placement Reviewer` + `Placement Parser` to `OpenRouter Gemma` `[ai_languageModel]` — target count 12 → **14**.
+23. **AgentNotes pattern (confirmed against live):** own reader (`Read AgentNotes Placement`, agent = `Placement Reviewer`, status = `active`) + own writer (`Build Placement Notes Rows`) into the shared `Append AgentNotes` sink. The live sink currently receives 5 writer branches on its single input and runs per arriving batch, so a 6th branch follows the same pattern. The prompt labels its own notes **UNVERIFIED HYPOTHESES**.
+24. **Advisory output:** Notifications type `placement_advice`, informational (`status=done`, no buttons); urgent flag when urgency = `urgent` (future push). The placement/care summary is also logged into the event's `ai_notes`; **no new Sheets columns**.
+25. **Notifications type list:** remove `scan_position` and `scan_return_dock`; add `scan_scheduled` + `placement_advice` (plus the framing-quality type once named).
+
+### 7.4 Integration details to pin down
+
+- **Framing-quality notification type name** is not specified in Change 10 (proposed `scan_quality`) — owner to confirm.
+- **Placement output merge point:** define exactly where the placement/care summary merges into the event's `ai_notes` (proposed: extend `Build Photo Update Row`); the spec logs it but names no merge node.
+- **Weekly scan time:** confirm scan time (trigger + 30 min vs. a moved cron) and ensure `next_scan_utc` matches.
+- **Agent count / docs:** Plan and README still describe "5 specialists" and the old scan HITL gate; the Phase-6 sync (§10) must update agent enumerations (6 → 7 wired agents) and the Branch C narrative.
+- **Cost note:** `Placement Reviewer` is conditional (only on thinker flags), so normal-day cost stays near zero; each triggered run adds one shared-LM call + one parser pass + one AgentNotes read, plus the advice append.
 
 ---
 
@@ -397,6 +431,8 @@ Safety first, each loop in isolation, integration last.
 - **README.md / PRD pump wording:** change the pump description to "rated 3V–5V per listing" (`README.md` hardware summary; `SmartPot-Full-Engineering-Spec-PRD.md` hardware inventory line for the pump).
 - **Hardware notes:** HX711 drift caveat (tare on boot; trust deltas); heater mounting rule (fully submerged, below the float trigger; fit in ~500 ml); heater 26 °C built-in thermostat + firmware ≤ 25 °C target + 28 °C redundant cutoff; PSU sizing / heat-then-water sequencing / USB-C PD caveat; relay fail-OFF verification; relay wiring (COM/NO) and polarity-unknown note; **expansion-board wiring: no pump/heater current through the board's 5 V pins; barrel jack is 6.5 V+ only, never 5 V — power the ESP32 via micro-USB or the 5 V pin**; wake-scheduling note.
 - **README:** one line in the council description — "code guards physics, the scale verifies them, the firmware watches the thermometer."
+- **Plan.md (Changes 10–11 sync, Phase 6):** §2.3 Notifications type list — remove `scan_position` and `scan_return_dock`, add `scan_scheduled` + `placement_advice` (plus the framing-quality type once named); §3.2 Branch B — add the placement/care review (stress-signal facts, conditional `Placement Reviewer`, advisory `placement_advice` row, no new columns); §3.3 Branch C scheduler path — remove the position-HITL gate, add the T−30 informational `scan_scheduled` row + scheduler-set `scan_session_active`; §3.3 close path and §4.4 — remove the return-to-dock notification; §4.5 / `GET /config` — add `next_scan_utc`; new §5.6 — Placement Reviewer prompt/schema; §5.2 — Photo prompt gains the four placement fields; §8 Q3 — narrow to the two 7-day verdict/follow-up Waits; §1/agent enumerations — 6 wired agents → 7 (`Placement Reviewer`) and fix the "5 specialists" list; Wait-node inventory 3 → 2.
+- **README (Changes 10–11 sync, Phase 6):** Branch C — remove the "position the camera" HITL + timeout/expired path and the "return camera to dock" step; announce `scan_scheduled`; note the framing-quality safety net; Branch B/photo — mention placement & care advice; council paragraph — add `Placement Reviewer` and the advisory line; agent list 6 → 7.
 
 ---
 
