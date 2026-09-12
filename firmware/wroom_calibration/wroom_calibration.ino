@@ -13,7 +13,7 @@
 #define PIN_RELAY_PUMP   13
 #define PIN_RELAY_HEATER (-1)
 
-#define TANK_EMPTY_LEVEL  HIGH
+#define TANK_EMPTY_LEVEL  LOW
 #define RELAY_ACTIVE_LOW  true
 
 float HX711_SCALE_FACTOR = 0.0f;
