@@ -442,11 +442,7 @@ void setup() {
   pinMode(PIN_LIGHT_DO, INPUT);
   pinMode(PIN_SOIL_ADC, INPUT);
 
-#if defined(ESP_ARDUINO_VERSION_MAJOR) && (ESP_ARDUINO_VERSION_MAJOR >= 3)
-  analogSetAttenuation(ADC_ATTEN_DB_12);
-#else
   analogSetAttenuation(ADC_11db);
-#endif
 
   dht.begin();
   scanDsQuiet();
