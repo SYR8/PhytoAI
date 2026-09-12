@@ -2,5 +2,9 @@
 opencode.json
 node_modules/
 *.env
+.env
+.env.*
 mcp-auth.json
 client_secret_*.json
+*.pem
+*.key
