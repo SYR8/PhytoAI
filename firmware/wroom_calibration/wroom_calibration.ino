@@ -223,13 +223,14 @@ void readAllSensors() {
   Serial.print(g_soilMax);
   Serial.println(')');
 
-  Serial.print(F("[HX711] raw_avg5="));
+  Serial.print(F("[HX711] "));
   if (hxWait(1000)) {
-    long raw = hxRawAvg(5);
-    Serial.print(raw);
     if (HX711_SCALE_FACTOR != 0.0f) {
-      Serial.print(F("  grams="));
-      Serial.print((float)raw / HX711_SCALE_FACTOR, 1);
+      Serial.print(F("grams="));
+      Serial.print(scale.get_units(5), 1);
+    } else {
+      Serial.print(F("raw_avg5="));
+      Serial.print(hxRawAvg(5));
     }
   } else {
     Serial.print(F("(not ready)"));
@@ -447,6 +448,7 @@ void setup() {
   dht.begin();
   scanDsQuiet();
   scale.begin(PIN_HX711_DT, PIN_HX711_SCK);
+  if (HX711_SCALE_FACTOR != 0.0f) scale.set_scale(HX711_SCALE_FACTOR);
 
   printMenu();
   printConstants();
