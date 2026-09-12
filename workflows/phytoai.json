@@ -541,13 +541,7 @@
       "position": [
         2432,
         528
-      ],
-      "credentials": {
-        "googleSheetsOAuth2Api": {
-          "id": "BtlC7i6yZtrvbClV",
-          "name": "Google Sheets Zaki"
-        }
-      }
+      ]
     },
     {
       "parameters": {
@@ -1114,13 +1108,7 @@
       "position": [
         1328,
         2240
-      ],
-      "credentials": {
-        "googleDriveOAuth2Api": {
-          "id": "63oMZw3AwAlWn4Sz",
-          "name": "Google Drive account"
-        }
-      }
+      ]
     },
     {
       "parameters": {
@@ -1193,13 +1181,7 @@
         2208
       ],
       "executeOnce": true,
-      "alwaysOutputData": true,
-      "credentials": {
-        "googleSheetsOAuth2Api": {
-          "id": "BtlC7i6yZtrvbClV",
-          "name": "Google Sheets Zaki"
-        }
-      }
+      "alwaysOutputData": true
     },
     {
       "parameters": {
@@ -1565,13 +1547,7 @@
       "position": [
         3104,
         -288
-      ],
-      "credentials": {
-        "googleSheetsOAuth2Api": {
-          "id": "BtlC7i6yZtrvbClV",
-          "name": "Google Sheets Zaki"
-        }
-      }
+      ]
     },
     {
       "parameters": {
@@ -1624,13 +1600,7 @@
       "position": [
         2864,
         528
-      ],
-      "credentials": {
-        "googleSheetsOAuth2Api": {
-          "id": "BtlC7i6yZtrvbClV",
-          "name": "Google Sheets Zaki"
-        }
-      }
+      ]
     },
     {
       "parameters": {
@@ -1681,13 +1651,7 @@
       "position": [
         4800,
         -144
-      ],
-      "credentials": {
-        "googleSheetsOAuth2Api": {
-          "id": "BtlC7i6yZtrvbClV",
-          "name": "Google Sheets Zaki"
-        }
-      }
+      ]
     },
     {
       "parameters": {
@@ -1722,13 +1686,7 @@
       "position": [
         4816,
         160
-      ],
-      "credentials": {
-        "googleSheetsOAuth2Api": {
-          "id": "BtlC7i6yZtrvbClV",
-          "name": "Google Sheets Zaki"
-        }
-      }
+      ]
     },
     {
       "parameters": {
@@ -1766,13 +1724,7 @@
       "position": [
         1104,
         2208
-      ],
-      "credentials": {
-        "googleSheetsOAuth2Api": {
-          "id": "BtlC7i6yZtrvbClV",
-          "name": "Google Sheets Zaki"
-        }
-      }
+      ]
     },
     {
       "parameters": {
@@ -1810,13 +1762,7 @@
       "position": [
         1104,
         2000
-      ],
-      "credentials": {
-        "googleSheetsOAuth2Api": {
-          "id": "BtlC7i6yZtrvbClV",
-          "name": "Google Sheets Zaki"
-        }
-      }
+      ]
     },
     {
       "parameters": {
@@ -1854,13 +1800,7 @@
       "position": [
         1104,
         1808
-      ],
-      "credentials": {
-        "googleSheetsOAuth2Api": {
-          "id": "BtlC7i6yZtrvbClV",
-          "name": "Google Sheets Zaki"
-        }
-      }
+      ]
     },
     {
       "parameters": {
@@ -1895,13 +1835,7 @@
       "position": [
         1760,
         2000
-      ],
-      "credentials": {
-        "googleSheetsOAuth2Api": {
-          "id": "BtlC7i6yZtrvbClV",
-          "name": "Google Sheets Zaki"
-        }
-      }
+      ]
     },
     {
       "parameters": {
@@ -1926,13 +1860,7 @@
         2400
       ],
       "executeOnce": true,
-      "alwaysOutputData": true,
-      "credentials": {
-        "googleSheetsOAuth2Api": {
-          "id": "BtlC7i6yZtrvbClV",
-          "name": "Google Sheets Zaki"
-        }
-      }
+      "alwaysOutputData": true
     },
     {
       "parameters": {
@@ -1957,13 +1885,7 @@
         2400
       ],
       "executeOnce": true,
-      "alwaysOutputData": true,
-      "credentials": {
-        "googleSheetsOAuth2Api": {
-          "id": "BtlC7i6yZtrvbClV",
-          "name": "Google Sheets Zaki"
-        }
-      }
+      "alwaysOutputData": true
     },
     {
       "parameters": {
@@ -2002,13 +1924,7 @@
       "position": [
         1760,
         2240
-      ],
-      "credentials": {
-        "googleSheetsOAuth2Api": {
-          "id": "BtlC7i6yZtrvbClV",
-          "name": "Google Sheets Zaki"
-        }
-      }
+      ]
     },
     {
       "parameters": {
@@ -2046,13 +1962,7 @@
       "position": [
         5632,
         2288
-      ],
-      "credentials": {
-        "googleSheetsOAuth2Api": {
-          "id": "BtlC7i6yZtrvbClV",
-          "name": "Google Sheets Zaki"
-        }
-      }
+      ]
     },
     {
       "parameters": {
@@ -2087,13 +1997,7 @@
       "position": [
         6288,
         2256
-      ],
-      "credentials": {
-        "googleSheetsOAuth2Api": {
-          "id": "BtlC7i6yZtrvbClV",
-          "name": "Google Sheets Zaki"
-        }
-      }
+      ]
     },
     {
       "parameters": {
@@ -2128,13 +2032,7 @@
       "position": [
         6288,
         2336
-      ],
-      "credentials": {
-        "googleSheetsOAuth2Api": {
-          "id": "BtlC7i6yZtrvbClV",
-          "name": "Google Sheets Zaki"
-        }
-      }
+      ]
     },
     {
       "parameters": {
@@ -2169,13 +2067,7 @@
       "position": [
         8048,
         2208
-      ],
-      "credentials": {
-        "googleSheetsOAuth2Api": {
-          "id": "BtlC7i6yZtrvbClV",
-          "name": "Google Sheets Zaki"
-        }
-      }
+      ]
     },
     {
       "parameters": {
@@ -2210,13 +2102,7 @@
       "position": [
         8048,
         2320
-      ],
-      "credentials": {
-        "googleSheetsOAuth2Api": {
-          "id": "BtlC7i6yZtrvbClV",
-          "name": "Google Sheets Zaki"
-        }
-      }
+      ]
     },
     {
       "parameters": {
@@ -2300,13 +2186,7 @@
       "position": [
         2864,
         528
-      ],
-      "credentials": {
-        "googleSheetsOAuth2Api": {
-          "id": "BtlC7i6yZtrvbClV",
-          "name": "Google Sheets Zaki"
-        }
-      }
+      ]
     },
     {
       "parameters": {
@@ -2361,13 +2241,7 @@
         2400
       ],
       "executeOnce": true,
-      "alwaysOutputData": true,
-      "credentials": {
-        "googleSheetsOAuth2Api": {
-          "id": "BtlC7i6yZtrvbClV",
-          "name": "Google Sheets Zaki"
-        }
-      }
+      "alwaysOutputData": true
     },
     {
       "parameters": {
@@ -2392,13 +2266,7 @@
         2608
       ],
       "executeOnce": true,
-      "alwaysOutputData": true,
-      "credentials": {
-        "googleSheetsOAuth2Api": {
-          "id": "BtlC7i6yZtrvbClV",
-          "name": "Google Sheets Zaki"
-        }
-      }
+      "alwaysOutputData": true
     },
     {
       "parameters": {
@@ -2552,13 +2420,7 @@
       "position": [
         4160,
         0
-      ],
-      "credentials": {
-        "googleSheetsOAuth2Api": {
-          "id": "BtlC7i6yZtrvbClV",
-          "name": "Google Sheets Zaki"
-        }
-      }
+      ]
     },
     {
       "parameters": {
@@ -2687,13 +2549,7 @@
       "position": [
         448,
         -160
-      ],
-      "credentials": {
-        "googleSheetsOAuth2Api": {
-          "id": "BtlC7i6yZtrvbClV",
-          "name": "Google Sheets Zaki"
-        }
-      }
+      ]
     },
     {
       "parameters": {
@@ -2717,13 +2573,7 @@
         672,
         -160
       ],
-      "executeOnce": true,
-      "credentials": {
-        "googleSheetsOAuth2Api": {
-          "id": "BtlC7i6yZtrvbClV",
-          "name": "Google Sheets Zaki"
-        }
-      }
+      "executeOnce": true
     },
     {
       "parameters": {
@@ -2760,13 +2610,7 @@
         -176
       ],
       "executeOnce": true,
-      "alwaysOutputData": true,
-      "credentials": {
-        "googleSheetsOAuth2Api": {
-          "id": "BtlC7i6yZtrvbClV",
-          "name": "Google Sheets Zaki"
-        }
-      }
+      "alwaysOutputData": true
     },
     {
       "parameters": {
@@ -2895,13 +2739,7 @@
         -320
       ],
       "executeOnce": true,
-      "alwaysOutputData": true,
-      "credentials": {
-        "googleSheetsOAuth2Api": {
-          "id": "BtlC7i6yZtrvbClV",
-          "name": "Google Sheets Zaki"
-        }
-      }
+      "alwaysOutputData": true
     },
     {
       "parameters": {
@@ -2971,13 +2809,7 @@
       "position": [
         1008,
         1408
-      ],
-      "credentials": {
-        "googleSheetsOAuth2Api": {
-          "id": "BtlC7i6yZtrvbClV",
-          "name": "Google Sheets Zaki"
-        }
-      }
+      ]
     },
     {
       "parameters": {
@@ -3261,13 +3093,7 @@
       "position": [
         3344,
         -256
-      ],
-      "credentials": {
-        "googleSheetsOAuth2Api": {
-          "id": "BtlC7i6yZtrvbClV",
-          "name": "Google Sheets Zaki"
-        }
-      }
+      ]
     },
     {
       "parameters": {
@@ -3308,13 +3134,7 @@
       "position": [
         224,
         528
-      ],
-      "credentials": {
-        "googleSheetsOAuth2Api": {
-          "id": "BtlC7i6yZtrvbClV",
-          "name": "Google Sheets Zaki"
-        }
-      }
+      ]
     },
     {
       "parameters": {
@@ -3338,13 +3158,7 @@
         448,
         528
       ],
-      "executeOnce": true,
-      "credentials": {
-        "googleSheetsOAuth2Api": {
-          "id": "BtlC7i6yZtrvbClV",
-          "name": "Google Sheets Zaki"
-        }
-      }
+      "executeOnce": true
     },
     {
       "parameters": {
@@ -3379,13 +3193,7 @@
         528
       ],
       "executeOnce": true,
-      "alwaysOutputData": true,
-      "credentials": {
-        "googleSheetsOAuth2Api": {
-          "id": "BtlC7i6yZtrvbClV",
-          "name": "Google Sheets Zaki"
-        }
-      }
+      "alwaysOutputData": true
     },
     {
       "parameters": {
@@ -3428,8 +3236,8 @@
       "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
       "typeVersion": 1.3,
       "position": [
-        1264,
-        720
+        1120,
+        768
       ]
     },
     {
@@ -3556,13 +3364,7 @@
       "position": [
         1552,
         528
-      ],
-      "credentials": {
-        "googleDriveOAuth2Api": {
-          "id": "63oMZw3AwAlWn4Sz",
-          "name": "Google Drive account"
-        }
-      }
+      ]
     },
     {
       "parameters": {
@@ -3616,13 +3418,7 @@
         224,
         2240
       ],
-      "alwaysOutputData": true,
-      "credentials": {
-        "googleSheetsOAuth2Api": {
-          "id": "BtlC7i6yZtrvbClV",
-          "name": "Google Sheets Zaki"
-        }
-      }
+      "alwaysOutputData": true
     },
     {
       "parameters": {
@@ -3702,13 +3498,7 @@
       "position": [
         224,
         2544
-      ],
-      "credentials": {
-        "googleSheetsOAuth2Api": {
-          "id": "BtlC7i6yZtrvbClV",
-          "name": "Google Sheets Zaki"
-        }
-      }
+      ]
     },
     {
       "parameters": {
@@ -3818,13 +3608,7 @@
       "position": [
         448,
         3200
-      ],
-      "credentials": {
-        "googleSheetsOAuth2Api": {
-          "id": "BtlC7i6yZtrvbClV",
-          "name": "Google Sheets Zaki"
-        }
-      }
+      ]
     },
     {
       "parameters": {
@@ -3905,13 +3689,7 @@
       "position": [
         672,
         2944
-      ],
-      "credentials": {
-        "googleSheetsOAuth2Api": {
-          "id": "BtlC7i6yZtrvbClV",
-          "name": "Google Sheets Zaki"
-        }
-      }
+      ]
     },
     {
       "parameters": {
@@ -3951,13 +3729,7 @@
         224,
         3344
       ],
-      "alwaysOutputData": true,
-      "credentials": {
-        "googleSheetsOAuth2Api": {
-          "id": "BtlC7i6yZtrvbClV",
-          "name": "Google Sheets Zaki"
-        }
-      }
+      "alwaysOutputData": true
     },
     {
       "parameters": {
@@ -4007,13 +3779,7 @@
       "position": [
         224,
         3552
-      ],
-      "credentials": {
-        "googleDriveOAuth2Api": {
-          "id": "63oMZw3AwAlWn4Sz",
-          "name": "Google Drive account"
-        }
-      }
+      ]
     },
     {
       "parameters": {
@@ -4038,13 +3804,7 @@
       "position": [
         448,
         3552
-      ],
-      "credentials": {
-        "googleDriveOAuth2Api": {
-          "id": "63oMZw3AwAlWn4Sz",
-          "name": "Google Drive account"
-        }
-      }
+      ]
     },
     {
       "parameters": {
@@ -4069,13 +3829,7 @@
       "position": [
         880,
         3552
-      ],
-      "credentials": {
-        "googleDriveOAuth2Api": {
-          "id": "63oMZw3AwAlWn4Sz",
-          "name": "Google Drive account"
-        }
-      }
+      ]
     },
     {
       "parameters": {
@@ -4123,13 +3877,7 @@
       "position": [
         1328,
         3552
-      ],
-      "credentials": {
-        "googleSheetsOAuth2Api": {
-          "id": "BtlC7i6yZtrvbClV",
-          "name": "Google Sheets Zaki"
-        }
-      }
+      ]
     },
     {
       "parameters": {
@@ -4154,13 +3902,7 @@
         3552
       ],
       "executeOnce": true,
-      "alwaysOutputData": true,
-      "credentials": {
-        "googleSheetsOAuth2Api": {
-          "id": "BtlC7i6yZtrvbClV",
-          "name": "Google Sheets Zaki"
-        }
-      }
+      "alwaysOutputData": true
     },
     {
       "parameters": {
@@ -4230,8 +3972,8 @@
       "type": "n8n-nodes-base.set",
       "typeVersion": 3.4,
       "position": [
-        320,
-        4704
+        1856,
+        3552
       ]
     },
     {
@@ -4268,15 +4010,9 @@
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.7,
       "position": [
-        544,
-        4704
-      ],
-      "credentials": {
-        "googleSheetsOAuth2Api": {
-          "id": "BtlC7i6yZtrvbClV",
-          "name": "Google Sheets Zaki"
-        }
-      }
+        2080,
+        3552
+      ]
     },
     {
       "parameters": {
@@ -4321,13 +4057,7 @@
         1808
       ],
       "executeOnce": true,
-      "alwaysOutputData": true,
-      "credentials": {
-        "googleSheetsOAuth2Api": {
-          "id": "BtlC7i6yZtrvbClV",
-          "name": "Google Sheets Zaki"
-        }
-      }
+      "alwaysOutputData": true
     },
     {
       "parameters": {
@@ -4488,13 +4218,7 @@
         2400
       ],
       "executeOnce": true,
-      "alwaysOutputData": true,
-      "credentials": {
-        "googleSheetsOAuth2Api": {
-          "id": "BtlC7i6yZtrvbClV",
-          "name": "Google Sheets Zaki"
-        }
-      }
+      "alwaysOutputData": true
     },
     {
       "parameters": {
@@ -4537,8 +4261,8 @@
       "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
       "typeVersion": 1.3,
       "position": [
-        3088,
-        2400
+        3072,
+        2528
       ]
     },
     {
@@ -4642,13 +4366,7 @@
         2800
       ],
       "executeOnce": true,
-      "alwaysOutputData": true,
-      "credentials": {
-        "googleSheetsOAuth2Api": {
-          "id": "BtlC7i6yZtrvbClV",
-          "name": "Google Sheets Zaki"
-        }
-      }
+      "alwaysOutputData": true
     },
     {
       "parameters": {
@@ -4812,13 +4530,7 @@
       "position": [
         6944,
         2256
-      ],
-      "credentials": {
-        "googleSheetsOAuth2Api": {
-          "id": "BtlC7i6yZtrvbClV",
-          "name": "Google Sheets Zaki"
-        }
-      }
+      ]
     },
     {
       "parameters": {
@@ -5014,13 +4726,7 @@
       "position": [
         7168,
         2256
-      ],
-      "credentials": {
-        "googleSheetsOAuth2Api": {
-          "id": "BtlC7i6yZtrvbClV",
-          "name": "Google Sheets Zaki"
-        }
-      }
+      ]
     },
     {
       "parameters": {
@@ -5073,13 +4779,7 @@
       "position": [
         8704,
         2208
-      ],
-      "credentials": {
-        "googleSheetsOAuth2Api": {
-          "id": "BtlC7i6yZtrvbClV",
-          "name": "Google Sheets Zaki"
-        }
-      }
+      ]
     },
     {
       "parameters": {
@@ -5149,13 +4849,7 @@
       "position": [
         880,
         3200
-      ],
-      "credentials": {
-        "googleSheetsOAuth2Api": {
-          "id": "BtlC7i6yZtrvbClV",
-          "name": "Google Sheets Zaki"
-        }
-      }
+      ]
     },
     {
       "parameters": {
@@ -5245,7 +4939,7 @@
       "parameters": {
         "content": "Branch C - Scan photo panel: Vision Analyst + YOLO stub + Judge + Treatment Advisor + HITL verdict/follow-up",
         "height": 800,
-        "width": 2280,
+        "width": 4008,
         "color": 5
       },
       "id": "d693d3f8-2605-4568-9ea5-07d229ffbaf2",
@@ -5300,16 +4994,10 @@
       "typeVersion": 1,
       "position": [
         1536,
-        240
+        256
       ],
       "id": "8f6dc480-820b-4b7e-9aa3-99a134303222",
-      "name": "OpenRouter Gemma",
-      "credentials": {
-        "openRouterApi": {
-          "id": "oz9XKwRSjHP41p1G",
-          "name": "OpenRouter account"
-        }
-      }
+      "name": "OpenRouter Gemma"
     }
   ],
   "connections": {
