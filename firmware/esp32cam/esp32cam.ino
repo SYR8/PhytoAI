@@ -59,9 +59,11 @@ const char* PATH_CONFIG    = "/config";
 #define PIN_CAPTURE_BUTTON    13
 #define BUTTON_DEBOUNCE_MS    50
 
-// Flash LED on the AI Thinker board is active-LOW.
+// Bench note: on this unit the flash LED is OFF=LOW (HIGH lights it); if the
+// 'f' torch toggles inverted, flip FLASH_LED_ON_LEVEL.
 #define PIN_FLASH_LED         4
-#define FLASH_LED_ON_LEVEL    LOW
+#define FLASH_LED_ON_LEVEL    HIGH
+#define FLASH_LED_OFF_LEVEL   LOW
 
 // Camera frame settings (PSRAM when present, DRAM fallback).
 #define CAM_FRAME_SIZE_PSRAM  FRAMESIZE_SVGA
@@ -104,10 +106,16 @@ String isoNow() {
   return String(buf);
 }
 
+void forceFlashLedOff() {
+  pinMode(PIN_FLASH_LED, OUTPUT);
+  digitalWrite(PIN_FLASH_LED, FLASH_LED_OFF_LEVEL);
+}
+
 void flashLedBlink() {
+  pinMode(PIN_FLASH_LED, OUTPUT);
   digitalWrite(PIN_FLASH_LED, FLASH_LED_ON_LEVEL);
   delay(80);
-  digitalWrite(PIN_FLASH_LED, FLASH_LED_ON_LEVEL == LOW ? HIGH : LOW);
+  forceFlashLedOff();
 }
 
 int batteryRawAvg() {
@@ -182,6 +190,7 @@ bool ensureCamera() {
   cameraReady = true;
   Serial.println(F("[CAM] initialized"));
   captureCameraWarmup();
+  forceFlashLedOff();
   return true;
 }
 
@@ -394,6 +403,7 @@ void doPhotoPost() {
   String respBody;
   bool sent = postMultipart(PATH_PHOTO, fields, 5, fb, status, respBody);
   esp_camera_fb_return(fb);
+  forceFlashLedOff();
   if (!sent) return;
   Serial.print(F("[POST /core/photo] status="));
   Serial.println(status);
@@ -415,6 +425,7 @@ void cmdHealth() {
   Serial.print(F(" bytes="));
   Serial.println(fb->len);
   esp_camera_fb_return(fb);
+  forceFlashLedOff();
 }
 
 void cmdBattery() {
@@ -452,6 +463,7 @@ void cmdScan() {
   String respBody;
   bool sent = postMultipart(PATH_SCAN, fields, 3, fb, status, respBody);
   esp_camera_fb_return(fb);
+  forceFlashLedOff();
   if (!sent) return;
   Serial.print(F("[POST /yolo-scan] status="));
   Serial.println(status);
@@ -484,6 +496,15 @@ void cmdConfig() {
   if (respBody.length()) Serial.print(String("  response: ") + respBody + "\n");
 }
 
+void cmdFlashToggle() {
+  static bool torchOn = false;
+  torchOn = !torchOn;
+  pinMode(PIN_FLASH_LED, OUTPUT);
+  digitalWrite(PIN_FLASH_LED, torchOn ? FLASH_LED_ON_LEVEL : FLASH_LED_OFF_LEVEL);
+  Serial.print(F("[FLASH] "));
+  Serial.println(torchOn ? F("ON (torch)") : F("OFF"));
+}
+
 bool buttonPressedEdge() {
   static bool lastRead = false;
   static bool stable = false;
@@ -510,13 +531,13 @@ void printMenu() {
   Serial.println(F("  s = capture + POST /yolo-scan (prints response)"));
   Serial.println(F("  d = POST /yolo-scan/done"));
   Serial.println(F("  c = GET /config"));
+  Serial.println(F("  f = flash LED toggle (torch)"));
 }
 
 void setup() {
   Serial.begin(115200);
   delay(400);
-  pinMode(PIN_FLASH_LED, OUTPUT);
-  digitalWrite(PIN_FLASH_LED, FLASH_LED_ON_LEVEL == LOW ? HIGH : LOW);
+  forceFlashLedOff();
   pinMode(PIN_CAPTURE_BUTTON, INPUT_PULLUP);
   analogSetAttenuation(ADC_11db);
   Serial.println();
@@ -537,6 +558,7 @@ void loop() {
       case 's': case 'S': cmdScan(); break;
       case 'd': case 'D': cmdScanDone(); break;
       case 'c': case 'C': cmdConfig(); break;
+      case 'f': case 'F': cmdFlashToggle(); break;
       default: break;
     }
   }
