@@ -16,10 +16,34 @@
 #define TANK_EMPTY_LEVEL  LOW
 #define RELAY_ACTIVE_LOW  true
 
-float HX711_SCALE_FACTOR = 0.0f;
-int   SOIL_ADC_DRY = 0;
-int   SOIL_ADC_WET = 0;
+// TODO(load cell): PROVISIONAL - re-measure with 'w' once the load-cell mount
+// has all 4 screws fitted (bar tilts under load until then).
+float HX711_SCALE_FACTOR = 305.070f;
+
+// Verified on hardware: raw ADC 4095 -> 0 % moisture, 2038 -> 100 %, clamped.
+int   SOIL_ADC_DRY = 4095;
+int   SOIL_ADC_WET = 2038;
+
+// TODO(pump flow): not measured yet - run 'c'; keep unset until then.
 float PUMP_FLOW_ML_PER_SEC = 0.0f;
+
+// DS18B20 addresses identified by the warm-probe test (always read by address).
+uint8_t waterTempAddress[8] = {0x28, 0x94, 0x6B, 0xCB, 0x00, 0x00, 0x00, 0xBF};
+uint8_t soilTempAddress[8]  = {0x28, 0x83, 0xFC, 0xC8, 0x00, 0x00, 0x00, 0x0F};
+
+// ---------------------------------------------------------------------------
+// TODO(heating module) - NOT TESTED / NOT ENABLED. Placeholder only.
+//   Relay: PIN_RELAY_HEATER (currently (-1) = inert). Assign the spare relay
+//   channel GPIO to switch the heater; heaterRelay()/heaterSet() below need no
+//   refactor once the pin is set.
+//   Feedback probe: waterTempAddress (water DS18B20), read by address.
+//   TBD: target water temperature, max heater seconds (<= 600), absolute
+//   cutoff and hysteresis.
+//   SAFETY INTERLOCK (must hold before the heater can ever turn on):
+//     - tank NOT empty: digitalRead(PIN_XKC_LEVEL) != TANK_EMPTY_LEVEL
+//     - valid water probe: reject -127.0 / 85.0 / NaN
+//     - fail OFF at boot and on any invalid state
+// ---------------------------------------------------------------------------
 
 DHT dht(PIN_DHT22, DHT22);
 OneWire oneWire(PIN_ONEWIRE);
@@ -45,6 +69,31 @@ bool relayOnLevel()  { return RELAY_ACTIVE_LOW ? LOW : HIGH; }
 
 void relayPump(bool on) {
   digitalWrite(PIN_RELAY_PUMP, on ? relayOnLevel() : relayOffLevel());
+}
+
+bool addrEq(const uint8_t* a, const uint8_t* b) {
+  for (int i = 0; i < 8; i++) if (a[i] != b[i]) return false;
+  return true;
+}
+
+void heaterRelay(bool on) {
+#if PIN_RELAY_HEATER >= 0
+  digitalWrite(PIN_RELAY_HEATER, on ? relayOnLevel() : relayOffLevel());
+#else
+  (void)on;
+#endif
+}
+
+bool heaterInterlockOk() {
+  if (digitalRead(PIN_XKC_LEVEL) == TANK_EMPTY_LEVEL) return false;
+  float t = ds.getTempC(waterTempAddress);
+  if (isnan(t) || t <= -100.0f || t >= 85.0f) return false;
+  return true;
+}
+
+void heaterSet(bool on) {
+  if (on && !heaterInterlockOk()) { heaterRelay(false); return; }
+  heaterRelay(on);
 }
 
 bool hxWait(uint32_t ms) {
@@ -132,7 +181,7 @@ void printConstants() {
 
   Serial.print(F("3) HX711_SCALE_FACTOR = "));
   if (HX711_SCALE_FACTOR == 0.0f) Serial.println(F("(unset - run 'w')"));
-  else Serial.println(HX711_SCALE_FACTOR, 3);
+  else { Serial.print(HX711_SCALE_FACTOR, 3); Serial.println(F("  (PROVISIONAL - re-measure with 'w')")); }
 
   Serial.print(F("4) SOIL_ADC_DRY = "));
   if (g_soilMax < 0) Serial.print(F("?")); else Serial.print(g_soilMax);
@@ -141,8 +190,14 @@ void printConstants() {
   Serial.println(F("   // session extremes: dry-air max / submerged min"));
 
   Serial.println(F("5) DS18B20 addresses:"));
+  Serial.print(F("   waterTempAddress = "));
+  printAddr(waterTempAddress);
+  Serial.println();
+  Serial.print(F("   soilTempAddress  = "));
+  printAddr(soilTempAddress);
+  Serial.println();
   if (g_dsCount <= 0) {
-    Serial.println(F("   (none found - run 'a')"));
+    Serial.println(F("   (bus scan found none - run 'a')"));
   } else {
     ds.requestTemperatures();
     for (int i = 0; i < g_dsCount; i++) {
@@ -150,15 +205,16 @@ void printConstants() {
       Serial.print(i + 1);
       Serial.print(' ');
       printAddr(g_dsAddr[i]);
+      if (addrEq(g_dsAddr[i], waterTempAddress)) Serial.print(F(" [WATER]"));
+      else if (addrEq(g_dsAddr[i], soilTempAddress)) Serial.print(F(" [SOIL]"));
       Serial.print(F("  temp_c="));
       printTemp(ds.getTempC(g_dsAddr[i]));
       Serial.println();
     }
-    Serial.println(F("   -> soilTempAddress = the address you warmed; waterTempAddress = the other"));
   }
 
   Serial.print(F("6) PUMP_FLOW_ML_PER_SEC = "));
-  if (PUMP_FLOW_ML_PER_SEC <= 0.0f) Serial.println(F("(unset - run 'c')"));
+  if (PUMP_FLOW_ML_PER_SEC <= 0.0f) Serial.println(F("(TODO - run 'c')"));
   else Serial.println(PUMP_FLOW_ML_PER_SEC, 3);
 
   Serial.println(F("================================================="));
@@ -179,21 +235,12 @@ void readAllSensors() {
     Serial.println(h, 1);
   }
 
-  if (g_dsCount <= 0) scanDsQuiet();
-  if (g_dsCount <= 0) {
-    Serial.println(F("[DS18B20] no probes found - run 'a'"));
-  } else {
-    ds.requestTemperatures();
-    for (int i = 0; i < g_dsCount; i++) {
-      Serial.print(F("[DS18B20] #"));
-      Serial.print(i + 1);
-      Serial.print(' ');
-      printAddr(g_dsAddr[i]);
-      Serial.print(F("  temp_c="));
-      printTemp(ds.getTempC(g_dsAddr[i]));
-      Serial.println();
-    }
-  }
+  ds.requestTemperatures();
+  Serial.print(F("[DS18B20] water temp_c="));
+  printTemp(ds.getTempC(waterTempAddress));
+  Serial.print(F("   soil temp_c="));
+  printTemp(ds.getTempC(soilTempAddress));
+  Serial.println();
 
   int x = readXkcRaw();
   Serial.print(F("[XKC] D27 raw="));
