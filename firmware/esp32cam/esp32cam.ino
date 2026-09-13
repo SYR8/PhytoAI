@@ -130,6 +130,14 @@ int batteryPercent(float volts) {
   return (int)(pct + 0.5f);
 }
 
+void captureCameraWarmup() {
+  for (int i = 0; i < 5; i++) {
+    camera_fb_t* fb = esp_camera_fb_get();
+    if (fb) esp_camera_fb_return(fb);
+    delay(100);
+  }
+}
+
 bool ensureCamera() {
   if (cameraReady) return true;
   camera_config_t config;
@@ -173,6 +181,7 @@ bool ensureCamera() {
   }
   cameraReady = true;
   Serial.println(F("[CAM] initialized"));
+  captureCameraWarmup();
   return true;
 }
 
@@ -362,6 +371,7 @@ bool connectWiFi() {
 
 camera_fb_t* captureFrame() {
   if (!ensureCamera()) return nullptr;
+  captureCameraWarmup();
   camera_fb_t* fb = esp_camera_fb_get();
   if (!fb) Serial.println(F("[CAM] frame capture FAILED"));
   return fb;
