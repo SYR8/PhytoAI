@@ -152,3 +152,7 @@ Every weekly scan logs the photo plus the vision opinion, the YOLO opinion, the 
 - [ ] ESP32-CAM firmware (capture, battery ADC, capture-button debounce, uploads)
 - [ ] Full dashboard (charts, history, AgentNotes, battery status, Web Push)
 - [ ] Plant Profile Agent build; YOLO fine-tuning on accumulated gold labels
+
+## Known issues / lessons
+
+API/MCP-created Sheets nodes can have empty or legacy-format match columns that render EMPTY in the UI — always verify "Column to match on" visually after MCP edits. Sheet By-name mode works fine at runtime; From-list only affects UI dropdown population.
