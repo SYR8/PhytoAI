@@ -25,7 +25,7 @@ The CAM is a static battery-powered unit in a charging dock at the pot edge. It 
 2. `POST {BASE_URL}/yolo-scan` — weekly scan photo (legacy path name, keep it).
    multipart JPEG + fields: `device_id`, `captured_at_utc`, `battery_percent`.
    Response JSON: `status` ok / no_active_session + judge verdict — print to serial.
-3. `POST {BASE_URL}/yolo-scandone` — body: `device_id`, `photos_uploaded`, `started_at_utc`, `ended_at_utc`
+3. `POST {BASE_URL}/yolo-scan/done` — body: `device_id`, `photos_uploaded`, `started_at_utc`, `ended_at_utc`
 4. `GET {BASE_URL}/config` — returns `next_sunrise_utc`, `next_sunset_utc`, `dry_run_mode`, `pot_latitude`, `pot_longitude`
 
 ## Rules
