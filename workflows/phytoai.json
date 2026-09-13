@@ -1659,8 +1659,8 @@
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.7,
       "position": [
-        4816,
-        160
+        4880,
+        192
       ],
       "parameters": {
         "operation": "appendOrUpdate",
@@ -1671,8 +1671,10 @@
         },
         "sheetName": {
           "__rl": true,
-          "mode": "name",
-          "value": "SystemConfig"
+          "value": 521371706,
+          "mode": "list",
+          "cachedResultName": "SystemConfig",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/10a3YXWBN4-hFJQQT4sLERmyu8D2TxYKNkXW-k3QRyLI/edit#gid=521371706"
         },
         "columns": {
           "mappingMode": "defineBelow",
@@ -1683,7 +1685,38 @@
           },
           "matchingColumns": {
             "columnToMatchOn": "Key"
-          }
+          },
+          "schema": [
+            {
+              "id": "Key",
+              "displayName": "Key",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Value",
+              "displayName": "Value",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "LastUpdated",
+              "displayName": "LastUpdated",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
         },
         "options": {}
       }
@@ -2171,8 +2204,10 @@
         },
         "sheetName": {
           "__rl": true,
-          "mode": "name",
-          "value": "SystemConfig"
+          "value": 521371706,
+          "mode": "list",
+          "cachedResultName": "SystemConfig",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/10a3YXWBN4-hFJQQT4sLERmyu8D2TxYKNkXW-k3QRyLI/edit#gid=521371706"
         },
         "columns": {
           "mappingMode": "defineBelow",
@@ -2183,7 +2218,36 @@
           },
           "matchingColumns": {
             "columnToMatchOn": "Key"
-          }
+          },
+          "schema": [
+            {
+              "id": "Key",
+              "displayName": "Key",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Value",
+              "displayName": "Value",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "LastUpdated",
+              "displayName": "LastUpdated",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ]
         },
         "options": {}
       }
@@ -2204,7 +2268,7 @@
         "resumeUnit": "minutes",
         "options": {}
       },
-      "webhookId": "9d62b0d9-9b81-4d21-b542-33cc9290652a"
+      "webhookId": "f11c365f-05e3-4bac-8710-5d1733d7549f"
     },
     {
       "id": "63f9df4f-3341-47ba-84f8-b2b46cf537ff",
@@ -2299,7 +2363,7 @@
         "resumeUnit": "days",
         "options": {}
       },
-      "webhookId": "924aeec2-8468-4fd5-ae5e-81d53db25c4d"
+      "webhookId": "a8269df1-c57f-40ed-87b4-9ad7ae1c73d5"
     },
     {
       "id": "7bede0f6-8db2-46d6-9542-821d4c8330a6",
@@ -2389,8 +2453,10 @@
         },
         "sheetName": {
           "__rl": true,
-          "mode": "name",
-          "value": "SystemConfig"
+          "value": 521371706,
+          "mode": "list",
+          "cachedResultName": "SystemConfig",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/10a3YXWBN4-hFJQQT4sLERmyu8D2TxYKNkXW-k3QRyLI/edit#gid=521371706"
         },
         "columns": {
           "mappingMode": "defineBelow",
@@ -2401,7 +2467,36 @@
           },
           "matchingColumns": {
             "columnToMatchOn": "Key"
-          }
+          },
+          "schema": [
+            {
+              "id": "Key",
+              "displayName": "Key",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Value",
+              "displayName": "Value",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "LastUpdated",
+              "displayName": "LastUpdated",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ]
         },
         "options": {}
       }
@@ -2711,6 +2806,215 @@
       }
     },
     {
+      "id": "370591a3-2657-48ae-a16d-b6d19ce6d171",
+      "name": "Normalize Vision Output",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        1984,
+        2400
+      ],
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "1",
+              "name": "framing_quality",
+              "value": "={{ $json.output?.framing_quality ?? \"\" }}",
+              "type": "string"
+            },
+            {
+              "id": "2",
+              "name": "symptoms_observed",
+              "value": "={{ $json.output?.symptoms_observed ?? [] }}",
+              "type": "array"
+            },
+            {
+              "id": "3",
+              "name": "suspected_issues",
+              "value": "={{ $json.output?.suspected_issues ?? [] }}",
+              "type": "array"
+            },
+            {
+              "id": "4",
+              "name": "confidence",
+              "value": "={{ $json.output?.confidence ?? 0 }}",
+              "type": "number"
+            },
+            {
+              "id": "5",
+              "name": "affected_areas",
+              "value": "={{ $json.output?.affected_areas ?? [] }}",
+              "type": "array"
+            },
+            {
+              "id": "6",
+              "name": "agent_notes",
+              "value": "={{ $json.output?.agent_notes ?? [] }}",
+              "type": "array"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "bda84d33-164a-44f4-893e-871dbb14932b",
+      "name": "Treatment Advisor",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        4192,
+        2400
+      ],
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.treatment_text }}",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "You are the treatment advisor of an autonomous smart plant pot. You receive the Judge's verdict plus the FULL plant context from Sheets: species, current conditions, watering history, past diseases, past treatments and their outcomes, relevant AgentNotes. HARD RULES: recommend active ingredients / treatment categories ONLY (e.g. \"neem oil\", \"copper fungicide\") - NEVER brand/product names. If uncertain, include an explicit low-confidence statement. Explain why this advice fits THIS plant's data - not generic care advice. Your notes are UNVERIFIED HYPOTHESES."
+        }
+      }
+    },
+    {
+      "id": "a9210268-b89f-49cb-b796-4f9abe2fda0d",
+      "name": "Treatment Parser",
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        4400,
+        2400
+      ],
+      "parameters": {
+        "jsonSchemaExample": "{\"disease_name\":\"...\",\"severity\":\"mild\",\"treatment_steps\":[\"...\"],\"product_guidance\":[\"neem oil\"],\"low_confidence_statement\":null,\"why_this_fits\":\"...\",\"ai_notes\":\"...\",\"agent_notes\":[\"...\"]}",
+        "autoFix": true
+      }
+    },
+    {
+      "id": "545bf506-7a82-4613-9661-ecb0220a5ec3",
+      "name": "Append Followup Notification",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        7168,
+        2256
+      ],
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "10a3YXWBN4-hFJQQT4sLERmyu8D2TxYKNkXW-k3QRyLI"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Notifications"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "timestamp": "={{ $json.timestamp }}",
+            "type": "={{ $json.type }}",
+            "title": "={{ $json.title }}",
+            "message": "={{ $json.message }}",
+            "response_options": "={{ $json.response_options }}",
+            "status": "={{ $json.status }}",
+            "response": "={{ $json.response }}",
+            "resume_url": "={{ $json.resume_url }}",
+            "context_ref": "={{ $json.context_ref }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "timestamp",
+              "displayName": "timestamp",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "type",
+              "displayName": "type",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "title",
+              "displayName": "title",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "message",
+              "displayName": "message",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "response_options",
+              "displayName": "response_options",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "response",
+              "displayName": "response",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "resume_url",
+              "displayName": "resume_url",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "context_ref",
+              "displayName": "context_ref",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      }
+    },
+    {
       "id": "2e12e017-48ba-40ad-a1a0-60b47c972d45",
       "name": "Core Sensor Webhook",
       "type": "n8n-nodes-base.webhook",
@@ -2725,7 +3029,7 @@
         "responseMode": "responseNode",
         "options": {}
       },
-      "webhookId": "53c5f199-df97-48ed-a03d-0d0bfabd8c1b"
+      "webhookId": "58928639-580c-4042-90ed-aabb7300a7b2"
     },
     {
       "id": "b1b424bc-498d-4125-a9fc-f8cc4a2964b3",
@@ -3364,7 +3668,7 @@
           "responseData": "{\"status\":\"received\"}"
         }
       },
-      "webhookId": "afb3ac01-e9a4-455f-a33d-79b82ef6a5e1"
+      "webhookId": "f35a1763-2499-48c4-ab5d-6ac39f295e44"
     },
     {
       "id": "c35311f9-ed13-42f3-9db4-03c861541efe",
@@ -3501,8 +3805,8 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2656,
-        400
+        2720,
+        384
       ],
       "parameters": {
         "jsCode": "const ctx = $('Build Multimodal Context').first().json;\nconst b = ctx.battery_percent;\nif (b === undefined || b === null || b === '' || isNaN(Number(b))) { return []; }\nreturn [{ json: { Key: 'camera_battery_percent', Value: String(b), LastUpdated: $now.toISO() } }];"
@@ -3649,7 +3953,7 @@
         "responseMode": "responseNode",
         "options": {}
       },
-      "webhookId": "d5e7b8ee-6826-4b51-ba65-e145265f12ae"
+      "webhookId": "cb8190bf-df0d-481a-8a37-e9083db95d90"
     },
     {
       "id": "0dc652fa-ba0d-45a2-993a-09b26bf6e3b1",
@@ -3702,56 +4006,29 @@
       }
     },
     {
-      "id": "370591a3-2657-48ae-a16d-b6d19ce6d171",
-      "name": "Normalize Vision Output",
-      "type": "n8n-nodes-base.set",
-      "typeVersion": 3.4,
+      "id": "ee88fe31-86ee-4c3f-9db0-ac509c02e8cb",
+      "name": "Build YOLO Opinion",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
       "position": [
-        1984,
+        2208,
         2400
       ],
       "parameters": {
-        "assignments": {
-          "assignments": [
-            {
-              "id": "1",
-              "name": "framing_quality",
-              "value": "={{ $json.output?.framing_quality ?? \"\" }}",
-              "type": "string"
-            },
-            {
-              "id": "2",
-              "name": "symptoms_observed",
-              "value": "={{ $json.output?.symptoms_observed ?? [] }}",
-              "type": "array"
-            },
-            {
-              "id": "3",
-              "name": "suspected_issues",
-              "value": "={{ $json.output?.suspected_issues ?? [] }}",
-              "type": "array"
-            },
-            {
-              "id": "4",
-              "name": "confidence",
-              "value": "={{ $json.output?.confidence ?? 0 }}",
-              "type": "number"
-            },
-            {
-              "id": "5",
-              "name": "affected_areas",
-              "value": "={{ $json.output?.affected_areas ?? [] }}",
-              "type": "array"
-            },
-            {
-              "id": "6",
-              "name": "agent_notes",
-              "value": "={{ $json.output?.agent_notes ?? [] }}",
-              "type": "array"
-            }
-          ]
-        },
-        "options": {}
+        "jsCode": "return [{ json: { status: 'not_yet_trained' } }];"
+      }
+    },
+    {
+      "id": "dfb8adb1-f265-4938-8bba-0918585b33f7",
+      "name": "Build Vision Notes Rows",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2208,
+        2528
+      ],
+      "parameters": {
+        "jsCode": "const notes = $('Normalize Vision Output').first().json.agent_notes ?? [];\nconst ctx = $('Check Scan Session').first().json.captured_at_utc;\nconst list = Array.isArray(notes) ? notes.slice(0, 3) : [];\nreturn list.map((n) => ({ json: { timestamp: $now.toISO(), agent: 'Vision Analyst', note: String(n), context_ref: ctx || '', status: 'active' } }));"
       }
     },
     {
@@ -3770,7 +4047,7 @@
           "responseData": "{\"status\":\"ok\"}"
         }
       },
-      "webhookId": "6bb9f750-d558-4c49-bd9c-a3d75aeb4751"
+      "webhookId": "3d835b5c-921c-4753-ab73-b8e86ea59ab8"
     },
     {
       "id": "15556762-4b96-4146-a5c7-94000171a363",
@@ -3958,8 +4235,10 @@
         },
         "sheetName": {
           "__rl": true,
-          "mode": "name",
-          "value": "SystemConfig"
+          "value": 521371706,
+          "mode": "list",
+          "cachedResultName": "SystemConfig",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/10a3YXWBN4-hFJQQT4sLERmyu8D2TxYKNkXW-k3QRyLI/edit#gid=521371706"
         },
         "columns": {
           "mappingMode": "defineBelow",
@@ -3970,8 +4249,52 @@
           },
           "matchingColumns": {
             "columnToMatchOn": "Key"
-          }
+          },
+          "schema": [
+            {
+              "id": "Key",
+              "displayName": "Key",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Value",
+              "displayName": "Value",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "LastUpdated",
+              "displayName": "LastUpdated",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ]
         },
+        "options": {}
+      }
+    },
+    {
+      "id": "68c06945-2465-42f7-8d6e-9c7a7398f2b3",
+      "name": "Respond Scan Done",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        1104,
+        3200
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ { \"status\": \"ok\" } }}",
         "options": {}
       }
     },
@@ -4039,8 +4362,10 @@
         },
         "sheetName": {
           "__rl": true,
-          "mode": "name",
-          "value": "SystemConfig"
+          "value": 521371706,
+          "mode": "list",
+          "cachedResultName": "SystemConfig",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/10a3YXWBN4-hFJQQT4sLERmyu8D2TxYKNkXW-k3QRyLI/edit#gid=521371706"
         },
         "columns": {
           "mappingMode": "defineBelow",
@@ -4051,7 +4376,36 @@
           },
           "matchingColumns": {
             "columnToMatchOn": "Key"
-          }
+          },
+          "schema": [
+            {
+              "id": "Key",
+              "displayName": "Key",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Value",
+              "displayName": "Value",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "LastUpdated",
+              "displayName": "LastUpdated",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ]
         },
         "options": {}
       }
@@ -4070,7 +4424,7 @@
         "responseMode": "lastNode",
         "options": {}
       },
-      "webhookId": "b4b47628-aabd-42f6-8457-693d4a7da4ea"
+      "webhookId": "cdae4008-3273-4312-8b4f-06cf005c2387"
     },
     {
       "id": "980a6fbb-84ce-4cf1-b50a-5cf27c50ca17",
@@ -4227,8 +4581,10 @@
         },
         "sheetName": {
           "__rl": true,
-          "mode": "name",
-          "value": "SystemConfig"
+          "value": 521371706,
+          "mode": "list",
+          "cachedResultName": "SystemConfig",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/10a3YXWBN4-hFJQQT4sLERmyu8D2TxYKNkXW-k3QRyLI/edit#gid=521371706"
         },
         "columns": {
           "mappingMode": "defineBelow",
@@ -4239,7 +4595,36 @@
           },
           "matchingColumns": {
             "columnToMatchOn": "Key"
-          }
+          },
+          "schema": [
+            {
+              "id": "Key",
+              "displayName": "Key",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "Value",
+              "displayName": "Value",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "LastUpdated",
+              "displayName": "LastUpdated",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ]
         },
         "options": {}
       }
@@ -4438,32 +4823,6 @@
       }
     },
     {
-      "id": "ee88fe31-86ee-4c3f-9db0-ac509c02e8cb",
-      "name": "Build YOLO Opinion",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        2208,
-        2400
-      ],
-      "parameters": {
-        "jsCode": "return [{ json: { status: 'not_yet_trained' } }];"
-      }
-    },
-    {
-      "id": "dfb8adb1-f265-4938-8bba-0918585b33f7",
-      "name": "Build Vision Notes Rows",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        2208,
-        2528
-      ],
-      "parameters": {
-        "jsCode": "const notes = $('Normalize Vision Output').first().json.agent_notes ?? [];\nconst ctx = $('Check Scan Session').first().json.captured_at_utc;\nconst list = Array.isArray(notes) ? notes.slice(0, 3) : [];\nreturn list.map((n) => ({ json: { timestamp: $now.toISO(), agent: 'Vision Analyst', note: String(n), context_ref: ctx || '', status: 'active' } }));"
-      }
-    },
-    {
       "id": "cba2cca9-2c0d-4bf2-983b-3db592b65d7f",
       "name": "Read AgentNotes Judge",
       "type": "n8n-nodes-base.googleSheets",
@@ -4612,38 +4971,6 @@
       }
     },
     {
-      "id": "bda84d33-164a-44f4-893e-871dbb14932b",
-      "name": "Treatment Advisor",
-      "type": "@n8n/n8n-nodes-langchain.agent",
-      "typeVersion": 3.1,
-      "position": [
-        4192,
-        2400
-      ],
-      "parameters": {
-        "promptType": "define",
-        "text": "={{ $json.treatment_text }}",
-        "hasOutputParser": true,
-        "options": {
-          "systemMessage": "You are the treatment advisor of an autonomous smart plant pot. You receive the Judge's verdict plus the FULL plant context from Sheets: species, current conditions, watering history, past diseases, past treatments and their outcomes, relevant AgentNotes. HARD RULES: recommend active ingredients / treatment categories ONLY (e.g. \"neem oil\", \"copper fungicide\") - NEVER brand/product names. If uncertain, include an explicit low-confidence statement. Explain why this advice fits THIS plant's data - not generic care advice. Your notes are UNVERIFIED HYPOTHESES."
-        }
-      }
-    },
-    {
-      "id": "a9210268-b89f-49cb-b796-4f9abe2fda0d",
-      "name": "Treatment Parser",
-      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
-      "typeVersion": 1.3,
-      "position": [
-        4400,
-        2400
-      ],
-      "parameters": {
-        "jsonSchemaExample": "{\"disease_name\":\"...\",\"severity\":\"mild\",\"treatment_steps\":[\"...\"],\"product_guidance\":[\"neem oil\"],\"low_confidence_statement\":null,\"why_this_fits\":\"...\",\"ai_notes\":\"...\",\"agent_notes\":[\"...\"]}",
-        "autoFix": true
-      }
-    },
-    {
       "id": "34a72d0b-6da5-4605-b9e0-08ced48c6eed",
       "name": "Normalize Treatment Output",
       "type": "n8n-nodes-base.set",
@@ -4728,130 +5055,6 @@
       }
     },
     {
-      "id": "545bf506-7a82-4613-9661-ecb0220a5ec3",
-      "name": "Append Followup Notification",
-      "type": "n8n-nodes-base.googleSheets",
-      "typeVersion": 4.7,
-      "position": [
-        7168,
-        2256
-      ],
-      "parameters": {
-        "operation": "append",
-        "documentId": {
-          "__rl": true,
-          "mode": "id",
-          "value": "10a3YXWBN4-hFJQQT4sLERmyu8D2TxYKNkXW-k3QRyLI"
-        },
-        "sheetName": {
-          "__rl": true,
-          "mode": "name",
-          "value": "Notifications"
-        },
-        "columns": {
-          "mappingMode": "defineBelow",
-          "value": {
-            "timestamp": "={{ $json.timestamp }}",
-            "type": "={{ $json.type }}",
-            "title": "={{ $json.title }}",
-            "message": "={{ $json.message }}",
-            "response_options": "={{ $json.response_options }}",
-            "status": "={{ $json.status }}",
-            "response": "={{ $json.response }}",
-            "resume_url": "={{ $json.resume_url }}",
-            "context_ref": "={{ $json.context_ref }}"
-          },
-          "matchingColumns": [],
-          "schema": [
-            {
-              "id": "timestamp",
-              "displayName": "timestamp",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "type",
-              "displayName": "type",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "title",
-              "displayName": "title",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "message",
-              "displayName": "message",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "response_options",
-              "displayName": "response_options",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "status",
-              "displayName": "status",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "response",
-              "displayName": "response",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "resume_url",
-              "displayName": "resume_url",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            },
-            {
-              "id": "context_ref",
-              "displayName": "context_ref",
-              "required": false,
-              "defaultMatch": false,
-              "display": true,
-              "type": "string",
-              "canBeUsedToMatch": true
-            }
-          ],
-          "attemptToConvertTypes": false,
-          "convertFieldsToString": false
-        },
-        "options": {}
-      }
-    },
-    {
       "id": "2d5c50e9-846a-4490-974b-0345ed86b703",
       "name": "Wait Followup Response",
       "type": "n8n-nodes-base.wait",
@@ -4867,22 +5070,7 @@
         "resumeUnit": "days",
         "options": {}
       },
-      "webhookId": "7d95436f-f92e-41b9-82b0-af0ed4c5d28a"
-    },
-    {
-      "id": "68c06945-2465-42f7-8d6e-9c7a7398f2b3",
-      "name": "Respond Scan Done",
-      "type": "n8n-nodes-base.respondToWebhook",
-      "typeVersion": 1.5,
-      "position": [
-        1104,
-        3200
-      ],
-      "parameters": {
-        "respondWith": "json",
-        "responseBody": "={{ { \"status\": \"ok\" } }}",
-        "options": {}
-      }
+      "webhookId": "7d429733-1af4-47c4-9faf-67c785b3f828"
     },
     {
       "id": "8c7f9575-b2b3-4913-9c2f-e77e2b92e426",
@@ -5777,6 +5965,16 @@
             "index": 0
           },
           {
+            "node": "Treatment Advisor",
+            "type": "ai_languageModel",
+            "index": 0
+          },
+          {
+            "node": "Treatment Parser",
+            "type": "ai_languageModel",
+            "index": 0
+          },
+          {
             "node": "History Analyst",
             "type": "ai_languageModel",
             "index": 0
@@ -5815,16 +6013,6 @@
             "node": "Judge Parser",
             "type": "ai_languageModel",
             "index": 0
-          },
-          {
-            "node": "Treatment Advisor",
-            "type": "ai_languageModel",
-            "index": 0
-          },
-          {
-            "node": "Treatment Parser",
-            "type": "ai_languageModel",
-            "index": 0
           }
         ]
       ]
@@ -5856,6 +6044,55 @@
         [
           {
             "node": "Append Followup Notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Vision Output": {
+      "main": [
+        [
+          {
+            "node": "Build YOLO Opinion",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Build Vision Notes Rows",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Treatment Advisor": {
+      "main": [
+        [
+          {
+            "node": "Normalize Treatment Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Treatment Parser": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Treatment Advisor",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Append Followup Notification": {
+      "main": [
+        [
+          {
+            "node": "Wait Followup Response",
             "type": "main",
             "index": 0
           }
@@ -6234,16 +6471,22 @@
         ]
       ]
     },
-    "Normalize Vision Output": {
+    "Build YOLO Opinion": {
       "main": [
         [
           {
-            "node": "Build YOLO Opinion",
+            "node": "Read AgentNotes Judge",
             "type": "main",
             "index": 0
-          },
+          }
+        ]
+      ]
+    },
+    "Build Vision Notes Rows": {
+      "main": [
+        [
           {
-            "node": "Build Vision Notes Rows",
+            "node": "Append AgentNotes",
             "type": "main",
             "index": 0
           }
@@ -6492,28 +6735,6 @@
         ]
       ]
     },
-    "Build YOLO Opinion": {
-      "main": [
-        [
-          {
-            "node": "Read AgentNotes Judge",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Build Vision Notes Rows": {
-      "main": [
-        [
-          {
-            "node": "Append AgentNotes",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
     "Read AgentNotes Judge": {
       "main": [
         [
@@ -6585,28 +6806,6 @@
         ]
       ]
     },
-    "Treatment Advisor": {
-      "main": [
-        [
-          {
-            "node": "Normalize Treatment Output",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Treatment Parser": {
-      "ai_outputParser": [
-        [
-          {
-            "node": "Treatment Advisor",
-            "type": "ai_outputParser",
-            "index": 0
-          }
-        ]
-      ]
-    },
     "Normalize Treatment Output": {
       "main": [
         [
@@ -6628,17 +6827,6 @@
         [
           {
             "node": "Append AgentNotes",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Append Followup Notification": {
-      "main": [
-        [
-          {
-            "node": "Wait Followup Response",
             "type": "main",
             "index": 0
           }
