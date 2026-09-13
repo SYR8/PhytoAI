@@ -14,13 +14,27 @@
 #include "esp_camera.h"
 
 // ------------------------------- CONFIG --------------------------------
-const char* WIFI_SSID     = "CHANGE_ME";
-const char* WIFI_PASSWORD = "CHANGE_ME";
+// Deployment values (Wi-Fi + tunnel URL) live in the gitignored secrets.h.
+// If it is missing, placeholder defaults keep the sketch compiling.
+//   firmware/esp32cam/secrets.h:
+//     #define SECRET_WIFI_SSID      "..."
+//     #define SECRET_WIFI_PASSWORD  "..."
+//     #define SECRET_BASE_URL       "https://..."
+//     #define SECRET_WEBHOOK_PREFIX "/webhook-test"
+#if __has_include("secrets.h")
+#include "secrets.h"
+#endif
+#ifndef SECRET_WIFI_SSID
+#define SECRET_WIFI_SSID       "CHANGE_ME"
+#define SECRET_WIFI_PASSWORD   "CHANGE_ME"
+#define SECRET_BASE_URL        "https://CHANGE_ME.trycloudflare.com"
+#define SECRET_WEBHOOK_PREFIX  "/webhook-test"
+#endif
 
-// Cloudflare tunnel base URL (config only - tunnel URLs can change).
-// Live n8n serves webhooks at <base>/webhook/<path> (test: /webhook-test/<path>).
-const char* BASE_URL       = "https://CHANGE_ME.trycloudflare.com";
-const char* WEBHOOK_PREFIX = "/webhook";
+const char* WIFI_SSID      = SECRET_WIFI_SSID;
+const char* WIFI_PASSWORD  = SECRET_WIFI_PASSWORD;
+const char* BASE_URL       = SECRET_BASE_URL;
+const char* WEBHOOK_PREFIX = SECRET_WEBHOOK_PREFIX;
 const char* DEVICE_ID      = "esp32-cam-01";
 
 const char* PATH_PHOTO     = "/core/photo";
@@ -125,8 +139,8 @@ bool ensureCamera() {
   config.pin_pwdn = CAM_PIN_PWDN;
   config.pin_reset = CAM_PIN_RESET;
   config.pin_xclk = CAM_PIN_XCLK;
-  config.pin_siod = CAM_PIN_SIOD;
-  config.pin_sioc = CAM_PIN_SIOC;
+  config.pin_sccb_sda = CAM_PIN_SIOD;
+  config.pin_sccb_scl = CAM_PIN_SIOC;
   config.pin_d0 = CAM_PIN_D0;
   config.pin_d1 = CAM_PIN_D1;
   config.pin_d2 = CAM_PIN_D2;

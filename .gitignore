@@ -8,3 +8,4 @@ mcp-auth.json
 client_secret_*.json
 *.pem
 *.key
+secrets.h
