@@ -658,7 +658,7 @@
         80
       ],
       "parameters": {
-        "jsCode": "const fin = $('Safety Guardrails').first().json;\nconst updates = [];\nconst nowIso = $now.toISO();\nif (fin.needs_watering_final && !fin.tank_empty && !fin.dry_run_mode) {\nupdates.push({ key: 'last_watered_utc', value: nowIso, LastUpdated: nowIso });\n}\nconst newConf = Number(fin.species_confidence ?? 0);\nconst storedConf = Number(fin.species_stored_confidence ?? 0);\nif (newConf > storedConf) {\nupdates.push({ key: 'last_species_guess', value: fin.species_guess, LastUpdated: nowIso });\nupdates.push({ key: 'species_confidence', value: String(newConf), LastUpdated: nowIso });\n}\nif (fin.temperature_tolerance_c !== undefined && fin.temperature_tolerance_c !== null) {\nupdates.push({ key: 'current_temp_tolerance_c', value: String(fin.temperature_tolerance_c), LastUpdated: nowIso });\n}\nreturn updates.map((u) => ({ json: u }));"
+        "jsCode": "const fin = $('Safety Guardrails').first().json;\nconst updates = [];\nconst nowIso = $now.toISO();\nif (fin.needs_watering_final && !fin.tank_empty && !fin.dry_run_mode) {\nupdates.push({ Key: 'last_watered_utc', Value: nowIso, LastUpdated: nowIso });\n}\nconst newConf = Number(fin.species_confidence ?? 0);\nconst storedConf = Number(fin.species_stored_confidence ?? 0);\nif (newConf > storedConf) {\nupdates.push({ Key: 'last_species_guess', Value: fin.species_guess, LastUpdated: nowIso });\nupdates.push({ Key: 'species_confidence', Value: String(newConf), LastUpdated: nowIso });\n}\nif (fin.temperature_tolerance_c !== undefined && fin.temperature_tolerance_c !== null) {\nupdates.push({ Key: 'current_temp_tolerance_c', Value: String(fin.temperature_tolerance_c), LastUpdated: nowIso });\n}\nreturn updates.map((u) => ({ json: u }));"
       }
     },
     {
@@ -996,13 +996,13 @@
           "assignments": [
             {
               "id": "1",
-              "name": "key",
+              "name": "Key",
               "value": "scan_session_active",
               "type": "string"
             },
             {
               "id": "2",
-              "name": "value",
+              "name": "Value",
               "value": "true",
               "type": "string"
             },
@@ -1612,7 +1612,7 @@
         528
       ],
       "parameters": {
-        "jsCode": "const norm = $('Normalize Photo Output').first().json;\nconst updates = [];\nconst nowIso = $now.toISO();\nconst newConf = Number(norm.species_confidence ?? 0);\nconst storedConf = Number(norm.species_confidence_stored ?? 0);\nif (newConf > storedConf) {\nupdates.push({ key: 'last_species_guess', value: norm.species_guess, LastUpdated: nowIso });\nupdates.push({ key: 'species_confidence', value: String(newConf), LastUpdated: nowIso });\n}\nreturn updates.map((u) => ({ json: u }));"
+        "jsCode": "const norm = $('Normalize Photo Output').first().json;\nconst updates = [];\nconst nowIso = $now.toISO();\nconst newConf = Number(norm.species_confidence ?? 0);\nconst storedConf = Number(norm.species_confidence_stored ?? 0);\nif (newConf > storedConf) {\nupdates.push({ Key: 'last_species_guess', Value: norm.species_guess, LastUpdated: nowIso });\nupdates.push({ Key: 'species_confidence', Value: String(newConf), LastUpdated: nowIso });\n}\nreturn updates.map((u) => ({ json: u }));"
       }
     },
     {
@@ -1677,8 +1677,8 @@
         "columns": {
           "mappingMode": "defineBelow",
           "value": {
-            "Key": "={{ $json.key }}",
-            "Value": "={{ $json.value }}",
+            "Key": "={{ $json.Key }}",
+            "Value": "={{ $json.Value }}",
             "LastUpdated": "={{ $json.LastUpdated }}"
           },
           "matchingColumns": {
@@ -2118,13 +2118,13 @@
           "assignments": [
             {
               "id": "1",
-              "name": "key",
+              "name": "Key",
               "value": "last_tank_empty_alert_sent",
               "type": "string"
             },
             {
               "id": "2",
-              "name": "value",
+              "name": "Value",
               "value": "={{ $now.toISO() }}",
               "type": "string"
             },
@@ -2177,8 +2177,8 @@
         "columns": {
           "mappingMode": "defineBelow",
           "value": {
-            "Key": "={{ $json.key }}",
-            "Value": "={{ $json.value }}",
+            "Key": "={{ $json.Key }}",
+            "Value": "={{ $json.Value }}",
             "LastUpdated": "={{ $json.LastUpdated }}"
           },
           "matchingColumns": {
@@ -2204,7 +2204,7 @@
         "resumeUnit": "minutes",
         "options": {}
       },
-      "webhookId": "0819982e-c0a0-41e3-939d-aed070909938"
+      "webhookId": "9d62b0d9-9b81-4d21-b542-33cc9290652a"
     },
     {
       "id": "63f9df4f-3341-47ba-84f8-b2b46cf537ff",
@@ -2299,7 +2299,7 @@
         "resumeUnit": "days",
         "options": {}
       },
-      "webhookId": "d3f2e26d-0c24-4853-8f0e-660345c4997f"
+      "webhookId": "924aeec2-8468-4fd5-ae5e-81d53db25c4d"
     },
     {
       "id": "7bede0f6-8db2-46d6-9542-821d4c8330a6",
@@ -2395,8 +2395,8 @@
         "columns": {
           "mappingMode": "defineBelow",
           "value": {
-            "Key": "={{ $json.key }}",
-            "Value": "={{ $json.value }}",
+            "Key": "={{ $json.Key }}",
+            "Value": "={{ $json.Value }}",
             "LastUpdated": "={{ $json.LastUpdated }}"
           },
           "matchingColumns": {
@@ -2578,6 +2578,139 @@
       }
     },
     {
+      "id": "15c3d342-9994-4877-a602-3b0b8de0be9d",
+      "name": "Vision Analyst",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        1552,
+        2400
+      ],
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.vision_text }}",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "You are the vision analyst of an autonomous smart plant pot. Assess one weekly scan photo: framing/quality, observed symptoms, suspected issues, confidence, affected areas. You are a symptom reasoner, not the final judge. Be conservative: ambiguous findings must be labeled as such. Your notes are UNVERIFIED HYPOTHESES."
+        }
+      }
+    },
+    {
+      "id": "206aa7fe-149a-4760-8c99-629ab74e5e2d",
+      "name": "OpenRouter Gemma",
+      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
+      "typeVersion": 1,
+      "position": [
+        1536,
+        256
+      ],
+      "parameters": {
+        "model": "google/gemma-4-26b-a4b-it",
+        "options": {
+          "temperature": 0.2
+        }
+      }
+    },
+    {
+      "id": "0847e50a-1245-44fa-9a6a-d7ad7af37088",
+      "name": "Vision Parser",
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        1760,
+        2400
+      ],
+      "parameters": {
+        "jsonSchemaExample": "{\"framing_quality\":\"...\",\"symptoms_observed\":[\"...\"],\"suspected_issues\":[\"...\"],\"confidence\":0.8,\"affected_areas\":[\"...\"],\"agent_notes\":[\"...\"]}",
+        "autoFix": true
+      }
+    },
+    {
+      "id": "d7b8ac45-00bc-4639-9095-256cca0c467c",
+      "name": "Build Treatment Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3968,
+        2400
+      ],
+      "parameters": {
+        "jsCode": "const judge = $('Normalize Judge Output').first().json;\nconst sess = $('Check Scan Session').first().json;\nconst cfgRows = $('Read SystemConfig Treatment').all().map((i) => i.json);\nconst cfg = {};\nfor (const row of cfgRows) {\nif (row.Key !== undefined && row.Key !== null && String(row.Key).trim() !== '') { cfg[String(row.Key).trim()] = row.Value; }\n}\nconst events = $('Read Event History Treatment').all().map((i) => i.json);\nconst diseases = $('Read Disease History').all().map((i) => i.json);\nconst notes = $('Read AgentNotes Treatment').all().map((i) => i.json);\nconst noteText = notes.length ? notes.map((n) => '- ' + n.note).join('\\n') : 'none';\nconst wateringHistory = events.slice(-10).map((r) => ({ ts: r.Timestamp, moisture: r.MoisturePercent, watered: r.WateringTriggered, duration: r.WaterDurationSeconds }));\nconst pastDiseases = diseases.map((r) => ({ ts: r.timestamp, verdict: r.judge_verdict, treatment: r.treatment_plan, user_verdict: r.user_verdict, outcome: r.treatment_outcome }));\nconst text = [\n'JUDGE VERDICT: ' + JSON.stringify({ verdict: judge.verdict, verdict_confidence: judge.verdict_confidence, reasoning: judge.reasoning, recommended_action: judge.recommended_action }),\n'PLANT CONTEXT: species ' + sess.species_guess + ' (confidence ' + sess.species_confidence + '), last_watered_utc ' + (cfg['last_watered_utc'] || 'unknown') + ', latest event conditions ' + JSON.stringify(events.length ? events[events.length - 1] : {}),\n'WATERING HISTORY (last 10): ' + JSON.stringify(wateringHistory),\n'PAST DISEASES / TREATMENTS / OUTCOMES: ' + JSON.stringify(pastDiseases),\n'RELEVANT AGENTNOTES (your own past UNVERIFIED HYPOTHESES, context only):',\nnoteText,\n'Return strict JSON: disease_name (string), severity (\"mild\"|\"moderate\"|\"severe\"), treatment_steps (array of strings, plant-specific, step-by-step), product_guidance (array of strings, active ingredients/categories only, never brand names), low_confidence_statement (string|null, required if uncertain), why_this_fits (string, why this advice fits THIS plant data), ai_notes (string), agent_notes (array of 0-3 short strings).',\n].join('\\n');\nreturn [{ json: { treatment_text: text } }];"
+      }
+    },
+    {
+      "id": "7b5592e3-a288-4e60-ac5a-aa703d1cf97b",
+      "name": "Build Followup Row",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        7392,
+        2256
+      ],
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "1",
+              "name": "timestamp",
+              "value": "={{ $now.toISO() }}",
+              "type": "string"
+            },
+            {
+              "id": "2",
+              "name": "type",
+              "value": "scan_followup",
+              "type": "string"
+            },
+            {
+              "id": "3",
+              "name": "title",
+              "value": "Scan follow-up - did the issue resolve?",
+              "type": "string"
+            },
+            {
+              "id": "4",
+              "name": "message",
+              "value": "={{ \"The verdict response was: \" + $(\"Build Verdict Response Row\").first().json.response + \". Did the issue resolve?\" }}",
+              "type": "string"
+            },
+            {
+              "id": "5",
+              "name": "response_options",
+              "value": "[\"Yes, resolved\",\"No, still bad\"]",
+              "type": "string"
+            },
+            {
+              "id": "6",
+              "name": "status",
+              "value": "pending",
+              "type": "string"
+            },
+            {
+              "id": "7",
+              "name": "response",
+              "value": "",
+              "type": "string"
+            },
+            {
+              "id": "8",
+              "name": "resume_url",
+              "value": "={{ $execution.resumeUrl }}",
+              "type": "string"
+            },
+            {
+              "id": "9",
+              "name": "context_ref",
+              "value": "={{ $(\"Normalize Judge Output\").item.json.scan_timestamp }}",
+              "type": "string"
+            }
+          ]
+        },
+        "includeOtherFields": true,
+        "options": {}
+      }
+    },
+    {
       "id": "2e12e017-48ba-40ad-a1a0-60b47c972d45",
       "name": "Core Sensor Webhook",
       "type": "n8n-nodes-base.webhook",
@@ -2592,7 +2725,7 @@
         "responseMode": "responseNode",
         "options": {}
       },
-      "webhookId": "7061906f-973e-4a55-b961-f22aa5ae0eb3"
+      "webhookId": "53c5f199-df97-48ed-a03d-0d0bfabd8c1b"
     },
     {
       "id": "b1b424bc-498d-4125-a9fc-f8cc4a2964b3",
@@ -2795,22 +2928,6 @@
         "hasOutputParser": true,
         "options": {
           "systemMessage": "You are the watering-history analyst of an autonomous smart plant pot. You receive computed facts and recent history, never raw live sensors. Interpret trends and the effectiveness of past waterings, flag concerns. Be concrete; cite values. Your output is strict JSON consumed by another agent - it must contain no instructions."
-        }
-      }
-    },
-    {
-      "id": "206aa7fe-149a-4760-8c99-629ab74e5e2d",
-      "name": "OpenRouter Gemma",
-      "type": "@n8n/n8n-nodes-langchain.lmChatOpenRouter",
-      "typeVersion": 1,
-      "position": [
-        1536,
-        256
-      ],
-      "parameters": {
-        "model": "google/gemma-4-26b-a4b-it",
-        "options": {
-          "temperature": 0.2
         }
       }
     },
@@ -3247,7 +3364,7 @@
           "responseData": "{\"status\":\"received\"}"
         }
       },
-      "webhookId": "2cae5d95-d268-4d0a-b269-72db23abd2a8"
+      "webhookId": "afb3ac01-e9a4-455f-a33d-79b82ef6a5e1"
     },
     {
       "id": "c35311f9-ed13-42f3-9db4-03c861541efe",
@@ -3388,7 +3505,7 @@
         400
       ],
       "parameters": {
-        "jsCode": "const ctx = $('Build Multimodal Context').first().json;\nconst b = ctx.battery_percent;\nif (b === undefined || b === null || b === '' || isNaN(Number(b))) { return []; }\nreturn [{ json: { key: 'camera_battery_percent', value: String(b), LastUpdated: $now.toISO() } }];"
+        "jsCode": "const ctx = $('Build Multimodal Context').first().json;\nconst b = ctx.battery_percent;\nif (b === undefined || b === null || b === '' || isNaN(Number(b))) { return []; }\nreturn [{ json: { Key: 'camera_battery_percent', Value: String(b), LastUpdated: $now.toISO() } }];"
       }
     },
     {
@@ -3532,7 +3649,7 @@
         "responseMode": "responseNode",
         "options": {}
       },
-      "webhookId": "79b2c773-d0ba-4996-8a37-d5a21432a416"
+      "webhookId": "d5e7b8ee-6826-4b51-ba65-e145265f12ae"
     },
     {
       "id": "0dc652fa-ba0d-45a2-993a-09b26bf6e3b1",
@@ -3581,39 +3698,60 @@
         2480
       ],
       "parameters": {
-        "jsCode": "const b = $('Check Scan Session').first().json.battery_percent;\nif (b === null || b === undefined || isNaN(Number(b))) { return []; }\nreturn [{ json: { key: 'camera_battery_percent', value: String(b), LastUpdated: $now.toISO() } }];"
+        "jsCode": "const b = $('Check Scan Session').first().json.battery_percent;\nif (b === null || b === undefined || isNaN(Number(b))) { return []; }\nreturn [{ json: { Key: 'camera_battery_percent', Value: String(b), LastUpdated: $now.toISO() } }];"
       }
     },
     {
-      "id": "15c3d342-9994-4877-a602-3b0b8de0be9d",
-      "name": "Vision Analyst",
-      "type": "@n8n/n8n-nodes-langchain.agent",
-      "typeVersion": 3.1,
+      "id": "370591a3-2657-48ae-a16d-b6d19ce6d171",
+      "name": "Normalize Vision Output",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
       "position": [
-        1552,
+        1984,
         2400
       ],
       "parameters": {
-        "promptType": "define",
-        "text": "={{ $json.vision_text }}",
-        "hasOutputParser": true,
-        "options": {
-          "systemMessage": "You are the vision analyst of an autonomous smart plant pot. Assess one weekly scan photo: framing/quality, observed symptoms, suspected issues, confidence, affected areas. You are a symptom reasoner, not the final judge. Be conservative: ambiguous findings must be labeled as such. Your notes are UNVERIFIED HYPOTHESES."
-        }
-      }
-    },
-    {
-      "id": "0847e50a-1245-44fa-9a6a-d7ad7af37088",
-      "name": "Vision Parser",
-      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
-      "typeVersion": 1.3,
-      "position": [
-        1760,
-        2400
-      ],
-      "parameters": {
-        "jsonSchemaExample": "{\"framing_quality\":\"...\",\"symptoms_observed\":[\"...\"],\"suspected_issues\":[\"...\"],\"confidence\":0.8,\"affected_areas\":[\"...\"],\"agent_notes\":[\"...\"]}",
-        "autoFix": true
+        "assignments": {
+          "assignments": [
+            {
+              "id": "1",
+              "name": "framing_quality",
+              "value": "={{ $json.output?.framing_quality ?? \"\" }}",
+              "type": "string"
+            },
+            {
+              "id": "2",
+              "name": "symptoms_observed",
+              "value": "={{ $json.output?.symptoms_observed ?? [] }}",
+              "type": "array"
+            },
+            {
+              "id": "3",
+              "name": "suspected_issues",
+              "value": "={{ $json.output?.suspected_issues ?? [] }}",
+              "type": "array"
+            },
+            {
+              "id": "4",
+              "name": "confidence",
+              "value": "={{ $json.output?.confidence ?? 0 }}",
+              "type": "number"
+            },
+            {
+              "id": "5",
+              "name": "affected_areas",
+              "value": "={{ $json.output?.affected_areas ?? [] }}",
+              "type": "array"
+            },
+            {
+              "id": "6",
+              "name": "agent_notes",
+              "value": "={{ $json.output?.agent_notes ?? [] }}",
+              "type": "array"
+            }
+          ]
+        },
+        "options": {}
       }
     },
     {
@@ -3632,7 +3770,7 @@
           "responseData": "{\"status\":\"ok\"}"
         }
       },
-      "webhookId": "dae69d54-ae12-40c7-8811-861c86a49b04"
+      "webhookId": "6bb9f750-d558-4c49-bd9c-a3d75aeb4751"
     },
     {
       "id": "15556762-4b96-4146-a5c7-94000171a363",
@@ -3781,13 +3919,13 @@
           "assignments": [
             {
               "id": "1",
-              "name": "key",
+              "name": "Key",
               "value": "scan_session_active",
               "type": "string"
             },
             {
               "id": "2",
-              "name": "value",
+              "name": "Value",
               "value": "false",
               "type": "string"
             },
@@ -3798,6 +3936,41 @@
               "type": "string"
             }
           ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "29571da5-3ee5-445a-bf12-f784266d3945",
+      "name": "Update Close Session",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        880,
+        3200
+      ],
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "10a3YXWBN4-hFJQQT4sLERmyu8D2TxYKNkXW-k3QRyLI"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "SystemConfig"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Key": "={{ $json.Key }}",
+            "Value": "={{ $json.Value }}",
+            "LastUpdated": "={{ $json.LastUpdated }}"
+          },
+          "matchingColumns": {
+            "columnToMatchOn": "Key"
+          }
         },
         "options": {}
       }
@@ -3845,7 +4018,7 @@
         2944
       ],
       "parameters": {
-        "jsCode": "const calc = $('Sunrise Sunset Calc').first().json;\nconst nowIso = $now.toISO();\nconst updates = [];\nif (calc.next_sunrise_utc) {\nupdates.push({ key: 'next_sunrise_utc', value: calc.next_sunrise_utc, LastUpdated: nowIso });\n}\nif (calc.next_sunset_utc) {\nupdates.push({ key: 'next_sunset_utc', value: calc.next_sunset_utc, LastUpdated: nowIso });\n}\nreturn updates.map((u) => ({ json: u }));"
+        "jsCode": "const calc = $('Sunrise Sunset Calc').first().json;\nconst nowIso = $now.toISO();\nconst updates = [];\nif (calc.next_sunrise_utc) {\nupdates.push({ Key: 'next_sunrise_utc', Value: calc.next_sunrise_utc, LastUpdated: nowIso });\n}\nif (calc.next_sunset_utc) {\nupdates.push({ Key: 'next_sunset_utc', Value: calc.next_sunset_utc, LastUpdated: nowIso });\n}\nreturn updates.map((u) => ({ json: u }));"
       }
     },
     {
@@ -3872,8 +4045,8 @@
         "columns": {
           "mappingMode": "defineBelow",
           "value": {
-            "Key": "={{ $json.key }}",
-            "Value": "={{ $json.value }}",
+            "Key": "={{ $json.Key }}",
+            "Value": "={{ $json.Value }}",
             "LastUpdated": "={{ $json.LastUpdated }}"
           },
           "matchingColumns": {
@@ -3897,7 +4070,7 @@
         "responseMode": "lastNode",
         "options": {}
       },
-      "webhookId": "57f8e871-8a30-4c33-bdf1-55bc01022afc"
+      "webhookId": "b4b47628-aabd-42f6-8457-693d4a7da4ea"
     },
     {
       "id": "980a6fbb-84ce-4cf1-b50a-5cf27c50ca17",
@@ -4033,7 +4206,7 @@
         3552
       ],
       "parameters": {
-        "jsCode": "const daily = $('Create DailyPhotos Folder').first().json;\nconst scan = $('Create ScanPhotos Folder').first().json;\nconst nowIso = $now.toISO();\nconst rows = [\n{ key: 'drive_daily_photos_folder_id', value: daily.id || '' },\n{ key: 'drive_scan_photos_folder_id', value: scan.id || '' },\n];\nreturn rows.map((r) => ({ json: { key: r.key, value: r.value, LastUpdated: nowIso } }));"
+        "jsCode": "const daily = $('Create DailyPhotos Folder').first().json;\nconst scan = $('Create ScanPhotos Folder').first().json;\nconst nowIso = $now.toISO();\nconst rows = [\n{ Key: 'drive_daily_photos_folder_id', Value: daily.id || '' },\n{ Key: 'drive_scan_photos_folder_id', Value: scan.id || '' },\n];\nreturn rows.map((r) => ({ json: { Key: r.Key, Value: r.Value, LastUpdated: nowIso } }));"
       }
     },
     {
@@ -4060,8 +4233,8 @@
         "columns": {
           "mappingMode": "defineBelow",
           "value": {
-            "Key": "={{ $json.key }}",
-            "Value": "={{ $json.value }}",
+            "Key": "={{ $json.Key }}",
+            "Value": "={{ $json.Value }}",
             "LastUpdated": "={{ $json.LastUpdated }}"
           },
           "matchingColumns": {
@@ -4265,59 +4438,6 @@
       }
     },
     {
-      "id": "370591a3-2657-48ae-a16d-b6d19ce6d171",
-      "name": "Normalize Vision Output",
-      "type": "n8n-nodes-base.set",
-      "typeVersion": 3.4,
-      "position": [
-        1984,
-        2400
-      ],
-      "parameters": {
-        "assignments": {
-          "assignments": [
-            {
-              "id": "1",
-              "name": "framing_quality",
-              "value": "={{ $json.output?.framing_quality ?? \"\" }}",
-              "type": "string"
-            },
-            {
-              "id": "2",
-              "name": "symptoms_observed",
-              "value": "={{ $json.output?.symptoms_observed ?? [] }}",
-              "type": "array"
-            },
-            {
-              "id": "3",
-              "name": "suspected_issues",
-              "value": "={{ $json.output?.suspected_issues ?? [] }}",
-              "type": "array"
-            },
-            {
-              "id": "4",
-              "name": "confidence",
-              "value": "={{ $json.output?.confidence ?? 0 }}",
-              "type": "number"
-            },
-            {
-              "id": "5",
-              "name": "affected_areas",
-              "value": "={{ $json.output?.affected_areas ?? [] }}",
-              "type": "array"
-            },
-            {
-              "id": "6",
-              "name": "agent_notes",
-              "value": "={{ $json.output?.agent_notes ?? [] }}",
-              "type": "array"
-            }
-          ]
-        },
-        "options": {}
-      }
-    },
-    {
       "id": "ee88fe31-86ee-4c3f-9db0-ac509c02e8cb",
       "name": "Build YOLO Opinion",
       "type": "n8n-nodes-base.code",
@@ -4492,19 +4612,6 @@
       }
     },
     {
-      "id": "d7b8ac45-00bc-4639-9095-256cca0c467c",
-      "name": "Build Treatment Prompt",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        3968,
-        2400
-      ],
-      "parameters": {
-        "jsCode": "const judge = $('Normalize Judge Output').first().json;\nconst sess = $('Check Scan Session').first().json;\nconst cfgRows = $('Read SystemConfig Treatment').all().map((i) => i.json);\nconst cfg = {};\nfor (const row of cfgRows) {\nif (row.Key !== undefined && row.Key !== null && String(row.Key).trim() !== '') { cfg[String(row.Key).trim()] = row.Value; }\n}\nconst events = $('Read Event History Treatment').all().map((i) => i.json);\nconst diseases = $('Read Disease History').all().map((i) => i.json);\nconst notes = $('Read AgentNotes Treatment').all().map((i) => i.json);\nconst noteText = notes.length ? notes.map((n) => '- ' + n.note).join('\\n') : 'none';\nconst wateringHistory = events.slice(-10).map((r) => ({ ts: r.Timestamp, moisture: r.MoisturePercent, watered: r.WateringTriggered, duration: r.WaterDurationSeconds }));\nconst pastDiseases = diseases.map((r) => ({ ts: r.timestamp, verdict: r.judge_verdict, treatment: r.treatment_plan, user_verdict: r.user_verdict, outcome: r.treatment_outcome }));\nconst text = [\n'JUDGE VERDICT: ' + JSON.stringify({ verdict: judge.verdict, verdict_confidence: judge.verdict_confidence, reasoning: judge.reasoning, recommended_action: judge.recommended_action }),\n'PLANT CONTEXT: species ' + sess.species_guess + ' (confidence ' + sess.species_confidence + '), last_watered_utc ' + (cfg['last_watered_utc'] || 'unknown') + ', latest event conditions ' + JSON.stringify(events.length ? events[events.length - 1] : {}),\n'WATERING HISTORY (last 10): ' + JSON.stringify(wateringHistory),\n'PAST DISEASES / TREATMENTS / OUTCOMES: ' + JSON.stringify(pastDiseases),\n'RELEVANT AGENTNOTES (your own past UNVERIFIED HYPOTHESES, context only):',\nnoteText,\n'Return strict JSON: disease_name (string), severity (\"mild\"|\"moderate\"|\"severe\"), treatment_steps (array of strings, plant-specific, step-by-step), product_guidance (array of strings, active ingredients/categories only, never brand names), low_confidence_statement (string|null, required if uncertain), why_this_fits (string, why this advice fits THIS plant data), ai_notes (string), agent_notes (array of 0-3 short strings).',\n].join('\\n');\nreturn [{ json: { treatment_text: text } }];"
-      }
-    },
-    {
       "id": "bda84d33-164a-44f4-893e-871dbb14932b",
       "name": "Treatment Advisor",
       "type": "@n8n/n8n-nodes-langchain.agent",
@@ -4618,78 +4725,6 @@
       ],
       "parameters": {
         "jsCode": "const notes = $('Normalize Treatment Output').first().json.agent_notes ?? [];\nconst ctx = $('Check Scan Session').first().json.captured_at_utc;\nconst list = Array.isArray(notes) ? notes.slice(0, 3) : [];\nreturn list.map((n) => ({ json: { timestamp: $now.toISO(), agent: 'Treatment Advisor', note: String(n), context_ref: ctx || '', status: 'active' } }));"
-      }
-    },
-    {
-      "id": "7b5592e3-a288-4e60-ac5a-aa703d1cf97b",
-      "name": "Build Followup Row",
-      "type": "n8n-nodes-base.set",
-      "typeVersion": 3.4,
-      "position": [
-        7392,
-        2256
-      ],
-      "parameters": {
-        "assignments": {
-          "assignments": [
-            {
-              "id": "1",
-              "name": "timestamp",
-              "value": "={{ $now.toISO() }}",
-              "type": "string"
-            },
-            {
-              "id": "2",
-              "name": "type",
-              "value": "scan_followup",
-              "type": "string"
-            },
-            {
-              "id": "3",
-              "name": "title",
-              "value": "Scan follow-up - did the issue resolve?",
-              "type": "string"
-            },
-            {
-              "id": "4",
-              "name": "message",
-              "value": "={{ \"The verdict response was: \" + $(\"Build Verdict Response Row\").first().json.response + \". Did the issue resolve?\" }}",
-              "type": "string"
-            },
-            {
-              "id": "5",
-              "name": "response_options",
-              "value": "[\"Yes, resolved\",\"No, still bad\"]",
-              "type": "string"
-            },
-            {
-              "id": "6",
-              "name": "status",
-              "value": "pending",
-              "type": "string"
-            },
-            {
-              "id": "7",
-              "name": "response",
-              "value": "",
-              "type": "string"
-            },
-            {
-              "id": "8",
-              "name": "resume_url",
-              "value": "={{ $execution.resumeUrl }}",
-              "type": "string"
-            },
-            {
-              "id": "9",
-              "name": "context_ref",
-              "value": "={{ $(\"Normalize Judge Output\").item.json.scan_timestamp }}",
-              "type": "string"
-            }
-          ]
-        },
-        "includeOtherFields": true,
-        "options": {}
       }
     },
     {
@@ -4832,42 +4867,7 @@
         "resumeUnit": "days",
         "options": {}
       },
-      "webhookId": "802bb544-fcca-4f2a-bcf5-055b55d0eb71"
-    },
-    {
-      "id": "29571da5-3ee5-445a-bf12-f784266d3945",
-      "name": "Update Close Session",
-      "type": "n8n-nodes-base.googleSheets",
-      "typeVersion": 4.7,
-      "position": [
-        880,
-        3200
-      ],
-      "parameters": {
-        "operation": "appendOrUpdate",
-        "documentId": {
-          "__rl": true,
-          "mode": "id",
-          "value": "10a3YXWBN4-hFJQQT4sLERmyu8D2TxYKNkXW-k3QRyLI"
-        },
-        "sheetName": {
-          "__rl": true,
-          "mode": "name",
-          "value": "SystemConfig"
-        },
-        "columns": {
-          "mappingMode": "defineBelow",
-          "value": {
-            "Key": "={{ $json.key }}",
-            "Value": "={{ $json.value }}",
-            "LastUpdated": "={{ $json.LastUpdated }}"
-          },
-          "matchingColumns": {
-            "columnToMatchOn": "Key"
-          }
-        },
-        "options": {}
-      }
+      "webhookId": "7d95436f-f92e-41b9-82b0-af0ed4c5d28a"
     },
     {
       "id": "68c06945-2465-42f7-8d6e-9c7a7398f2b3",
@@ -5752,6 +5752,116 @@
         ]
       ]
     },
+    "Vision Analyst": {
+      "main": [
+        [
+          {
+            "node": "Normalize Vision Output",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "OpenRouter Gemma": {
+      "ai_languageModel": [
+        [
+          {
+            "node": "Vision Analyst",
+            "type": "ai_languageModel",
+            "index": 0
+          },
+          {
+            "node": "Vision Parser",
+            "type": "ai_languageModel",
+            "index": 0
+          },
+          {
+            "node": "History Analyst",
+            "type": "ai_languageModel",
+            "index": 0
+          },
+          {
+            "node": "History Parser",
+            "type": "ai_languageModel",
+            "index": 0
+          },
+          {
+            "node": "Decision Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          },
+          {
+            "node": "Decision Parser",
+            "type": "ai_languageModel",
+            "index": 0
+          },
+          {
+            "node": "Photo Analysis Agent",
+            "type": "ai_languageModel",
+            "index": 0
+          },
+          {
+            "node": "Photo Parser",
+            "type": "ai_languageModel",
+            "index": 0
+          },
+          {
+            "node": "Judge",
+            "type": "ai_languageModel",
+            "index": 0
+          },
+          {
+            "node": "Judge Parser",
+            "type": "ai_languageModel",
+            "index": 0
+          },
+          {
+            "node": "Treatment Advisor",
+            "type": "ai_languageModel",
+            "index": 0
+          },
+          {
+            "node": "Treatment Parser",
+            "type": "ai_languageModel",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Vision Parser": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Vision Analyst",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Treatment Prompt": {
+      "main": [
+        [
+          {
+            "node": "Treatment Advisor",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Followup Row": {
+      "main": [
+        [
+          {
+            "node": "Append Followup Notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
     "Core Sensor Webhook": {
       "main": [
         [
@@ -5824,72 +5934,6 @@
           {
             "node": "Normalize History Output",
             "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "OpenRouter Gemma": {
-      "ai_languageModel": [
-        [
-          {
-            "node": "History Analyst",
-            "type": "ai_languageModel",
-            "index": 0
-          },
-          {
-            "node": "History Parser",
-            "type": "ai_languageModel",
-            "index": 0
-          },
-          {
-            "node": "Decision Agent",
-            "type": "ai_languageModel",
-            "index": 0
-          },
-          {
-            "node": "Decision Parser",
-            "type": "ai_languageModel",
-            "index": 0
-          },
-          {
-            "node": "Photo Analysis Agent",
-            "type": "ai_languageModel",
-            "index": 0
-          },
-          {
-            "node": "Photo Parser",
-            "type": "ai_languageModel",
-            "index": 0
-          },
-          {
-            "node": "Vision Analyst",
-            "type": "ai_languageModel",
-            "index": 0
-          },
-          {
-            "node": "Vision Parser",
-            "type": "ai_languageModel",
-            "index": 0
-          },
-          {
-            "node": "Judge",
-            "type": "ai_languageModel",
-            "index": 0
-          },
-          {
-            "node": "Judge Parser",
-            "type": "ai_languageModel",
-            "index": 0
-          },
-          {
-            "node": "Treatment Advisor",
-            "type": "ai_languageModel",
-            "index": 0
-          },
-          {
-            "node": "Treatment Parser",
-            "type": "ai_languageModel",
             "index": 0
           }
         ]
@@ -6190,23 +6234,17 @@
         ]
       ]
     },
-    "Vision Analyst": {
+    "Normalize Vision Output": {
       "main": [
         [
           {
-            "node": "Normalize Vision Output",
+            "node": "Build YOLO Opinion",
             "type": "main",
             "index": 0
-          }
-        ]
-      ]
-    },
-    "Vision Parser": {
-      "ai_outputParser": [
-        [
+          },
           {
-            "node": "Vision Analyst",
-            "type": "ai_outputParser",
+            "node": "Build Vision Notes Rows",
+            "type": "main",
             "index": 0
           }
         ]
@@ -6261,6 +6299,17 @@
         [
           {
             "node": "Update Close Session",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Close Session": {
+      "main": [
+        [
+          {
+            "node": "Respond Scan Done",
             "type": "main",
             "index": 0
           }
@@ -6443,22 +6492,6 @@
         ]
       ]
     },
-    "Normalize Vision Output": {
-      "main": [
-        [
-          {
-            "node": "Build YOLO Opinion",
-            "type": "main",
-            "index": 0
-          },
-          {
-            "node": "Build Vision Notes Rows",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
     "Build YOLO Opinion": {
       "main": [
         [
@@ -6552,17 +6585,6 @@
         ]
       ]
     },
-    "Build Treatment Prompt": {
-      "main": [
-        [
-          {
-            "node": "Treatment Advisor",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
     "Treatment Advisor": {
       "main": [
         [
@@ -6612,17 +6634,6 @@
         ]
       ]
     },
-    "Build Followup Row": {
-      "main": [
-        [
-          {
-            "node": "Append Followup Notification",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
     "Append Followup Notification": {
       "main": [
         [
@@ -6639,17 +6650,6 @@
         [
           {
             "node": "Followup Responded?",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Update Close Session": {
-      "main": [
-        [
-          {
-            "node": "Respond Scan Done",
             "type": "main",
             "index": 0
           }
