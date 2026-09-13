@@ -510,8 +510,8 @@
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.7,
       "position": [
-        2432,
-        528
+        2416,
+        576
       ],
       "parameters": {
         "operation": "appendOrUpdate",
@@ -536,9 +536,247 @@
             "AnomalyDescription": "={{ $json.AnomalyDescription }}",
             "AI_Notes": "={{ $json.AI_Notes }}"
           },
-          "matchingColumns": {
-            "columnToMatchOn": "EventID"
-          }
+          "matchingColumns": [
+            "EventID"
+          ],
+          "schema": [
+            {
+              "id": "EventID",
+              "displayName": "EventID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Timestamp",
+              "displayName": "Timestamp",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "EventType",
+              "displayName": "EventType",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "MoisturePercent",
+              "displayName": "MoisturePercent",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "SoilTempC",
+              "displayName": "SoilTempC",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "WaterTempC",
+              "displayName": "WaterTempC",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "AirTempC",
+              "displayName": "AirTempC",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "AirHumidityPercent",
+              "displayName": "AirHumidityPercent",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "WeightGrams",
+              "displayName": "WeightGrams",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "LightLevel",
+              "displayName": "LightLevel",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "TankEmpty",
+              "displayName": "TankEmpty",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "WateringTriggered",
+              "displayName": "WateringTriggered",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "WaterDurationSeconds",
+              "displayName": "WaterDurationSeconds",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "HeaterUsed",
+              "displayName": "HeaterUsed",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "HeaterDurationSeconds",
+              "displayName": "HeaterDurationSeconds",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "SpeciesGuess",
+              "displayName": "SpeciesGuess",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "SpeciesConfidence",
+              "displayName": "SpeciesConfidence",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "PhotoFileID",
+              "displayName": "PhotoFileID",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "AnomalyDetected",
+              "displayName": "AnomalyDetected",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "AnomalyDescription",
+              "displayName": "AnomalyDescription",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "AI_Notes",
+              "displayName": "AI_Notes",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "ReasoningSummary",
+              "displayName": "ReasoningSummary",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "WateringAborted",
+              "displayName": "WateringAborted",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "FinalWaterTempC",
+              "displayName": "FinalWaterTempC",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
         },
         "options": {}
       }
@@ -1570,8 +1808,8 @@
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.7,
       "position": [
-        2864,
-        528
+        3040,
+        624
       ],
       "parameters": {
         "operation": "append",
@@ -1597,7 +1835,93 @@
             "response": "={{ $json.response }}",
             "resume_url": "={{ $json.resume_url }}",
             "context_ref": "={{ $json.context_ref }}"
-          }
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "timestamp",
+              "displayName": "timestamp",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "type",
+              "displayName": "type",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "title",
+              "displayName": "title",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "message",
+              "displayName": "message",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "response_options",
+              "displayName": "response_options",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "response",
+              "displayName": "response",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "resume_url",
+              "displayName": "resume_url",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "context_ref",
+              "displayName": "context_ref",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
         },
         "options": {}
       }
@@ -1683,9 +2007,9 @@
             "Value": "={{ $json.Value }}",
             "LastUpdated": "={{ $json.LastUpdated }}"
           },
-          "matchingColumns": {
-            "columnToMatchOn": "Key"
-          },
+          "matchingColumns": [
+            "Key"
+          ],
           "schema": [
             {
               "id": "Key",
@@ -1694,7 +2018,8 @@
               "defaultMatch": false,
               "display": true,
               "type": "string",
-              "canBeUsedToMatch": true
+              "canBeUsedToMatch": true,
+              "removed": false
             },
             {
               "id": "Value",
@@ -1863,9 +2188,9 @@
             "status": "={{ $json.status }}",
             "response": "={{ $json.response }}"
           },
-          "matchingColumns": {
-            "columnToMatchOn": "resume_url"
-          }
+          "matchingColumns": [
+            "resume_url"
+          ]
         },
         "options": {}
       }
@@ -2025,9 +2350,9 @@
             "status": "={{ $json.status }}",
             "response": "={{ $json.response }}"
           },
-          "matchingColumns": {
-            "columnToMatchOn": "resume_url"
-          }
+          "matchingColumns": [
+            "resume_url"
+          ]
         },
         "options": {}
       }
@@ -2060,9 +2385,9 @@
             "status": "={{ $json.status }}",
             "response": "={{ $json.response }}"
           },
-          "matchingColumns": {
-            "columnToMatchOn": "resume_url"
-          }
+          "matchingColumns": [
+            "resume_url"
+          ]
         },
         "options": {}
       }
@@ -2095,9 +2420,9 @@
             "status": "={{ $json.status }}",
             "response": "={{ $json.response }}"
           },
-          "matchingColumns": {
-            "columnToMatchOn": "resume_url"
-          }
+          "matchingColumns": [
+            "resume_url"
+          ]
         },
         "options": {}
       }
@@ -2130,9 +2455,9 @@
             "status": "={{ $json.status }}",
             "response": "={{ $json.response }}"
           },
-          "matchingColumns": {
-            "columnToMatchOn": "resume_url"
-          }
+          "matchingColumns": [
+            "resume_url"
+          ]
         },
         "options": {}
       }
@@ -2192,8 +2517,8 @@
       "type": "n8n-nodes-base.googleSheets",
       "typeVersion": 4.7,
       "position": [
-        2864,
-        528
+        3040,
+        448
       ],
       "parameters": {
         "operation": "appendOrUpdate",
@@ -2216,9 +2541,9 @@
             "Value": "={{ $json.Value }}",
             "LastUpdated": "={{ $json.LastUpdated }}"
           },
-          "matchingColumns": {
-            "columnToMatchOn": "Key"
-          },
+          "matchingColumns": [
+            "Key"
+          ],
           "schema": [
             {
               "id": "Key",
@@ -2227,7 +2552,8 @@
               "defaultMatch": false,
               "display": true,
               "type": "string",
-              "canBeUsedToMatch": true
+              "canBeUsedToMatch": true,
+              "removed": false
             },
             {
               "id": "Value",
@@ -2247,7 +2573,9 @@
               "type": "string",
               "canBeUsedToMatch": true
             }
-          ]
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
         },
         "options": {}
       }
@@ -2268,7 +2596,7 @@
         "resumeUnit": "minutes",
         "options": {}
       },
-      "webhookId": "f11c365f-05e3-4bac-8710-5d1733d7549f"
+      "webhookId": "fa6a47fd-dc0b-4d9a-b873-b538d8fd694e"
     },
     {
       "id": "63f9df4f-3341-47ba-84f8-b2b46cf537ff",
@@ -2363,7 +2691,7 @@
         "resumeUnit": "days",
         "options": {}
       },
-      "webhookId": "a8269df1-c57f-40ed-87b4-9ad7ae1c73d5"
+      "webhookId": "a62ce459-74bb-407d-ae7a-4413c1d17d51"
     },
     {
       "id": "7bede0f6-8db2-46d6-9542-821d4c8330a6",
@@ -2465,9 +2793,9 @@
             "Value": "={{ $json.Value }}",
             "LastUpdated": "={{ $json.LastUpdated }}"
           },
-          "matchingColumns": {
-            "columnToMatchOn": "Key"
-          },
+          "matchingColumns": [
+            "Key"
+          ],
           "schema": [
             {
               "id": "Key",
@@ -2630,9 +2958,9 @@
             "user_verdict": "={{ $json.user_verdict }}",
             "treatment_outcome": "={{ $json.treatment_outcome }}"
           },
-          "matchingColumns": {
-            "columnToMatchOn": "timestamp"
-          }
+          "matchingColumns": [
+            "timestamp"
+          ]
         },
         "options": {}
       }
@@ -2665,9 +2993,9 @@
             "user_verdict": "={{ $json.user_verdict }}",
             "treatment_outcome": "={{ $json.treatment_outcome }}"
           },
-          "matchingColumns": {
-            "columnToMatchOn": "timestamp"
-          }
+          "matchingColumns": [
+            "timestamp"
+          ]
         },
         "options": {}
       }
@@ -3015,6 +3343,121 @@
       }
     },
     {
+      "id": "ee88fe31-86ee-4c3f-9db0-ac509c02e8cb",
+      "name": "Build YOLO Opinion",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2208,
+        2400
+      ],
+      "parameters": {
+        "jsCode": "return [{ json: { status: 'not_yet_trained' } }];"
+      }
+    },
+    {
+      "id": "dfb8adb1-f265-4938-8bba-0918585b33f7",
+      "name": "Build Vision Notes Rows",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2208,
+        2528
+      ],
+      "parameters": {
+        "jsCode": "const notes = $('Normalize Vision Output').first().json.agent_notes ?? [];\nconst ctx = $('Check Scan Session').first().json.captured_at_utc;\nconst list = Array.isArray(notes) ? notes.slice(0, 3) : [];\nreturn list.map((n) => ({ json: { timestamp: $now.toISO(), agent: 'Vision Analyst', note: String(n), context_ref: ctx || '', status: 'active' } }));"
+      }
+    },
+    {
+      "id": "34a72d0b-6da5-4605-b9e0-08ced48c6eed",
+      "name": "Normalize Treatment Output",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        4624,
+        2400
+      ],
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "1",
+              "name": "disease_name",
+              "value": "={{ $json.output?.disease_name ?? \"\" }}",
+              "type": "string"
+            },
+            {
+              "id": "2",
+              "name": "severity",
+              "value": "={{ $json.output?.severity ?? \"mild\" }}",
+              "type": "string"
+            },
+            {
+              "id": "3",
+              "name": "treatment_steps",
+              "value": "={{ $json.output?.treatment_steps ?? [] }}",
+              "type": "array"
+            },
+            {
+              "id": "4",
+              "name": "product_guidance",
+              "value": "={{ $json.output?.product_guidance ?? [] }}",
+              "type": "array"
+            },
+            {
+              "id": "5",
+              "name": "low_confidence_statement",
+              "value": "={{ $json.output?.low_confidence_statement ?? \"\" }}",
+              "type": "string"
+            },
+            {
+              "id": "6",
+              "name": "why_this_fits",
+              "value": "={{ $json.output?.why_this_fits ?? \"\" }}",
+              "type": "string"
+            },
+            {
+              "id": "7",
+              "name": "ai_notes",
+              "value": "={{ $json.output?.ai_notes ?? \"\" }}",
+              "type": "string"
+            },
+            {
+              "id": "8",
+              "name": "agent_notes",
+              "value": "={{ $json.output?.agent_notes ?? [] }}",
+              "type": "array"
+            },
+            {
+              "id": "9",
+              "name": "treatment_plan",
+              "value": "={{ JSON.stringify($json.output ?? {}) }}",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "2d5c50e9-846a-4490-974b-0345ed86b703",
+      "name": "Wait Followup Response",
+      "type": "n8n-nodes-base.wait",
+      "typeVersion": 1.1,
+      "position": [
+        7600,
+        2256
+      ],
+      "parameters": {
+        "resume": "webhook",
+        "limitWaitTime": true,
+        "resumeAmount": 7,
+        "resumeUnit": "days",
+        "options": {}
+      },
+      "webhookId": "c85b04b1-2d1b-47d0-a4c7-65e4b5449572"
+    },
+    {
       "id": "2e12e017-48ba-40ad-a1a0-60b47c972d45",
       "name": "Core Sensor Webhook",
       "type": "n8n-nodes-base.webhook",
@@ -3029,7 +3472,7 @@
         "responseMode": "responseNode",
         "options": {}
       },
-      "webhookId": "58928639-580c-4042-90ed-aabb7300a7b2"
+      "webhookId": "65a00cd9-ee7c-43c8-bbe8-92025636b09a"
     },
     {
       "id": "b1b424bc-498d-4125-a9fc-f8cc4a2964b3",
@@ -3668,7 +4111,7 @@
           "responseData": "{\"status\":\"received\"}"
         }
       },
-      "webhookId": "f35a1763-2499-48c4-ab5d-6ac39f295e44"
+      "webhookId": "33c00e1d-efa0-4a5f-99d9-70e3e3385b56"
     },
     {
       "id": "c35311f9-ed13-42f3-9db4-03c861541efe",
@@ -3953,7 +4396,7 @@
         "responseMode": "responseNode",
         "options": {}
       },
-      "webhookId": "cb8190bf-df0d-481a-8a37-e9083db95d90"
+      "webhookId": "5d834037-bf33-48c2-a16f-0c7d0aad5345"
     },
     {
       "id": "0dc652fa-ba0d-45a2-993a-09b26bf6e3b1",
@@ -4006,30 +4449,41 @@
       }
     },
     {
-      "id": "ee88fe31-86ee-4c3f-9db0-ac509c02e8cb",
-      "name": "Build YOLO Opinion",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
+      "id": "cba2cca9-2c0d-4bf2-983b-3db592b65d7f",
+      "name": "Read AgentNotes Judge",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
       "position": [
-        2208,
+        2432,
         2400
       ],
       "parameters": {
-        "jsCode": "return [{ json: { status: 'not_yet_trained' } }];"
-      }
-    },
-    {
-      "id": "dfb8adb1-f265-4938-8bba-0918585b33f7",
-      "name": "Build Vision Notes Rows",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        2208,
-        2528
-      ],
-      "parameters": {
-        "jsCode": "const notes = $('Normalize Vision Output').first().json.agent_notes ?? [];\nconst ctx = $('Check Scan Session').first().json.captured_at_utc;\nconst list = Array.isArray(notes) ? notes.slice(0, 3) : [];\nreturn list.map((n) => ({ json: { timestamp: $now.toISO(), agent: 'Vision Analyst', note: String(n), context_ref: ctx || '', status: 'active' } }));"
-      }
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "10a3YXWBN4-hFJQQT4sLERmyu8D2TxYKNkXW-k3QRyLI"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "AgentNotes"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "agent",
+              "lookupValue": "Judge"
+            },
+            {
+              "lookupColumn": "status",
+              "lookupValue": "active"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "executeOnce": true,
+      "alwaysOutputData": true
     },
     {
       "id": "ec7cdbe0-b25b-4d59-8083-d83d5a4d017b",
@@ -4047,7 +4501,7 @@
           "responseData": "{\"status\":\"ok\"}"
         }
       },
-      "webhookId": "3d835b5c-921c-4753-ab73-b8e86ea59ab8"
+      "webhookId": "20d1fe0a-e35b-4ab0-b1f2-751286ef145a"
     },
     {
       "id": "15556762-4b96-4146-a5c7-94000171a363",
@@ -4247,9 +4701,9 @@
             "Value": "={{ $json.Value }}",
             "LastUpdated": "={{ $json.LastUpdated }}"
           },
-          "matchingColumns": {
-            "columnToMatchOn": "Key"
-          },
+          "matchingColumns": [
+            "Key"
+          ],
           "schema": [
             {
               "id": "Key",
@@ -4374,9 +4828,9 @@
             "Value": "={{ $json.Value }}",
             "LastUpdated": "={{ $json.LastUpdated }}"
           },
-          "matchingColumns": {
-            "columnToMatchOn": "Key"
-          },
+          "matchingColumns": [
+            "Key"
+          ],
           "schema": [
             {
               "id": "Key",
@@ -4424,7 +4878,7 @@
         "responseMode": "lastNode",
         "options": {}
       },
-      "webhookId": "cdae4008-3273-4312-8b4f-06cf005c2387"
+      "webhookId": "1ff2dbda-6691-4cc5-a840-d5a670b8c246"
     },
     {
       "id": "980a6fbb-84ce-4cf1-b50a-5cf27c50ca17",
@@ -4593,9 +5047,9 @@
             "Value": "={{ $json.Value }}",
             "LastUpdated": "={{ $json.LastUpdated }}"
           },
-          "matchingColumns": {
-            "columnToMatchOn": "Key"
-          },
+          "matchingColumns": [
+            "Key"
+          ],
           "schema": [
             {
               "id": "Key",
@@ -4759,7 +5213,93 @@
             "response": "={{ $json.response }}",
             "resume_url": "={{ $json.resume_url }}",
             "context_ref": "={{ $json.context_ref }}"
-          }
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "timestamp",
+              "displayName": "timestamp",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "type",
+              "displayName": "type",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "title",
+              "displayName": "title",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "message",
+              "displayName": "message",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "response_options",
+              "displayName": "response_options",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "response",
+              "displayName": "response",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "resume_url",
+              "displayName": "resume_url",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "context_ref",
+              "displayName": "context_ref",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
         },
         "options": {}
       }
@@ -4821,43 +5361,6 @@
       "parameters": {
         "jsCode": "const rows = $('Read SystemConfig Scan').all().map((i) => i.json);\nconst cfg = {};\nfor (const row of rows) {\nif (row.Key !== undefined && row.Key !== null && String(row.Key).trim() !== '') { cfg[String(row.Key).trim()] = row.Value; }\n}\nconst sessionActive = String(cfg['scan_session_active'] || 'false').toLowerCase() === 'true';\nconst batteryRaw = cfg['camera_battery_percent'];\nconst battery = (batteryRaw === undefined || batteryRaw === null || batteryRaw === '') ? null : Number(batteryRaw);\nconst minBatteryPercent = Number(cfg['camera_battery_min_percent'] ?? 30);\nconst batteryLow = battery !== null && battery < minBatteryPercent;\nreturn [{ json: {\nsession_active: sessionActive,\nbattery_percent: battery,\nbattery_low: batteryLow,\npostpone_reason: sessionActive ? 'a scan session is already active' : (batteryLow ? 'low camera battery' : ''),\n} }];"
       }
-    },
-    {
-      "id": "cba2cca9-2c0d-4bf2-983b-3db592b65d7f",
-      "name": "Read AgentNotes Judge",
-      "type": "n8n-nodes-base.googleSheets",
-      "typeVersion": 4.7,
-      "position": [
-        2432,
-        2400
-      ],
-      "parameters": {
-        "documentId": {
-          "__rl": true,
-          "mode": "id",
-          "value": "10a3YXWBN4-hFJQQT4sLERmyu8D2TxYKNkXW-k3QRyLI"
-        },
-        "sheetName": {
-          "__rl": true,
-          "mode": "name",
-          "value": "AgentNotes"
-        },
-        "filtersUI": {
-          "values": [
-            {
-              "lookupColumn": "agent",
-              "lookupValue": "Judge"
-            },
-            {
-              "lookupColumn": "status",
-              "lookupValue": "active"
-            }
-          ]
-        },
-        "options": {}
-      },
-      "executeOnce": true,
-      "alwaysOutputData": true
     },
     {
       "id": "50d381de-647a-4092-9a54-9e991530c824",
@@ -4971,77 +5474,6 @@
       }
     },
     {
-      "id": "34a72d0b-6da5-4605-b9e0-08ced48c6eed",
-      "name": "Normalize Treatment Output",
-      "type": "n8n-nodes-base.set",
-      "typeVersion": 3.4,
-      "position": [
-        4624,
-        2400
-      ],
-      "parameters": {
-        "assignments": {
-          "assignments": [
-            {
-              "id": "1",
-              "name": "disease_name",
-              "value": "={{ $json.output?.disease_name ?? \"\" }}",
-              "type": "string"
-            },
-            {
-              "id": "2",
-              "name": "severity",
-              "value": "={{ $json.output?.severity ?? \"mild\" }}",
-              "type": "string"
-            },
-            {
-              "id": "3",
-              "name": "treatment_steps",
-              "value": "={{ $json.output?.treatment_steps ?? [] }}",
-              "type": "array"
-            },
-            {
-              "id": "4",
-              "name": "product_guidance",
-              "value": "={{ $json.output?.product_guidance ?? [] }}",
-              "type": "array"
-            },
-            {
-              "id": "5",
-              "name": "low_confidence_statement",
-              "value": "={{ $json.output?.low_confidence_statement ?? \"\" }}",
-              "type": "string"
-            },
-            {
-              "id": "6",
-              "name": "why_this_fits",
-              "value": "={{ $json.output?.why_this_fits ?? \"\" }}",
-              "type": "string"
-            },
-            {
-              "id": "7",
-              "name": "ai_notes",
-              "value": "={{ $json.output?.ai_notes ?? \"\" }}",
-              "type": "string"
-            },
-            {
-              "id": "8",
-              "name": "agent_notes",
-              "value": "={{ $json.output?.agent_notes ?? [] }}",
-              "type": "array"
-            },
-            {
-              "id": "9",
-              "name": "treatment_plan",
-              "value": "={{ JSON.stringify($json.output ?? {}) }}",
-              "type": "string"
-            }
-          ]
-        },
-        "options": {}
-      }
-    },
-    {
       "id": "70ad37fc-07f5-4bc3-a195-07e4dbeedeb8",
       "name": "Build Treatment Notes Rows",
       "type": "n8n-nodes-base.code",
@@ -5053,24 +5485,6 @@
       "parameters": {
         "jsCode": "const notes = $('Normalize Treatment Output').first().json.agent_notes ?? [];\nconst ctx = $('Check Scan Session').first().json.captured_at_utc;\nconst list = Array.isArray(notes) ? notes.slice(0, 3) : [];\nreturn list.map((n) => ({ json: { timestamp: $now.toISO(), agent: 'Treatment Advisor', note: String(n), context_ref: ctx || '', status: 'active' } }));"
       }
-    },
-    {
-      "id": "2d5c50e9-846a-4490-974b-0345ed86b703",
-      "name": "Wait Followup Response",
-      "type": "n8n-nodes-base.wait",
-      "typeVersion": 1.1,
-      "position": [
-        7600,
-        2256
-      ],
-      "parameters": {
-        "resume": "webhook",
-        "limitWaitTime": true,
-        "resumeAmount": 7,
-        "resumeUnit": "days",
-        "options": {}
-      },
-      "webhookId": "7d429733-1af4-47c4-9faf-67c785b3f828"
     },
     {
       "id": "8c7f9575-b2b3-4913-9c2f-e77e2b92e426",
@@ -6099,6 +6513,55 @@
         ]
       ]
     },
+    "Build YOLO Opinion": {
+      "main": [
+        [
+          {
+            "node": "Read AgentNotes Judge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Vision Notes Rows": {
+      "main": [
+        [
+          {
+            "node": "Append AgentNotes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Treatment Output": {
+      "main": [
+        [
+          {
+            "node": "Build DiseaseScans Row",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Build Treatment Notes Rows",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Wait Followup Response": {
+      "main": [
+        [
+          {
+            "node": "Followup Responded?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
     "Core Sensor Webhook": {
       "main": [
         [
@@ -6471,22 +6934,11 @@
         ]
       ]
     },
-    "Build YOLO Opinion": {
+    "Read AgentNotes Judge": {
       "main": [
         [
           {
-            "node": "Read AgentNotes Judge",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Build Vision Notes Rows": {
-      "main": [
-        [
-          {
-            "node": "Append AgentNotes",
+            "node": "Build Judge Prompt",
             "type": "main",
             "index": 0
           }
@@ -6735,17 +7187,6 @@
         ]
       ]
     },
-    "Read AgentNotes Judge": {
-      "main": [
-        [
-          {
-            "node": "Build Judge Prompt",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
     "Build Judge Prompt": {
       "main": [
         [
@@ -6806,38 +7247,11 @@
         ]
       ]
     },
-    "Normalize Treatment Output": {
-      "main": [
-        [
-          {
-            "node": "Build DiseaseScans Row",
-            "type": "main",
-            "index": 0
-          },
-          {
-            "node": "Build Treatment Notes Rows",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
     "Build Treatment Notes Rows": {
       "main": [
         [
           {
             "node": "Append AgentNotes",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Wait Followup Response": {
-      "main": [
-        [
-          {
-            "node": "Followup Responded?",
             "type": "main",
             "index": 0
           }
