@@ -896,7 +896,7 @@
         80
       ],
       "parameters": {
-        "jsCode": "const fin = $('Safety Guardrails').first().json;\nconst updates = [];\nconst nowIso = $now.toISO();\nif (fin.needs_watering_final && !fin.tank_empty && !fin.dry_run_mode) {\nupdates.push({ Key: 'last_watered_utc', Value: nowIso, LastUpdated: nowIso });\n}\nconst newConf = Number(fin.species_confidence ?? 0);\nconst storedConf = Number(fin.species_stored_confidence ?? 0);\nif (newConf > storedConf) {\nupdates.push({ Key: 'last_species_guess', Value: fin.species_guess, LastUpdated: nowIso });\nupdates.push({ Key: 'species_confidence', Value: String(newConf), LastUpdated: nowIso });\n}\nif (fin.temperature_tolerance_c !== undefined && fin.temperature_tolerance_c !== null) {\nupdates.push({ Key: 'current_temp_tolerance_c', Value: String(fin.temperature_tolerance_c), LastUpdated: nowIso });\n}\nreturn updates.map((u) => ({ json: u }));"
+        "jsCode": "const fin = $('Safety Guardrails').first().json;\nconst updates = [];\nconst nowIso = $now.toISO();\nconst ll = $('Normalize Sensor Payload').first().json.light_level;\nif (ll !== undefined && ll !== null && String(ll).trim() !== '') {\nupdates.push({ Key: 'last_lightlevel', Value: String(ll), LastUpdated: nowIso });\n}\nif (fin.needs_watering_final && !fin.tank_empty && !fin.dry_run_mode) {\nupdates.push({ Key: 'last_watered_utc', Value: nowIso, LastUpdated: nowIso });\n}\nconst newConf = Number(fin.species_confidence ?? 0);\nconst storedConf = Number(fin.species_stored_confidence ?? 0);\nif (newConf > storedConf) {\nupdates.push({ Key: 'last_species_guess', Value: fin.species_guess, LastUpdated: nowIso });\nupdates.push({ Key: 'species_confidence', Value: String(newConf), LastUpdated: nowIso });\n}\nif (fin.temperature_tolerance_c !== undefined && fin.temperature_tolerance_c !== null) {\nupdates.push({ Key: 'current_temp_tolerance_c', Value: String(fin.temperature_tolerance_c), LastUpdated: nowIso });\n}\nreturn updates.map((u) => ({ json: u }));"
       }
     },
     {
@@ -2596,7 +2596,7 @@
         "resumeUnit": "minutes",
         "options": {}
       },
-      "webhookId": "fa6a47fd-dc0b-4d9a-b873-b538d8fd694e"
+      "webhookId": "fda0163c-d599-477b-b34c-f0a9205fb99a"
     },
     {
       "id": "63f9df4f-3341-47ba-84f8-b2b46cf537ff",
@@ -2691,7 +2691,7 @@
         "resumeUnit": "days",
         "options": {}
       },
-      "webhookId": "a62ce459-74bb-407d-ae7a-4413c1d17d51"
+      "webhookId": "0fe8d091-778e-45fb-8a63-83a875e925ff"
     },
     {
       "id": "7bede0f6-8db2-46d6-9542-821d4c8330a6",
@@ -3455,7 +3455,141 @@
         "resumeUnit": "days",
         "options": {}
       },
-      "webhookId": "c85b04b1-2d1b-47d0-a4c7-65e4b5449572"
+      "webhookId": "e5a8ec20-d3e3-4f7d-9e52-a80c22e98a72"
+    },
+    {
+      "id": "cba2cca9-2c0d-4bf2-983b-3db592b65d7f",
+      "name": "Read AgentNotes Judge",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        2432,
+        2400
+      ],
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "10a3YXWBN4-hFJQQT4sLERmyu8D2TxYKNkXW-k3QRyLI"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "AgentNotes"
+        },
+        "filtersUI": {
+          "values": [
+            {
+              "lookupColumn": "agent",
+              "lookupValue": "Judge"
+            },
+            {
+              "lookupColumn": "status",
+              "lookupValue": "active"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "executeOnce": true,
+      "alwaysOutputData": true
+    },
+    {
+      "id": "ca9a672a-4153-4056-9c08-0058ffec2016",
+      "name": "Append AgentNotes",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1008,
+        1408
+      ],
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "10a3YXWBN4-hFJQQT4sLERmyu8D2TxYKNkXW-k3QRyLI"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "AgentNotes"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "timestamp": "={{ $json.timestamp }}",
+            "agent": "={{ $json.agent }}",
+            "note": "={{ $json.note }}",
+            "context_ref": "={{ $json.context_ref }}",
+            "status": "={{ $json.status }}"
+          },
+          "matchingColumns": [],
+          "schema": [
+            {
+              "id": "timestamp",
+              "displayName": "timestamp",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "agent",
+              "displayName": "agent",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "note",
+              "displayName": "note",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "context_ref",
+              "displayName": "context_ref",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "status",
+              "displayName": "status",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "70ad37fc-07f5-4bc3-a195-07e4dbeedeb8",
+      "name": "Build Treatment Notes Rows",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4848,
+        2528
+      ],
+      "parameters": {
+        "jsCode": "const notes = $('Normalize Treatment Output').first().json.agent_notes ?? [];\nconst ctx = $('Check Scan Session').first().json.captured_at_utc;\nconst list = Array.isArray(notes) ? notes.slice(0, 3) : [];\nreturn list.map((n) => ({ json: { timestamp: $now.toISO(), agent: 'Treatment Advisor', note: String(n), context_ref: ctx || '', status: 'active' } }));"
+      }
     },
     {
       "id": "2e12e017-48ba-40ad-a1a0-60b47c972d45",
@@ -3472,7 +3606,7 @@
         "responseMode": "responseNode",
         "options": {}
       },
-      "webhookId": "65a00cd9-ee7c-43c8-bbe8-92025636b09a"
+      "webhookId": "6f9bdd09-c49a-40c1-a938-a03b930febe1"
     },
     {
       "id": "b1b424bc-498d-4125-a9fc-f8cc4a2964b3",
@@ -3813,40 +3947,6 @@
       }
     },
     {
-      "id": "ca9a672a-4153-4056-9c08-0058ffec2016",
-      "name": "Append AgentNotes",
-      "type": "n8n-nodes-base.googleSheets",
-      "typeVersion": 4.7,
-      "position": [
-        1008,
-        1408
-      ],
-      "parameters": {
-        "operation": "append",
-        "documentId": {
-          "__rl": true,
-          "mode": "id",
-          "value": "10a3YXWBN4-hFJQQT4sLERmyu8D2TxYKNkXW-k3QRyLI"
-        },
-        "sheetName": {
-          "__rl": true,
-          "mode": "name",
-          "value": "AgentNotes"
-        },
-        "columns": {
-          "mappingMode": "defineBelow",
-          "value": {
-            "timestamp": "={{ $json.timestamp }}",
-            "agent": "={{ $json.agent }}",
-            "note": "={{ $json.note }}",
-            "context_ref": "={{ $json.context_ref }}",
-            "status": "={{ $json.status }}"
-          }
-        },
-        "options": {}
-      }
-    },
-    {
       "id": "303a8358-7df8-44a2-984d-db83ee64346a",
       "name": "Decision Agent",
       "type": "@n8n/n8n-nodes-langchain.agent",
@@ -4111,7 +4211,7 @@
           "responseData": "{\"status\":\"received\"}"
         }
       },
-      "webhookId": "33c00e1d-efa0-4a5f-99d9-70e3e3385b56"
+      "webhookId": "87b97578-6593-4da3-a065-716f9b3f7ab9"
     },
     {
       "id": "c35311f9-ed13-42f3-9db4-03c861541efe",
@@ -4396,7 +4496,7 @@
         "responseMode": "responseNode",
         "options": {}
       },
-      "webhookId": "5d834037-bf33-48c2-a16f-0c7d0aad5345"
+      "webhookId": "2a5c36f6-7e63-43d7-a4d9-2ba20a37da37"
     },
     {
       "id": "0dc652fa-ba0d-45a2-993a-09b26bf6e3b1",
@@ -4449,41 +4549,17 @@
       }
     },
     {
-      "id": "cba2cca9-2c0d-4bf2-983b-3db592b65d7f",
-      "name": "Read AgentNotes Judge",
-      "type": "n8n-nodes-base.googleSheets",
-      "typeVersion": 4.7,
+      "id": "50d381de-647a-4092-9a54-9e991530c824",
+      "name": "Build Judge Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
       "position": [
-        2432,
+        2640,
         2400
       ],
       "parameters": {
-        "documentId": {
-          "__rl": true,
-          "mode": "id",
-          "value": "10a3YXWBN4-hFJQQT4sLERmyu8D2TxYKNkXW-k3QRyLI"
-        },
-        "sheetName": {
-          "__rl": true,
-          "mode": "name",
-          "value": "AgentNotes"
-        },
-        "filtersUI": {
-          "values": [
-            {
-              "lookupColumn": "agent",
-              "lookupValue": "Judge"
-            },
-            {
-              "lookupColumn": "status",
-              "lookupValue": "active"
-            }
-          ]
-        },
-        "options": {}
-      },
-      "executeOnce": true,
-      "alwaysOutputData": true
+        "jsCode": "const vision = $('Normalize Vision Output').first().json;\nconst yolo = $('Build YOLO Opinion').first().json;\nconst sess = $('Check Scan Session').first().json;\nconst notes = $('Read AgentNotes Judge').all().map((i) => i.json);\nconst noteText = notes.length ? notes.map((n) => '- ' + n.note).join('\\n') : 'none';\nconst text = [\n'VISION OPINION (strict JSON): ' + JSON.stringify({ framing_quality: vision.framing_quality, symptoms_observed: vision.symptoms_observed, suspected_issues: vision.suspected_issues, confidence: vision.confidence, affected_areas: vision.affected_areas }),\n'YOLO OPINION: ' + JSON.stringify(yolo),\n'IMAGE CONTEXT: weekly scan, species ' + sess.species_guess + ' (confidence ' + sess.species_confidence + ').',\n'YOUR UNVERIFIED HYPOTHESES (context only, never ground truth):',\nnoteText,\n'Return strict JSON: verdict (string, one of \"healthy\" | \"monitor\" | \"issue\"), verdict_confidence (0-1), reasoning (string, explain weighting), recommended_action (string), agent_notes (array of 0-3 short strings).',\n].join('\\n');\nreturn [{ json: { judge_text: text } }];"
+      }
     },
     {
       "id": "ec7cdbe0-b25b-4d59-8083-d83d5a4d017b",
@@ -4501,7 +4577,7 @@
           "responseData": "{\"status\":\"ok\"}"
         }
       },
-      "webhookId": "20d1fe0a-e35b-4ab0-b1f2-751286ef145a"
+      "webhookId": "e23247c5-6659-40d0-a9c3-167571907938"
     },
     {
       "id": "15556762-4b96-4146-a5c7-94000171a363",
@@ -4878,7 +4954,7 @@
         "responseMode": "lastNode",
         "options": {}
       },
-      "webhookId": "1ff2dbda-6691-4cc5-a840-d5a670b8c246"
+      "webhookId": "6d4510e9-c254-414e-9dd5-45d1c631e806"
     },
     {
       "id": "980a6fbb-84ce-4cf1-b50a-5cf27c50ca17",
@@ -4914,7 +4990,7 @@
         3344
       ],
       "parameters": {
-        "jsCode": "const lat = 49.9886;\nconst lng = 8.5958;\nfunction sunTimesForDay(year, month, day) {\nconst rad = Math.PI / 180;\nconst start = Date.UTC(year, month, day);\nconst jan1 = Date.UTC(year, 0, 1);\nconst doy = Math.floor((start - jan1) / 86400000) + 1;\nconst gamma = (2 * Math.PI / 365) * (doy - 1 + 0.5);\nconst eqtime = 229.18 * (0.000075 + 0.001868 * Math.cos(gamma) - 0.032077 * Math.sin(gamma) - 0.014615 * Math.cos(2 * gamma) - 0.040849 * Math.sin(2 * gamma));\nconst decl = 0.006918 - 0.399912 * Math.cos(gamma) + 0.070257 * Math.sin(gamma) - 0.006758 * Math.cos(2 * gamma) + 0.000907 * Math.sin(2 * gamma) - 0.002697 * Math.cos(3 * gamma) + 0.00148 * Math.sin(3 * gamma);\nconst zenith = 90.833;\nconst cosH = (Math.cos(zenith * rad) - Math.sin(lat * rad) * Math.sin(decl)) / (Math.cos(lat * rad) * Math.cos(decl));\nif (cosH > 1 || cosH < -1) {\nreturn { sunrise: null, sunset: null };\n}\nconst ha = Math.acos(cosH) / rad;\nconst toIso = (minutes) => new Date(start + Math.round(minutes * 60000)).toISOString();\nreturn {\nsunrise: toIso(720 - 4 * (lng + ha) - eqtime),\nsunset: toIso(720 - 4 * (lng - ha) - eqtime),\n};\n}\nconst configRows = $('Read SystemConfig E2').all().map((i) => i.json);\nconst cfg = {};\nfor (const row of configRows) {\nif (row.Key !== undefined && row.Key !== null && String(row.Key).trim() !== '') {\ncfg[String(row.Key).trim()] = row.Value;\n}\n}\nconst now = new Date();\nlet sunrise = cfg['next_sunrise_utc'] || '';\nlet sunset = cfg['next_sunset_utc'] || '';\nconst staleSunrise = !sunrise || Date.parse(sunrise) <= now.getTime();\nconst staleSunset = !sunset || Date.parse(sunset) <= now.getTime();\nif (staleSunrise || staleSunset) {\nconst today = sunTimesForDay(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());\nconst tomorrow = sunTimesForDay(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1);\nconst candidates = [\n{ type: 'sunrise', iso: today.sunrise },\n{ type: 'sunset', iso: today.sunset },\n{ type: 'sunrise', iso: tomorrow.sunrise },\n{ type: 'sunset', iso: tomorrow.sunset },\n].filter((c) => c.iso && Date.parse(c.iso) > now.getTime());\nif (staleSunrise) {\nconst n = candidates.find((c) => c.type === 'sunrise');\nsunrise = n ? n.iso : sunrise;\n}\nif (staleSunset) {\nconst n = candidates.find((c) => c.type === 'sunset');\nsunset = n ? n.iso : sunset;\n}\n}\nreturn [{\njson: {\nnext_sunrise_utc: sunrise,\nnext_sunset_utc: sunset,\ncurrent_cycle_week: cfg['current_cycle_week'] || 'mapping',\ndry_run_mode: String(cfg['dry_run_mode'] || 'false').toLowerCase() === 'true',\npot_latitude: Number(cfg['pot_latitude'] || 49.9886),\npot_longitude: Number(cfg['pot_longitude'] || 8.5958),\n},\n}];"
+        "jsCode": "const lat = 49.9886;\nconst lng = 8.5958;\nfunction sunTimesForDay(year, month, day) {\nconst rad = Math.PI / 180;\nconst start = Date.UTC(year, month, day);\nconst jan1 = Date.UTC(year, 0, 1);\nconst doy = Math.floor((start - jan1) / 86400000) + 1;\nconst gamma = (2 * Math.PI / 365) * (doy - 1 + 0.5);\nconst eqtime = 229.18 * (0.000075 + 0.001868 * Math.cos(gamma) - 0.032077 * Math.sin(gamma) - 0.014615 * Math.cos(2 * gamma) - 0.040849 * Math.sin(2 * gamma));\nconst decl = 0.006918 - 0.399912 * Math.cos(gamma) + 0.070257 * Math.sin(gamma) - 0.006758 * Math.cos(2 * gamma) + 0.000907 * Math.sin(2 * gamma) - 0.002697 * Math.cos(3 * gamma) + 0.00148 * Math.sin(3 * gamma);\nconst zenith = 90.833;\nconst cosH = (Math.cos(zenith * rad) - Math.sin(lat * rad) * Math.sin(decl)) / (Math.cos(lat * rad) * Math.cos(decl));\nif (cosH > 1 || cosH < -1) {\nreturn { sunrise: null, sunset: null };\n}\nconst ha = Math.acos(cosH) / rad;\nconst toIso = (minutes) => new Date(start + Math.round(minutes * 60000)).toISOString();\nreturn {\nsunrise: toIso(720 - 4 * (lng + ha) - eqtime),\nsunset: toIso(720 - 4 * (lng - ha) - eqtime),\n};\n}\nconst configRows = $('Read SystemConfig E2').all().map((i) => i.json);\nconst cfg = {};\nlet lastLightUpdatedUtc = null;\nfor (const row of configRows) {\nif (row.Key !== undefined && row.Key !== null && String(row.Key).trim() !== '') {\nconst key = String(row.Key).trim();\ncfg[key] = row.Value;\nif (key === 'last_lightlevel' && row.LastUpdated) lastLightUpdatedUtc = String(row.LastUpdated);\n}\n}\nconst now = new Date();\nlet sunrise = cfg['next_sunrise_utc'] || '';\nlet sunset = cfg['next_sunset_utc'] || '';\nconst staleSunrise = !sunrise || Date.parse(sunrise) <= now.getTime();\nconst staleSunset = !sunset || Date.parse(sunset) <= now.getTime();\nif (staleSunrise || staleSunset) {\nconst today = sunTimesForDay(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());\nconst tomorrow = sunTimesForDay(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1);\nconst candidates = [\n{ type: 'sunrise', iso: today.sunrise },\n{ type: 'sunset', iso: today.sunset },\n{ type: 'sunrise', iso: tomorrow.sunrise },\n{ type: 'sunset', iso: tomorrow.sunset },\n].filter((c) => c.iso && Date.parse(c.iso) > now.getTime());\nif (staleSunrise) {\nconst n = candidates.find((c) => c.type === 'sunrise');\nsunrise = n ? n.iso : sunrise;\n}\nif (staleSunset) {\nconst n = candidates.find((c) => c.type === 'sunset');\nsunset = n ? n.iso : sunset;\n}\n}\nreturn [{\njson: {\nnext_sunrise_utc: sunrise,\nnext_sunset_utc: sunset,\ncurrent_cycle_week: cfg['current_cycle_week'] || 'mapping',\ndry_run_mode: String(cfg['dry_run_mode'] || 'false').toLowerCase() === 'true',\npot_latitude: Number(cfg['pot_latitude'] || 49.9886),\npot_longitude: Number(cfg['pot_longitude'] || 8.5958),\nlast_lightlevel: (cfg['last_lightlevel'] === undefined || cfg['last_lightlevel'] === null || String(cfg['last_lightlevel']).trim() === '') ? null : Number(cfg['last_lightlevel']),\nflash_dark_threshold: (cfg['flash_dark_threshold'] === undefined || cfg['flash_dark_threshold'] === null || String(cfg['flash_dark_threshold']).trim() === '') ? null : Number(cfg['flash_dark_threshold']),\nlast_lightlevel_utc: lastLightUpdatedUtc,\n},\n}];"
       }
     },
     {
@@ -5363,19 +5439,6 @@
       }
     },
     {
-      "id": "50d381de-647a-4092-9a54-9e991530c824",
-      "name": "Build Judge Prompt",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        2640,
-        2400
-      ],
-      "parameters": {
-        "jsCode": "const vision = $('Normalize Vision Output').first().json;\nconst yolo = $('Build YOLO Opinion').first().json;\nconst sess = $('Check Scan Session').first().json;\nconst notes = $('Read AgentNotes Judge').all().map((i) => i.json);\nconst noteText = notes.length ? notes.map((n) => '- ' + n.note).join('\\n') : 'none';\nconst text = [\n'VISION OPINION (strict JSON): ' + JSON.stringify({ framing_quality: vision.framing_quality, symptoms_observed: vision.symptoms_observed, suspected_issues: vision.suspected_issues, confidence: vision.confidence, affected_areas: vision.affected_areas }),\n'YOLO OPINION: ' + JSON.stringify(yolo),\n'IMAGE CONTEXT: weekly scan, species ' + sess.species_guess + ' (confidence ' + sess.species_confidence + ').',\n'YOUR UNVERIFIED HYPOTHESES (context only, never ground truth):',\nnoteText,\n'Return strict JSON: verdict (string, one of \"healthy\" | \"monitor\" | \"issue\"), verdict_confidence (0-1), reasoning (string, explain weighting), recommended_action (string), agent_notes (array of 0-3 short strings).',\n].join('\\n');\nreturn [{ json: { judge_text: text } }];"
-      }
-    },
-    {
       "id": "b54ba0de-85b5-4ab7-a793-96d8ac548900",
       "name": "Judge",
       "type": "@n8n/n8n-nodes-langchain.agent",
@@ -5471,19 +5534,6 @@
       ],
       "parameters": {
         "jsCode": "const notes = $('Normalize Judge Output').first().json.agent_notes ?? [];\nconst ctx = $('Check Scan Session').first().json.captured_at_utc;\nconst list = Array.isArray(notes) ? notes.slice(0, 3) : [];\nreturn list.map((n) => ({ json: { timestamp: $now.toISO(), agent: 'Judge', note: String(n), context_ref: ctx || '', status: 'active' } }));"
-      }
-    },
-    {
-      "id": "70ad37fc-07f5-4bc3-a195-07e4dbeedeb8",
-      "name": "Build Treatment Notes Rows",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
-      "position": [
-        4848,
-        2528
-      ],
-      "parameters": {
-        "jsCode": "const notes = $('Normalize Treatment Output').first().json.agent_notes ?? [];\nconst ctx = $('Check Scan Session').first().json.captured_at_utc;\nconst list = Array.isArray(notes) ? notes.slice(0, 3) : [];\nreturn list.map((n) => ({ json: { timestamp: $now.toISO(), agent: 'Treatment Advisor', note: String(n), context_ref: ctx || '', status: 'active' } }));"
       }
     },
     {
@@ -6562,6 +6612,28 @@
         ]
       ]
     },
+    "Read AgentNotes Judge": {
+      "main": [
+        [
+          {
+            "node": "Build Judge Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Treatment Notes Rows": {
+      "main": [
+        [
+          {
+            "node": "Append AgentNotes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
     "Core Sensor Webhook": {
       "main": [
         [
@@ -6934,11 +7006,11 @@
         ]
       ]
     },
-    "Read AgentNotes Judge": {
+    "Build Judge Prompt": {
       "main": [
         [
           {
-            "node": "Build Judge Prompt",
+            "node": "Judge",
             "type": "main",
             "index": 0
           }
@@ -7187,17 +7259,6 @@
         ]
       ]
     },
-    "Build Judge Prompt": {
-      "main": [
-        [
-          {
-            "node": "Judge",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
     "Judge": {
       "main": [
         [
@@ -7237,17 +7298,6 @@
       ]
     },
     "Build Judge Notes Rows": {
-      "main": [
-        [
-          {
-            "node": "Append AgentNotes",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Build Treatment Notes Rows": {
       "main": [
         [
           {
