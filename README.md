@@ -148,8 +148,11 @@ Every weekly scan logs the photo plus the vision opinion, the YOLO opinion, the 
 - [x] Minimal dashboard built (`dashboard/`; OAuth client ID + GitHub Pages deploy still to do)
 - [ ] Minimal dashboard deployed to GitHub Pages (config: see Dashboard section)
 - [ ] Workflow smoke-tested end to end (still inactive, dry-run)
-- [ ] ESP32 WROOM firmware (sensor routine, NTP re-sync, pump/heater execution)
-- [ ] ESP32-CAM firmware (capture, battery ADC, capture-button debounce, uploads)
+- [x] ESP32 WROOM calibration/test sketch flashed and running (part 1 DONE — 2026-09-14; boots, Wi-Fi/serial OK)
+- [ ] WROOM sensor verification complete — **PARTIAL**: HX711 blocked on 2 scale-mount screws; heater module not delivered (2026-09-14)
+- [ ] ESP32 WROOM production firmware (sensor routine, NTP re-sync, pump/heater execution)
+- [x] ESP32-CAM test sketch bench-tested (camera init, Wi-Fi connect, webhook upload — 2026-09-14)
+- [ ] ESP32-CAM production firmware (capture, battery ADC, capture-button debounce, uploads)
 - [ ] Full dashboard (charts, history, AgentNotes, battery status, Web Push)
 - [ ] Plant Profile Agent build; YOLO fine-tuning on accumulated gold labels
 

@@ -116,3 +116,8 @@ ESP32-CAM firmware (daily photo POST corephoto, weekly scan POST yolo-scan, batt
 - Deliverable 1 compiles for "ESP32 Dev Module" and its six discovered constants are printable/copyable.
 - Deliverable 2 dry-run tested against `/webhook-test/coresensor` with `dryrun: true` before any live run.
 - Tank-empty path demonstrated: with XKC reporting empty, pump cannot run even if response says water.
+
+**Owner-verified test status (2026-09-14):**
+- **Deliverable 1** (`firmware/wroom_calibration/wroom_calibration.ino`) — **Part 1 (upload) DONE:** flashed to the ESP32-WROOM; board boots, sketch runs, Wi-Fi/serial output works. **Part 2 (sensor-by-sensor verification) PARTIAL:** sensors not depending on missing hardware were read and returned values; **HX711 load cell NOT tested** (blocked — waiting on 2 extra screws for the scale mount; `HX711_SCALE_FACTOR` stays provisional `305.070f`); **water-heater path NOT tested** (heater module not delivered — `heater_on` / `max_heater_seconds=600` validated only in dry-run). Results were reported back but the set is **INCOMPLETE** (scale + heater rows open).
+- **ESP32-CAM** (`firmware/esp32cam/esp32cam.ino`) — test sketch written and bench-tested **DONE**: camera init, Wi-Fi connect, webhook upload path verified.
+- Outstanding: (1) re-run the WROOM sensor test for the HX711 when the screws arrive and replace the provisional scale factor; (2) test heater wiring/relay when the module arrives and verify the 600 s cutoff + water-temp readings; (3) attach both results to the same result sheet so the sensor test is fully DONE before production firmware is written.

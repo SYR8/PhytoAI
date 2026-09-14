@@ -457,8 +457,14 @@ Safety first, each loop in isolation, integration last.
 |---|---|---|
 | H1 | Relay board | Photos (top + bottom) with silkscreen; brand/model; chip markings; input trigger voltage spec (is 3.3 V enough?); active-HIGH/LOW; JD-VCC / opto-isolation jumper; per-channel coil current; contact rating; on-board flyback diodes |
 | H4 | PSU / power | DC brick or USB-C charger label (5 V, A); PD behavior; USB-C socket wiring; expansion-board regulator rating |
-| H7 | Load-cell mounting | Photos of pot/cell arrangement; whether pump/tubing mechanically touch the pot or scale |
+| H7 | Load-cell mounting | Photos of pot/cell arrangement; whether pump/tubing mechanically touch the pot or scale. **Blocked 2026-09-14:** waiting on 2 scale-mount screws → HX711 calibration not yet done; `HX711_SCALE_FACTOR` remains provisional `305.070f` |
 | H8 (rest) | Expansion board | Confirm free GPIOs GPIO25/26/13/14 and the board's 5 V-pin behavior |
 | H9 | Relay board power | Confirm VCC can share the 5 V rail and that the rail can supply coil currents |
 
 No heater/pump wiring is final until **H1 and H4** are answered (H7 affects the weight-loop calibration, not the actuator wiring).
+
+### 11.3 Test status (owner-verified 2026-09-14)
+
+- **ESP32-WROOM calibration** (`firmware/wroom_calibration/wroom_calibration.ino`) — **Part 1 (upload) DONE:** flashed, boots, Wi-Fi/serial OK. **Part 2 (sensor-by-sensor) PARTIAL:** sensors without missing hardware returned values; **HX711 load cell NOT tested** (blocked on the 2 scale-mount screws; `HX711_SCALE_FACTOR` stays provisional `305.070f`); **heater path NOT tested** (module not delivered; `max_heater_seconds=600` validated only in dry-run). Result set reported but **INCOMPLETE** (scale + heater rows open).
+- **ESP32-CAM** (`firmware/esp32cam/esp32cam.ino`) — test sketch **DONE:** bench-tested (camera init, Wi-Fi connect, webhook upload verified).
+- **Outstanding before production firmware:** (1) re-run the WROOM sensor test for HX711 when the screws arrive → calibrate → replace the provisional scale factor; (2) test heater wiring/relay when the module arrives → verify the 600 s cutoff and water-temp readings; (3) attach both results to the same result sheet so the sensor test is marked fully DONE.
