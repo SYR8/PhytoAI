@@ -66,9 +66,9 @@ const char* PATH_CONFIG    = "/config";
 #define FLASH_LED_OFF_LEVEL   LOW
 
 // Camera frame settings (PSRAM when present, DRAM fallback).
-#define CAM_FRAME_SIZE_PSRAM  FRAMESIZE_SVGA
+#define CAM_FRAME_SIZE_PSRAM  FRAMESIZE_UXGA
 #define CAM_FRAME_SIZE_DRAM   FRAMESIZE_VGA
-#define CAM_JPEG_QUALITY      12
+#define CAM_JPEG_QUALITY      10
 
 // Standard AI Thinker ESP32-CAM pin definitions
 #define CAM_PIN_PWDN    32
@@ -139,10 +139,17 @@ int batteryPercent(float volts) {
 }
 
 void captureCameraWarmup() {
-  for (int i = 0; i < 5; i++) {
+  for (int i = 0; i < 30; i++) {
     camera_fb_t* fb = esp_camera_fb_get();
     if (fb) esp_camera_fb_return(fb);
     delay(100);
+  }
+  sensor_t* s = esp_camera_sensor_get();
+  if (s) {
+    s->set_wb_mode(s, 1);
+    s->set_ae_level(s, -2);
+    s->set_saturation(s, 0);
+    s->set_brightness(s, 0);
   }
 }
 
