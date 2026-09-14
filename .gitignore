@@ -14,3 +14,6 @@ scripts/dataset/
 scripts/dataset_split/
 runs/
 *.pt
+plantvillage/
+pv_download/
+dataset_replay/
