@@ -20,17 +20,20 @@ Key design decisions in force for this stage:
 
 **Application method — documentation only this phase.** The Sheets MCP has historically returned `The caller does not have permission` for this spreadsheet. Therefore this phase only *documents* the schemas below; the tabs are applied **manually by the owner** (or via MCP later if access is restored). Application = create tabs `Events`, `SystemConfig`, `Notifications`, `PushSubscriptions`, `AgentNotes`, `DiseaseScans`; write the header rows and seed keys exactly as specified; **delete the `BranchMap` tab entirely** (no servo positioning remains anywhere).
 
-### 2.1 `Events` — unchanged (raw episodic history)
+### 2.1 `Events` — raw episodic history
 
 One row per sensor/photo event. Columns, in order:
 
-`EventID, Timestamp, EventType, MoisturePercent, SoilTempC, WaterTempC, AirTempC, AirHumidityPercent, WeightGrams, LightLevel, TankEmpty, WateringTriggered, WaterDurationSeconds, HeaterUsed, HeaterDurationSeconds, SpeciesGuess, SpeciesConfidence, PhotoFileID, AnomalyDetected, AnomalyDescription, AI_Notes, ReasoningSummary`
+`EventID, Timestamp, EventType, MoisturePercent, SoilTempC, WaterTempC, AirTempC, AirHumidityPercent, WeightGrams, LightLevel, TankEmpty, WateringTriggered, WaterDurationSeconds, HeaterUsed, HeaterDurationSeconds, SpeciesGuess, SpeciesConfidence, PhotoFileID, AnomalyDetected, AnomalyDescription, AI_Notes, ReasoningSummary, WateringAborted, FinalWaterTempC, WaterAddedGrams`
 
 - `EventID` — correlation key joining the sensor webhook row and the photo webhook row.
 - `Timestamp` — ISO-8601 UTC.
 - `TankEmpty` — boolean (XKC-Y25 sensor).
 - `ReasoningSummary` — must cite concrete historical values (audit of the "never decide from a snapshot" requirement).
 - `AI_Notes` — human-readable AI notes (no Telegram anymore; plain text for the dashboard).
+- `WateringAborted` — abort reason from the firmware watering result (e.g. `no_weight_rise`); empty on success.
+- `FinalWaterTempC` — tank water temperature at the end of heating/watering, from the firmware result report.
+- `WaterAddedGrams` — measured weight delta of the last watering (firmware Change 7 §7.4: appended as the last Events column).
 
 ### 2.2 `SystemConfig` — key/value store (distilled long-term profile)
 
@@ -49,16 +52,25 @@ Seeded keys:
 | next_sunrise_utc | *(empty)* | Scheduler branch |
 | next_sunset_utc | *(empty)* | Scheduler branch |
 | last_tank_empty_alert_sent | *(empty)* | Core Daily Logic |
-| dry_run_mode | `true` | user toggles manually |
+| dry_run_mode | `TRUE` | user toggles manually |
 | min_rewater_interval_hours | `6` | seed (user-tunable) |
-| scan_session_active | `false` | Branch C |
+| scan_session_active | `FALSE` | Branch C |
 | camera_battery_percent | *(empty; latest value)* | every CAM webhook |
 | camera_battery_min_percent | `30` | seed (user-tunable; Branch C battery gate) |
 | drive_daily_photos_folder_id | *(empty until setup)* | one-time Drive setup |
 | drive_scan_photos_folder_id | *(empty until setup)* | one-time Drive setup |
 | push_vapid_public_key | *(empty; owner generates VAPID keys)* | manual prerequisite |
+| last_lightlevel | *(empty; latest LDR raw 0–4095)* | Branch A, every sensor event |
+| flash_dark_threshold | `500` | seed (user-tunable; firmware flash gating) |
+| max_pump_seconds | `60` | seed (single source of truth for the pump ceiling) |
+| preheat_margin_c | `2` | seed (exposed via `GET /config`) |
+| preheat_lead_minutes | `25` | seed (exposed via `GET /config`) |
+| max_water_temp_c | `28` | seed (documentation; firmware hard cap) |
+| heater_hysteresis_c | `2` | seed (documentation; firmware constant) |
 
 **REMOVED keys:** `telegram_chat_id`, `current_cycle_week`, `drive_map_photos_folder_id`.
+
+**Boolean formatting (future exports/audits):** store booleans as real Sheets booleans (`TRUE`/`FALSE`). In `.xlsx` they are `t="b"` cells with `<v>1|0</v>`, and the Sheets API `FORMATTED_VALUE` returns `"TRUE"`/`"FALSE"` — a naive XLSX reader that prints `<v>` will show `1`/`0`; that is an encoding artifact, not a different value. The workflow compares case-insensitively to the string `true`, so both encodings pass.
 
 ### 2.3 `Notifications` — NEW (HITL queue + alert feed)
 

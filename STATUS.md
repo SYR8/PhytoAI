@@ -22,6 +22,7 @@ Scope: everything below is sourced from the working copy `C:\Users\moham\Downloa
   - Still present: 3 Wait nodes (`Wait Camera Positioned`, `Wait Verdict Response`, `Wait Followup Response`); `Plant Profile Agent — TODO` schedule placeholder. No Telegram, servo, or BranchMap nodes.
 - `workflows/phytoai.backup.json` (2026-09-09) — pre-redesign raw export: 105 nodes, `active:false`, `triggerCount:0`.
 - Root `phytoai-workflowone.json` no longer exists (moved into `workflows/` in commit `e5b81f8`).
+- `docs/PhytoAI.v2.xlsx` (2026-09-14) — live Google Sheets export, audit file **v2**: 6 tabs, 25-column Events, 0 sheet-side issues (audited 2026-09-14 against `docs/Plan.md` §2 and `workflows/phytoai.json`).
 
 **Hardware / firmware**
 - `Hardware/Hardware-list.txt` (2026-09-10) — parts list (servos removed).
@@ -49,7 +50,7 @@ Per `docs/Plan.md`: one n8n workflow **`phytoai`** (ID `WXd35adnUc9QQA84`) is th
 | Workflow executions | none in repo | **UNKNOWN** |
 | Branch B end-to-end | commit `bbf4f7c` "Branch B verified end-to-end (known-good baseline)" | user-verified per commit message; executions UNKNOWN |
 | M1 named Cloudflare tunnel | Plan §7 | PLANNED |
-| M2 Sheets tabs + seed keys | Plan §2/§7 (manual) | PLANNED; actual sheet state UNKNOWN |
+| M2 Sheets tabs + seed keys | `docs/PhytoAI.v2.xlsx` audited vs Plan §2 + workflow | **DONE / VERIFIED — audited 2026-09-14 (audit file v2), 0 sheet-side issues** |
 | M3 Google Sheets/Drive credentials | not in repo (redacted); Plan §7 | PLANNED/UNKNOWN |
 | M4 OpenRouter credential | not in repo; Plan §7 | PLANNED/UNKNOWN |
 | M5 VAPID keys | Plan §7 | PLANNED |
