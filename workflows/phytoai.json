@@ -2771,7 +2771,7 @@
         2400
       ],
       "parameters": {
-        "jsCode": "const judge = $('Normalize Judge Output').first().json;\nconst sess = $('Check Scan Session').first().json;\nconst cfgRows = $('Read SystemConfig Treatment').all().map((i) => i.json);\nconst cfg = {};\nfor (const row of cfgRows) {\nif (row.Key !== undefined && row.Key !== null && String(row.Key).trim() !== '') { cfg[String(row.Key).trim()] = row.Value; }\n}\nconst events = $('Read Event History Treatment').all().map((i) => i.json);\nconst diseases = $('Read Disease History').all().map((i) => i.json);\nconst notes = $('Read AgentNotes Treatment').all().map((i) => i.json);\nconst noteText = notes.length ? notes.map((n) => '- ' + n.note).join('\\n') : 'none';\nconst wateringHistory = events.slice(-10).map((r) => ({ ts: r.Timestamp, moisture: r.MoisturePercent, watered: r.WateringTriggered, duration: r.WaterDurationSeconds }));\nconst pastDiseases = diseases.map((r) => ({ ts: r.timestamp, verdict: r.judge_verdict, treatment: r.treatment_plan, user_verdict: r.user_verdict, outcome: r.treatment_outcome }));\nconst text = [\n'JUDGE VERDICT: ' + JSON.stringify({ verdict: judge.verdict, verdict_confidence: judge.verdict_confidence, reasoning: judge.reasoning, recommended_action: judge.recommended_action }),\n'PLANT CONTEXT: species ' + sess.species_guess + ' (confidence ' + sess.species_confidence + '), last_watered_utc ' + (cfg['last_watered_utc'] || 'unknown') + ', latest event conditions ' + JSON.stringify(events.length ? events[events.length - 1] : {}),\n'WATERING HISTORY (last 10): ' + JSON.stringify(wateringHistory),\n'PAST DISEASES / TREATMENTS / OUTCOMES: ' + JSON.stringify(pastDiseases),\n'RELEVANT AGENTNOTES (your own past UNVERIFIED HYPOTHESES, context only):',\nnoteText,\n'Return strict JSON: disease_name (string), severity (\"mild\"|\"moderate\"|\"severe\"), treatment_steps (array of strings, plant-specific, step-by-step), product_guidance (array of strings, active ingredients/categories only, never brand names), low_confidence_statement (string|null, required if uncertain), why_this_fits (string, why this advice fits THIS plant data), ai_notes (string), agent_notes (array of 0-3 short strings).',\n].join('\\n');\nreturn [{ json: { treatment_text: text } }];"
+        "jsCode": "const judge = $('Normalize Judge Output').first().json;\nconst sess = $('Check Scan Session').first().json;\nconst cfgRows = $('Read SystemConfig Treatment').all().map((i) => i.json);\nconst cfg = {};\nfor (const row of cfgRows) {\nif (row.Key !== undefined && row.Key !== null && String(row.Key).trim() !== '') { cfg[String(row.Key).trim()] = row.Value; }\n}\nconst events = $('Read Event History Treatment').all().map((i) => i.json);\nconst diseases = $('Read Disease History').all().map((i) => i.json);\nconst notes = $('Read AgentNotes Treatment').all().map((i) => i.json);\nconst noteText = notes.length ? notes.map((n) => '- ' + n.note).join('\\n') : 'none';\nconst wateringHistory = events.slice(-10).map((r) => ({ ts: r.Timestamp, moisture: r.MoisturePercent, watered: r.WateringTriggered, duration: r.WaterDurationSeconds }));\nconst pastDiseases = diseases.map((r) => ({ ts: r.timestamp, verdict: r.judge_verdict, treatment: r.treatment_plan, user_verdict: r.user_verdict, outcome: r.treatment_outcome }));\nconst perenualStatus = String(cfg['perenual_status'] || '').trim().toLowerCase();\nconst perenualCachedSpecies = String(cfg['perenual_cached_species'] || '').trim();\nconst perenualSpeciesMatch = perenualCachedSpecies.toLowerCase() === String(sess.species_guess || '').toLowerCase();\nlet perenualCare = null;\ntry { perenualCare = JSON.parse(String(cfg['perenual_care_json'] || '')); } catch (e) { perenualCare = null; }\nlet speciesPestLine = '';\nif (perenualStatus === 'ok' && perenualSpeciesMatch && perenualCare && Array.isArray(perenualCare.pests) && perenualCare.pests.length) {\nspeciesPestLine = 'PERENUAL SPECIES PEST REFERENCE (generic library data, unverified, low priority): ' + perenualCare.pests.slice(0, 5).join(', ') + '.';\n}\nlet onDemandPest = '';\ntry { onDemandPest = String($('Build Perenual Pest Context').first().json.pest_text || ''); } catch (e) { onDemandPest = ''; }\nconst text = [\n'JUDGE VERDICT: ' + JSON.stringify({ verdict: judge.verdict, verdict_confidence: judge.verdict_confidence, reasoning: judge.reasoning, recommended_action: judge.recommended_action }),\n'PLANT CONTEXT: species ' + sess.species_guess + ' (confidence ' + sess.species_confidence + '), last_watered_utc ' + (cfg['last_watered_utc'] || 'unknown') + ', latest event conditions ' + JSON.stringify(events.length ? events[events.length - 1] : {}),\n'WATERING HISTORY (last 10): ' + JSON.stringify(wateringHistory),\n'PAST DISEASES / TREATMENTS / OUTCOMES: ' + JSON.stringify(pastDiseases),\n'RELEVANT AGENTNOTES (your own past UNVERIFIED HYPOTHESES, context only):',\nnoteText,\n...(speciesPestLine ? [speciesPestLine] : []),\n...(onDemandPest ? [onDemandPest] : []),\n'Return strict JSON: disease_name (string), severity (\"mild\"|\"moderate\"|\"severe\"), treatment_steps (array of strings, plant-specific, step-by-step), product_guidance (array of strings, active ingredients/categories only, never brand names), low_confidence_statement (string|null, required if uncertain), why_this_fits (string, why this advice fits THIS plant data), ai_notes (string), agent_notes (array of 0-3 short strings).',\n].join('\\n');\nreturn [{ json: { treatment_text: text } }];"
       }
     },
     {
@@ -3530,7 +3530,7 @@
         0
       ],
       "parameters": {
-        "jsCode": "const snapshot = $('Normalize Sensor Payload').first().json;\nconst configRows = $('Read SystemConfig').all().map((i) => i.json);\nconst eventRows = $('Read Event History').all().map((i) => i.json);\nconst historyNotesRows = $('Read AgentNotes History').all().map((i) => i.json);\nconst historyNotesText = historyNotesRows.length ? historyNotesRows.map((n) => '- ' + n.note + ' (context: ' + (n.context_ref || '-') + ')').join('\\n') : 'none';\nconst cfg = {};\nfor (const row of configRows) {\nif (row.Key !== undefined && row.Key !== null && String(row.Key).trim() !== '') {\ncfg[String(row.Key).trim()] = row.Value;\n}\n}\nconst now = Date.now();\nconst HOUR_MS = 3600000;\nconst DAY_MS = 86400000;\nconst lastWatered = cfg['last_watered_utc'] || '';\nlet hoursSinceWatering = null;\nif (lastWatered) {\nconst t = Date.parse(lastWatered);\nif (!isNaN(t)) {\nhoursSinceWatering = Math.round(((now - t) / HOUR_MS) * 10) / 10;\n}\n}\nconst lastAlert = cfg['last_tank_empty_alert_sent'] || '';\nlet alertAllowed = true;\nif (lastAlert) {\nconst t = Date.parse(lastAlert);\nif (!isNaN(t) && now - t < 12 * HOUR_MS * 1000) {\nalertAllowed = false;\n}\n}\nconst dryRun = String(cfg['dry_run_mode'] || 'false').toLowerCase() === 'true';\nconst minRewaterIntervalHours = Number(cfg['min_rewater_interval_hours'] ?? 6);\nconst isWatered = (r) => r.WateringTriggered === true || r.WateringTriggered === 'TRUE' || r.WateringTriggered === 1 || r.WateringTriggered === 'true';\nlet wateringCount7d = 0;\nlet wateringCount30d = 0;\nfor (const r of eventRows) {\nif (!isWatered(r)) { continue; }\nconst ts = Date.parse(r.Timestamp);\nif (isNaN(ts)) { continue; }\nif (now - ts <= 7 * DAY_MS) { wateringCount7d += 1; }\nif (now - ts <= 30 * DAY_MS) { wateringCount30d += 1; }\n}\nconst toNum = (v) => {\nconst n = Number(v);\nreturn isNaN(n) ? null : n;\n};\nconst recent = eventRows.slice(-10);\nconst moistVals = recent.map((r) => toNum(r.MoisturePercent)).filter((v) => v !== null);\nconst weightVals = recent.map((r) => toNum(r.WeightGrams)).filter((v) => v !== null);\nconst trendOf = (vals) => {\nif (vals.length < 2) {\nreturn { direction: 'stable', delta: null, first: vals[0] ?? null, last: vals[vals.length - 1] ?? null, count: vals.length };\n}\nconst first = vals[0];\nconst last = vals[vals.length - 1];\nconst delta = Math.round((last - first) * 10) / 10;\nconst direction = Math.abs(delta) < 0.5 ? 'stable' : (delta > 0 ? 'rising' : 'falling');\nreturn { direction, delta, first, last, count: vals.length };\n};\nconst moistureTrend = trendOf(moistVals);\nconst weightTrend = trendOf(weightVals);\nlet lastWateringEffect = null;\nlet foundWateredIdx = -1;\nfor (let i = eventRows.length - 1; i >= 0; i -= 1) {\nif (isWatered(eventRows[i])) { foundWateredIdx = i; break; }\n}\nif (foundWateredIdx >= 0) {\nconst before = eventRows[foundWateredIdx - 1];\nconst after = eventRows[foundWateredIdx + 1];\nconst mBefore = before ? toNum(before.MoisturePercent) : null;\nconst mAfter = after ? toNum(after.MoisturePercent) : null;\nif (mBefore !== null && mAfter !== null) {\nlastWateringEffect = Math.round((mAfter - mBefore) * 10) / 10;\n}\n}\nconst sanityFlags = [];\nconst mP = toNum(snapshot.moisture_percent);\nif (mP !== null && (mP < 0 || mP > 100)) { sanityFlags.push('moisture_percent out of range 0-100: ' + mP); }\nconst wG = toNum(snapshot.weight_grams);\nif (wG !== null && (wG < 0 || wG > 5000)) { sanityFlags.push('weight_grams out of range 0-5000: ' + wG); }\nconst aT = toNum(snapshot.air_temp_c);\nif (aT !== null && (aT < -10 || aT > 60)) { sanityFlags.push('air_temp_c out of range -10..60: ' + aT); }\nconst sT = toNum(snapshot.soil_temp_c);\nif (sT !== null && (sT < -10 || sT > 60)) { sanityFlags.push('soil_temp_c out of range -10..60: ' + sT); }\nconst wT = toNum(snapshot.water_temp_c);\nif (wT !== null && (wT < 0 || wT > 99)) { sanityFlags.push('water_temp_c out of range 0..99: ' + wT); }\nconst lL = toNum(snapshot.light_level);\nif (lL !== null && lL < 0) { sanityFlags.push('light_level negative: ' + lL); }\nconst speciesGuess = cfg['last_species_guess'] || 'unknown';\nconst speciesConfidence = cfg['species_confidence'] || '0';\nconst prevTolerance = cfg['current_temp_tolerance_c'] || 'none';\nconst historyCompact = recent.map((r) => ({\ntimestamp: r.Timestamp,\nevent_type: r.EventType,\nmoisture_percent: r.MoisturePercent,\nweight_grams: r.WeightGrams,\nsoil_temp_c: r.SoilTempC,\nwater_temp_c: r.WaterTempC,\nwatered: isWatered(r),\nwater_duration_seconds: r.WaterDurationSeconds,\nheater_used: r.HeaterUsed,\nspecies_guess: r.SpeciesGuess,\nanomaly_detected: r.AnomalyDetected,\n}));\nconst trendText = (t, unit) => t.delta === null ? 'unknown (fewer than 2 readings)' : t.direction + ' by ' + t.delta + ' ' + unit + ' (' + t.first + ' -> ' + t.last + ', over ' + t.count + ' recent readings)';\nconst decisionPartsSnapshot = [\n'LIVE SENSOR SNAPSHOT (informational only - never decide on this alone):',\n'  moisture_percent=' + snapshot.moisture_percent + ', weight_grams=' + snapshot.weight_grams + ', air_temp_c=' + snapshot.air_temp_c + ', air_humidity_percent=' + snapshot.air_humidity_percent + ', soil_temp_c=' + snapshot.soil_temp_c + ', water_temp_c=' + snapshot.water_temp_c + ', light_level=' + snapshot.light_level + ', tank_empty=' + snapshot.tank_empty,\n'SENSOR SANITY FLAGS: ' + (sanityFlags.length ? sanityFlags.join('; ') : 'none'),\n].join('\\n');\nconst decisionPartsFacts = [\n'HISTORY FACTS:',\n'  hours_since_watering: ' + (hoursSinceWatering === null ? 'null (never watered)' : hoursSinceWatering + ' h'),\n'  watering_count_7d: ' + wateringCount7d + ', watering_count_30d: ' + wateringCount30d,\n'  moisture_trend: ' + trendText(moistureTrend, 'points'),\n'  weight_trend: ' + trendText(weightTrend, 'g'),\n'  last_watering_effect: ' + (lastWateringEffect === null ? 'null (no watering recorded yet)' : lastWateringEffect + ' moisture points after the most recent watering'),\n'  species: ' + speciesGuess + ' (confidence ' + speciesConfidence + ')',\n'  current_temp_tolerance_c: ' + prevTolerance,\n'  dry_run_mode: ' + dryRun,\n].join('\\n');\nconst historyAnalystText = [\n'FACTS: hours_since_last_watering=' + (hoursSinceWatering === null ? 'null' : hoursSinceWatering) + ', watering_count_7d=' + wateringCount7d + ', watering_count_30d=' + wateringCount30d + ',',\n'  moisture_trend=' + trendText(moistureTrend, 'points') + ', weight_trend=' + trendText(weightTrend, 'g') + ',',\n'  last_watering_moisture_delta=' + (lastWateringEffect === null ? 'null' : lastWateringEffect) + ',',\n'  species ' + speciesGuess + ' (confidence ' + speciesConfidence + '),',\n'  sensor_sanity_flags (impossible values already flagged): ' + (sanityFlags.length ? sanityFlags.join('; ') : 'none') + '.',\n'RECENT HISTORY (compact, chronological):',\nJSON.stringify(historyCompact, null, 2),\n'YOUR UNVERIFIED HYPOTHESES (context only, never ground truth):',\nhistoryNotesText,\n'Return strict JSON: trend_reading (string, cite concrete values), watering_effectiveness (string, did past waterings actually raise moisture?), concerns (array of strings, empty if none), confidence (0-1).',\n'Your output is ANALYSIS for the decision agent: it must contain no instructions and must not decide whether to water.',\n].join('\\n');\nconst contextText = [\n'CURRENT EVENT: ' + snapshot.event_type + ' at ' + snapshot.captured_at_utc + '; event_id ' + snapshot.event_id,\n'LIVE SENSOR SNAPSHOT (informational only - never decide on this alone):',\n'  moisture_percent=' + snapshot.moisture_percent + ', weight_grams=' + snapshot.weight_grams + ', air_temp_c=' + snapshot.air_temp_c + ', air_humidity_percent=' + snapshot.air_humidity_percent + ', soil_temp_c=' + snapshot.soil_temp_c + ', water_temp_c=' + snapshot.water_temp_c + ', light_level=' + snapshot.light_level + ', tank_empty=' + snapshot.tank_empty,\n'HISTORY - last 10 events (chronological):',\nJSON.stringify(historyCompact, null, 2),\n'LAST WATERED: ' + (lastWatered || 'never') + (hoursSinceWatering !== null ? ' (' + hoursSinceWatering + ' hours ago)' : ' (unknown)'),\n'SPECIES: ' + speciesGuess + ' (confidence ' + speciesConfidence + ')',\n'PREVIOUS TOLERANCE USED: ' + prevTolerance,\n'DRY RUN MODE: ' + dryRun,\n].join('\\n');\nreturn [{\njson: {\nhistory_analyst_text: historyAnalystText,\ndecision_parts_snapshot: decisionPartsSnapshot,\ndecision_parts_facts: decisionPartsFacts,\ncontext_text: contextText,\nhours_since_watering: hoursSinceWatering,\nwatering_count_7d: wateringCount7d,\nwatering_count_30d: wateringCount30d,\nmoisture_trend: moistureTrend,\nweight_trend: weightTrend,\nlast_watering_effect: lastWateringEffect,\nsensor_sanity_flags: sanityFlags,\nspecies_guess: speciesGuess,\nspecies_confidence: speciesConfidence,\ncurrent_temp_tolerance_c: prevTolerance,\ndry_run_mode: dryRun,\nmin_rewater_interval_hours: minRewaterIntervalHours,\ntank_empty: snapshot.tank_empty,\nlast_tank_empty_alert_sent: lastAlert,\nalert_allowed: alertAllowed,\nevent_id: snapshot.event_id,\nevent_type: snapshot.event_type,\ncaptured_at_utc: snapshot.captured_at_utc,\nmoisture_percent: snapshot.moisture_percent,\nweight_grams: snapshot.weight_grams,\nair_temp_c: snapshot.air_temp_c,\nair_humidity_percent: snapshot.air_humidity_percent,\nsoil_temp_c: snapshot.soil_temp_c,\nwater_temp_c: snapshot.water_temp_c,\nlight_level: snapshot.light_level,\nlast_watered_utc: lastWatered,\n},\n}];"
+        "jsCode": "const snapshot = $('Normalize Sensor Payload').first().json;\nconst configRows = $('Read SystemConfig').all().map((i) => i.json);\nconst eventRows = $('Read Event History').all().map((i) => i.json);\nconst historyNotesRows = $('Read AgentNotes History').all().map((i) => i.json);\nconst historyNotesText = historyNotesRows.length ? historyNotesRows.map((n) => '- ' + n.note + ' (context: ' + (n.context_ref || '-') + ')').join('\\n') : 'none';\nconst cfg = {};\nfor (const row of configRows) {\nif (row.Key !== undefined && row.Key !== null && String(row.Key).trim() !== '') {\ncfg[String(row.Key).trim()] = row.Value;\n}\n}\nlet perenualRows = [];\ntry { perenualRows = $('Update Perenual Config').all().map((i) => i.json); } catch (e) { perenualRows = []; }\nfor (const row of perenualRows) {\nif (row && row.Key !== undefined && row.Key !== null && String(row.Key).trim() !== '') {\ncfg[String(row.Key).trim()] = row.Value;\n}\n}\nconst now = Date.now();\nconst HOUR_MS = 3600000;\nconst DAY_MS = 86400000;\nconst lastWatered = cfg['last_watered_utc'] || '';\nlet hoursSinceWatering = null;\nif (lastWatered) {\nconst t = Date.parse(lastWatered);\nif (!isNaN(t)) {\nhoursSinceWatering = Math.round(((now - t) / HOUR_MS) * 10) / 10;\n}\n}\nconst lastAlert = cfg['last_tank_empty_alert_sent'] || '';\nlet alertAllowed = true;\nif (lastAlert) {\nconst t = Date.parse(lastAlert);\nif (!isNaN(t) && now - t < 12 * HOUR_MS * 1000) {\nalertAllowed = false;\n}\n}\nconst dryRun = String(cfg['dry_run_mode'] || 'false').toLowerCase() === 'true';\nconst minRewaterIntervalHours = Number(cfg['min_rewater_interval_hours'] ?? 6);\nconst isWatered = (r) => r.WateringTriggered === true || r.WateringTriggered === 'TRUE' || r.WateringTriggered === 1 || r.WateringTriggered === 'true';\nlet wateringCount7d = 0;\nlet wateringCount30d = 0;\nfor (const r of eventRows) {\nif (!isWatered(r)) { continue; }\nconst ts = Date.parse(r.Timestamp);\nif (isNaN(ts)) { continue; }\nif (now - ts <= 7 * DAY_MS) { wateringCount7d += 1; }\nif (now - ts <= 30 * DAY_MS) { wateringCount30d += 1; }\n}\nconst toNum = (v) => {\nconst n = Number(v);\nreturn isNaN(n) ? null : n;\n};\nconst recent = eventRows.slice(-10);\nconst moistVals = recent.map((r) => toNum(r.MoisturePercent)).filter((v) => v !== null);\nconst weightVals = recent.map((r) => toNum(r.WeightGrams)).filter((v) => v !== null);\nconst trendOf = (vals) => {\nif (vals.length < 2) {\nreturn { direction: 'stable', delta: null, first: vals[0] ?? null, last: vals[vals.length - 1] ?? null, count: vals.length };\n}\nconst first = vals[0];\nconst last = vals[vals.length - 1];\nconst delta = Math.round((last - first) * 10) / 10;\nconst direction = Math.abs(delta) < 0.5 ? 'stable' : (delta > 0 ? 'rising' : 'falling');\nreturn { direction, delta, first, last, count: vals.length };\n};\nconst moistureTrend = trendOf(moistVals);\nconst weightTrend = trendOf(weightVals);\nlet lastWateringEffect = null;\nlet foundWateredIdx = -1;\nfor (let i = eventRows.length - 1; i >= 0; i -= 1) {\nif (isWatered(eventRows[i])) { foundWateredIdx = i; break; }\n}\nif (foundWateredIdx >= 0) {\nconst before = eventRows[foundWateredIdx - 1];\nconst after = eventRows[foundWateredIdx + 1];\nconst mBefore = before ? toNum(before.MoisturePercent) : null;\nconst mAfter = after ? toNum(after.MoisturePercent) : null;\nif (mBefore !== null && mAfter !== null) {\nlastWateringEffect = Math.round((mAfter - mBefore) * 10) / 10;\n}\n}\nconst sanityFlags = [];\nconst mP = toNum(snapshot.moisture_percent);\nif (mP !== null && (mP < 0 || mP > 100)) { sanityFlags.push('moisture_percent out of range 0-100: ' + mP); }\nconst wG = toNum(snapshot.weight_grams);\nif (wG !== null && (wG < 0 || wG > 5000)) { sanityFlags.push('weight_grams out of range 0-5000: ' + wG); }\nconst aT = toNum(snapshot.air_temp_c);\nif (aT !== null && (aT < -10 || aT > 60)) { sanityFlags.push('air_temp_c out of range -10..60: ' + aT); }\nconst sT = toNum(snapshot.soil_temp_c);\nif (sT !== null && (sT < -10 || sT > 60)) { sanityFlags.push('soil_temp_c out of range -10..60: ' + sT); }\nconst wT = toNum(snapshot.water_temp_c);\nif (wT !== null && (wT < 0 || wT > 99)) { sanityFlags.push('water_temp_c out of range 0..99: ' + wT); }\nconst lL = toNum(snapshot.light_level);\nif (lL !== null && lL < 0) { sanityFlags.push('light_level negative: ' + lL); }\nconst speciesGuess = cfg['last_species_guess'] || 'unknown';\nconst speciesConfidence = cfg['species_confidence'] || '0';\nconst prevTolerance = cfg['current_temp_tolerance_c'] || 'none';\nconst historyCompact = recent.map((r) => ({\ntimestamp: r.Timestamp,\nevent_type: r.EventType,\nmoisture_percent: r.MoisturePercent,\nweight_grams: r.WeightGrams,\nsoil_temp_c: r.SoilTempC,\nwater_temp_c: r.WaterTempC,\nwatered: isWatered(r),\nwater_duration_seconds: r.WaterDurationSeconds,\nheater_used: r.HeaterUsed,\nspecies_guess: r.SpeciesGuess,\nanomaly_detected: r.AnomalyDetected,\n}));\nconst trendText = (t, unit) => t.delta === null ? 'unknown (fewer than 2 readings)' : t.direction + ' by ' + t.delta + ' ' + unit + ' (' + t.first + ' -> ' + t.last + ', over ' + t.count + ' recent readings)';\nconst perenualStatus = String(cfg['perenual_status'] || '').trim().toLowerCase();\nconst perenualCachedSpecies = String(cfg['perenual_cached_species'] || '').trim();\nconst perenualSpeciesMatch = perenualCachedSpecies.toLowerCase() === String(speciesGuess).toLowerCase();\nlet perenualCare = null;\ntry { perenualCare = JSON.parse(String(cfg['perenual_care_json'] || '')); } catch (e) { perenualCare = null; }\nlet decisionPartsPerenual = '';\nif (perenualStatus === 'ok' && perenualSpeciesMatch && perenualCare) {\nconst bits = [];\nif (cfg['perenual_common_name']) { bits.push('common name ' + cfg['perenual_common_name']); }\nif (cfg['perenual_water_benchmark']) { bits.push('library watering benchmark ' + cfg['perenual_water_benchmark']); }\nif (perenualCare.watering) { bits.push('watering level ' + perenualCare.watering); }\nif (Array.isArray(perenualCare.sunlight) && perenualCare.sunlight.length) { bits.push('sunlight ' + perenualCare.sunlight.join('/')); }\nif (perenualCare.drought_tolerant === true) { bits.push('drought tolerant'); }\nif (perenualCare.care_level) { bits.push('care level ' + perenualCare.care_level); }\nif (Array.isArray(perenualCare.pests) && perenualCare.pests.length) { bits.push('known pests ' + perenualCare.pests.slice(0, 3).join(', ')); }\ndecisionPartsPerenual = 'PERENUAL REFERENCE (generic library data for ' + perenualCachedSpecies + ' - unverified for this plant, a LOW-PRIORITY prior only): ' + bits.join('; ') + '. This is generic library data for this species, not ground truth: this plant\\'s own measured history and its AgentNotes outrank it, and it must never override the sensor facts or the Safety Guardrails. Use it mainly when this plant\\'s history is thin; if it conflicts with this pot\\'s own data, trust this pot.';\n}\nconst decisionPartsSnapshot = [\n'LIVE SENSOR SNAPSHOT (informational only - never decide on this alone):',\n'  moisture_percent=' + snapshot.moisture_percent + ', weight_grams=' + snapshot.weight_grams + ', air_temp_c=' + snapshot.air_temp_c + ', air_humidity_percent=' + snapshot.air_humidity_percent + ', soil_temp_c=' + snapshot.soil_temp_c + ', water_temp_c=' + snapshot.water_temp_c + ', light_level=' + snapshot.light_level + ', tank_empty=' + snapshot.tank_empty,\n'SENSOR SANITY FLAGS: ' + (sanityFlags.length ? sanityFlags.join('; ') : 'none'),\n].join('\\n');\nconst decisionPartsFacts = [\n'HISTORY FACTS:',\n'  hours_since_watering: ' + (hoursSinceWatering === null ? 'null (never watered)' : hoursSinceWatering + ' h'),\n'  watering_count_7d: ' + wateringCount7d + ', watering_count_30d: ' + wateringCount30d,\n'  moisture_trend: ' + trendText(moistureTrend, 'points'),\n'  weight_trend: ' + trendText(weightTrend, 'g'),\n'  last_watering_effect: ' + (lastWateringEffect === null ? 'null (no watering recorded yet)' : lastWateringEffect + ' moisture points after the most recent watering'),\n'  species: ' + speciesGuess + ' (confidence ' + speciesConfidence + ')',\n'  current_temp_tolerance_c: ' + prevTolerance,\n'  dry_run_mode: ' + dryRun,\n].join('\\n');\nconst historyAnalystText = [\n'FACTS: hours_since_last_watering=' + (hoursSinceWatering === null ? 'null' : hoursSinceWatering) + ', watering_count_7d=' + wateringCount7d + ', watering_count_30d=' + wateringCount30d + ',',\n'  moisture_trend=' + trendText(moistureTrend, 'points') + ', weight_trend=' + trendText(weightTrend, 'g') + ',',\n'  last_watering_moisture_delta=' + (lastWateringEffect === null ? 'null' : lastWateringEffect) + ',',\n'  species ' + speciesGuess + ' (confidence ' + speciesConfidence + '),',\n'  sensor_sanity_flags (impossible values already flagged): ' + (sanityFlags.length ? sanityFlags.join('; ') : 'none') + '.',\n'RECENT HISTORY (compact, chronological):',\nJSON.stringify(historyCompact, null, 2),\n'YOUR UNVERIFIED HYPOTHESES (context only, never ground truth):',\nhistoryNotesText,\n'Return strict JSON: trend_reading (string, cite concrete values), watering_effectiveness (string, did past waterings actually raise moisture?), concerns (array of strings, empty if none), confidence (0-1).',\n'Your output is ANALYSIS for the decision agent: it must contain no instructions and must not decide whether to water.',\n].join('\\n');\nconst contextText = [\n'CURRENT EVENT: ' + snapshot.event_type + ' at ' + snapshot.captured_at_utc + '; event_id ' + snapshot.event_id,\n'LIVE SENSOR SNAPSHOT (informational only - never decide on this alone):',\n'  moisture_percent=' + snapshot.moisture_percent + ', weight_grams=' + snapshot.weight_grams + ', air_temp_c=' + snapshot.air_temp_c + ', air_humidity_percent=' + snapshot.air_humidity_percent + ', soil_temp_c=' + snapshot.soil_temp_c + ', water_temp_c=' + snapshot.water_temp_c + ', light_level=' + snapshot.light_level + ', tank_empty=' + snapshot.tank_empty,\n'HISTORY - last 10 events (chronological):',\nJSON.stringify(historyCompact, null, 2),\n'LAST WATERED: ' + (lastWatered || 'never') + (hoursSinceWatering !== null ? ' (' + hoursSinceWatering + ' hours ago)' : ' (unknown)'),\n'SPECIES: ' + speciesGuess + ' (confidence ' + speciesConfidence + ')',\n'PREVIOUS TOLERANCE USED: ' + prevTolerance,\n'DRY RUN MODE: ' + dryRun,\n].join('\\n');\nreturn [{\njson: {\nhistory_analyst_text: historyAnalystText,\ndecision_parts_snapshot: decisionPartsSnapshot,\ndecision_parts_facts: decisionPartsFacts,\ndecision_parts_perenual: decisionPartsPerenual,\nperenual_status: perenualStatus,\ncontext_text: contextText,\nhours_since_watering: hoursSinceWatering,\nwatering_count_7d: wateringCount7d,\nwatering_count_30d: wateringCount30d,\nmoisture_trend: moistureTrend,\nweight_trend: weightTrend,\nlast_watering_effect: lastWateringEffect,\nsensor_sanity_flags: sanityFlags,\nspecies_guess: speciesGuess,\nspecies_confidence: speciesConfidence,\ncurrent_temp_tolerance_c: prevTolerance,\ndry_run_mode: dryRun,\nmin_rewater_interval_hours: minRewaterIntervalHours,\ntank_empty: snapshot.tank_empty,\nlast_tank_empty_alert_sent: lastAlert,\nalert_allowed: alertAllowed,\nevent_id: snapshot.event_id,\nevent_type: snapshot.event_type,\ncaptured_at_utc: snapshot.captured_at_utc,\nmoisture_percent: snapshot.moisture_percent,\nweight_grams: snapshot.weight_grams,\nair_temp_c: snapshot.air_temp_c,\nair_humidity_percent: snapshot.air_humidity_percent,\nsoil_temp_c: snapshot.soil_temp_c,\nwater_temp_c: snapshot.water_temp_c,\nlight_level: snapshot.light_level,\nlast_watered_utc: lastWatered,\n},\n}];"
       }
     },
     {
@@ -3677,7 +3677,7 @@
             {
               "id": "1",
               "name": "decision_text",
-              "value": "={{ $('Build Context').item.json.decision_parts_snapshot + \"\\n\" + $('Build Context').item.json.decision_parts_facts + \"\\nHISTORY ANALYST INTERPRETATION (unverified analysis, not ground truth):\\n\" + \"trend_reading: \" + $('Normalize History Output').item.json.trend_reading + \"\\nwatering_effectiveness: \" + $('Normalize History Output').item.json.watering_effectiveness + \"\\nconcerns: \" + $('Normalize History Output').item.json.concerns + \"\\nconfidence: \" + $('Normalize History Output').item.json.confidence + \"\\nYOUR UNVERIFIED HYPOTHESES (context only, never ground truth):\\n\" + ($('Read AgentNotes Decision').all().map(i => i.json.note).join(\"\\n- \") || \"none\") }}",
+              "value": "={{ $('Build Context').item.json.decision_parts_snapshot + \"\\n\" + $('Build Context').item.json.decision_parts_facts + ($('Build Context').item.json.decision_parts_perenual ? \"\\n\" + $('Build Context').item.json.decision_parts_perenual : \"\") + \"\\nHISTORY ANALYST INTERPRETATION (unverified analysis, not ground truth):\\n\" + \"trend_reading: \" + $('Normalize History Output').item.json.trend_reading + \"\\nwatering_effectiveness: \" + $('Normalize History Output').item.json.watering_effectiveness + \"\\nconcerns: \" + $('Normalize History Output').item.json.concerns + \"\\nconfidence: \" + $('Normalize History Output').item.json.confidence + \"\\nYOUR UNVERIFIED HYPOTHESES (context only, never ground truth):\\n\" + ($('Read AgentNotes Decision').all().map(i => i.json.note).join(\"\\n- \") || \"none\") }}",
               "type": "string"
             }
           ]
@@ -5594,6 +5594,386 @@
           "name": "Google Sheets Zaki"
         }
       }
+    },
+    {
+      "id": "13cf6615-fbda-49c0-9ebf-714adc74557b",
+      "name": "Check Perenual Cache",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1120,
+        -176
+      ],
+      "parameters": {
+        "jsCode": "const rows = $('Read SystemConfig').all().map((i) => i.json);\nconst cfg = {};\nfor (const row of rows) {\nif (row.Key !== undefined && row.Key !== null && String(row.Key).trim() !== '') { cfg[String(row.Key).trim()] = row.Value; }\n}\nconst species = String(cfg['last_species_guess'] || '').trim();\nconst speciesSet = species !== '' && species.toLowerCase() !== 'unknown';\nconst cachedSpecies = String(cfg['perenual_cached_species'] || '').trim();\nconst status = String(cfg['perenual_status'] || '').trim().toLowerCase();\nconst sameSpecies = speciesSet && cachedSpecies.toLowerCase() === species.toLowerCase();\nconst settled = sameSpecies && (status === 'ok' || status === 'not_found');\nlet failedRetryDue = true;\nif (sameSpecies && status.indexOf('lookup_failed') === 0) {\nconst t = Date.parse(String(cfg['perenual_cached_utc'] || ''));\nfailedRetryDue = isNaN(t) ? true : (Date.now() - t > 86400000);\n}\nlet quotaSuppressed = false;\nif (status === 'quota_exhausted' && sameSpecies) {\nconst t = Date.parse(String(cfg['perenual_cached_utc'] || ''));\nquotaSuppressed = isNaN(t) ? true : (new Date(t).toISOString().slice(0, 10) === new Date().toISOString().slice(0, 10));\n}\nconst needsEnrichment = speciesSet && !settled && failedRetryDue && !quotaSuppressed;\nlet reason = 'species_unknown';\nif (speciesSet && settled) { reason = 'cache_settled_' + status; }\nelse if (speciesSet && quotaSuppressed) { reason = 'quota_suppressed'; }\nelse if (speciesSet && !failedRetryDue) { reason = 'failed_retry_deferred'; }\nelse if (speciesSet) { reason = sameSpecies ? ('status_' + (status || 'empty')) : 'species_changed'; }\nreturn [{ json: {\nneeds_enrichment: needsEnrichment,\nspecies,\nreason,\ncache_status: status,\ncached_species: cachedSpecies,\nquota_suppressed: quotaSuppressed,\n} }];"
+      }
+    },
+    {
+      "id": "6a072675-e0e4-4130-abf3-3176126a30b1",
+      "name": "Needs Perenual Enrichment?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1328,
+        -176
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "p1",
+              "leftValue": "={{ $json.needs_enrichment }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "ad7db438-7739-4090-80ea-52189d15fb28",
+      "name": "Perenual Species Search",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        1536,
+        -176
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "https://perenual.com/api/v2/species-list",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpQueryAuth",
+        "options": {
+          "timeout": 8000
+        },
+        "sendQuery": true,
+        "specifyQuery": "keypair",
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "q",
+              "value": "={{ $json.species }}"
+            }
+          ]
+        }
+      },
+      "credentials": {
+        "httpQueryAuth": {
+          "name": "PhytoAI Perenual"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "c659a45f-00ab-4595-9f24-61214e6bb17d",
+      "name": "Pick Best Perenual Match",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1744,
+        -176
+      ],
+      "parameters": {
+        "jsCode": "const pick = $('Check Perenual Cache').first().json;\nconst species = String(pick.species || '').trim();\nconst item = $input.first().json;\nconst norm = (v) => String(v || '').toLowerCase().replace(/\\s+/g, ' ').trim();\nconst fail = (status, detail) => [{ json: { found: false, status, species, id: '', common_name: '', scientific_name: '', rank: 0, error_detail: String(detail || '').slice(0, 300) } }];\nif (item && item.error) {\nconst err = item.error;\nconst code = String(err.httpCode || err.code || err.statusCode || '');\nif (code === '429') { return fail('quota_exhausted', err.message || 'rate limited'); }\nreturn fail('lookup_failed_' + (code || 'timeout'), err.message || 'http error');\n}\nconst data = Array.isArray(item.data) ? item.data : [];\nif (!data.length) { return fail('not_found', 'empty data[]'); }\nconst words = norm(species).split(' ').filter(Boolean);\nconst genus = words[0] || '';\nconst binom = words.slice(0, 2).join(' ');\nlet best = data[0];\nlet bestRank = 0;\nfor (const hit of data) {\nconst sciArr = Array.isArray(hit.scientific_name) ? hit.scientific_name.map(norm) : [norm(hit.scientific_name)];\nconst common = norm(hit.common_name);\nlet rank = 1;\nif (sciArr.includes(norm(species)) || (binom && sciArr.includes(binom))) { rank = 3; }\nelse if (common === norm(species)) { rank = 2; }\nelse if (genus && (sciArr.some((s) => s.startsWith(genus + ' ')) || common.includes(genus))) { rank = 1.5; }\nif (rank > bestRank) { bestRank = rank; best = hit; }\n}\nconst sciOut = Array.isArray(best.scientific_name) ? (best.scientific_name[0] || '') : (best.scientific_name || '');\nreturn [{ json: { found: true, status: 'ok', species, id: best.id !== undefined && best.id !== null ? best.id : '', common_name: best.common_name || '', scientific_name: sciOut, rank: bestRank, error_detail: '' } }];"
+      }
+    },
+    {
+      "id": "72b2ccb8-5a46-43b0-8dd9-a0416288dc60",
+      "name": "Has Perenual Match?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        1952,
+        -176
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "p2",
+              "leftValue": "={{ $json.found }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "cffb2f3f-f65c-4533-aa74-dbe3e8c27f40",
+      "name": "Perenual Species Detail",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        2160,
+        -176
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "=https://perenual.com/api/v2/species/details/{{ $json.id }}",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpQueryAuth",
+        "options": {
+          "timeout": 8000
+        }
+      },
+      "credentials": {
+        "httpQueryAuth": {
+          "name": "PhytoAI Perenual"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "e51c7081-9d98-4ae4-ae85-6d4eb6d65997",
+      "name": "Build Perenual Cache Rows",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2368,
+        -176
+      ],
+      "parameters": {
+        "jsCode": "const pick = $('Pick Best Perenual Match').first().json;\nconst nowIso = $now.toISO();\nlet detail = null;\ntry { const items = $('Perenual Species Detail').all(); detail = items.length ? items[0].json : null; } catch (e) { detail = null; }\nlet status = String(pick.status || 'lookup_failed_unknown');\nlet commonName = pick.common_name || '';\nlet scientific = pick.scientific_name || '';\nlet benchmark = '';\nlet care = null;\nconst detailObj = detail && detail.data && typeof detail.data === 'object' ? detail.data : detail;\nif (detail && detail.error) {\nconst err = detail.error;\nconst code = String(err.httpCode || err.code || err.statusCode || '');\nstatus = code === '429' ? 'quota_exhausted' : ('lookup_failed_' + (code || 'timeout'));\n} else if (pick.found && detailObj) {\nstatus = 'ok';\ncommonName = detailObj.common_name || commonName;\nscientific = (Array.isArray(detailObj.scientific_name) ? (detailObj.scientific_name[0] || '') : (detailObj.scientific_name || '')) || scientific;\nbenchmark = compactBenchmark(detailObj);\ncare = compactCare(detailObj);\n} else if (pick.found && !detail) {\nstatus = 'lookup_failed_no_detail';\n}\nconst careJson = care ? JSON.stringify(care) : '';\nconst quota = status === 'quota_exhausted';\nconst rows = [\n  { Key: 'perenual_species_id', Value: pick.found && pick.id !== undefined && pick.id !== null ? String(pick.id) : '' },\n  { Key: 'perenual_cached_species', Value: pick.species || '' },\n  { Key: 'perenual_cached_utc', Value: nowIso },\n  { Key: 'perenual_status', Value: status },\n  { Key: 'perenual_water_benchmark', Value: benchmark },\n  { Key: 'perenual_common_name', Value: commonName },\n  { Key: 'perenual_care_json', Value: careJson },\n];\nreturn rows.map((r) => ({ json: Object.assign({ LastUpdated: nowIso, quota_exceeded: quota }, r) }));\nfunction compactBenchmark(d) {\nconst b = d.watering_general_benchmark;\nif (b && typeof b === 'object') {\nconst v = b.value;\nconst u = b.unit || 'days';\nif (v !== undefined && v !== null && String(v).trim() !== '') { return String(v) + ' ' + String(u); }\n} else if (typeof b === 'string' && b.trim()) { return b.trim(); }\nconst w = d.watering;\nreturn typeof w === 'string' && w.trim() ? w.trim().slice(0, 120) : '';\n}\nfunction listOf(v) {\nif (!Array.isArray(v)) { return []; }\nreturn v.map((x) => {\nif (x === null || x === undefined) { return ''; }\nif (typeof x === 'string') { return x.slice(0, 120); }\nif (typeof x === 'object') { return String(x.common_name || x.scientific_name || x.name || '').trim().slice(0, 120); }\nreturn String(x).slice(0, 120);\n}).filter(Boolean).slice(0, 8);\n}\nfunction compactCare(d) {\nreturn {\nwatering: typeof d.watering === 'string' ? d.watering.slice(0, 120) : (d.watering ? String(d.watering).slice(0, 120) : ''),\nsunlight: listOf(d.sunlight),\nsoil: listOf(d.soil),\npests: listOf(d.pest_susceptibility || d.pests),\ncare_level: d.care_level || '',\ndrought_tolerant: d.drought_tolerant === true,\nindoor: d.indoor === true,\n};\n}"
+      }
+    },
+    {
+      "id": "46bc7f51-0950-4c73-9f75-a8f1907d2e70",
+      "name": "Quota Exceeded?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        2576,
+        -176
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "p3",
+              "leftValue": "={{ $json.quota_exceeded }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "cde921b3-c17b-4586-b5b4-7896f9e5e8a8",
+      "name": "Build Perenual Quota Note",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2784,
+        -176
+      ],
+      "parameters": {
+        "jsCode": "const ctx = $('Check Perenual Cache').first().json;\nconst note = 'Perenual API returned 429 (quota exhausted) for species \"' + (ctx.species || 'unknown') + '\". Enrichment suppressed until the next UTC day; council continues without Perenual.';\nreturn [{ json: { timestamp: $now.toISO(), agent: 'Perenual', note, context_ref: ctx.species || '', status: 'active' } }];"
+      }
+    },
+    {
+      "id": "4caffc45-0071-45f9-a355-c5804400a098",
+      "name": "Update Perenual Config",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        2368,
+        16
+      ],
+      "parameters": {
+        "operation": "appendOrUpdate",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "10a3YXWBN4-hFJQQT4sLERzymu8D2TxYKNkXW-k3QRyLI"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": 521371706,
+          "mode": "list",
+          "cachedResultName": "SystemConfig",
+          "cachedResultUrl": "https://docs.google.com/spreadsheets/d/10a3YXWBN4-hFJQQT4sLERzymu8D2TxYKNkXW-k3QRyLI/edit#gid=521371706"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "Key": "={{ $json.Key }}",
+            "Value": "={{ $json.Value }}",
+            "LastUpdated": "={{ $json.LastUpdated }}"
+          },
+          "matchingColumns": [
+            "Key"
+          ],
+          "schema": [
+            {
+              "id": "Key",
+              "displayName": "Key",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true,
+              "removed": false
+            },
+            {
+              "id": "Value",
+              "displayName": "Value",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            },
+            {
+              "id": "LastUpdated",
+              "displayName": "LastUpdated",
+              "required": false,
+              "defaultMatch": false,
+              "display": true,
+              "type": "string",
+              "canBeUsedToMatch": true
+            }
+          ],
+          "attemptToConvertTypes": false,
+          "convertFieldsToString": false
+        },
+        "options": {}
+      },
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "BtlC7i6yZtrvbClV",
+          "name": "Google Sheets Zaki"
+        }
+      }
+    },
+    {
+      "id": "c7de1019-fab4-45de-aa85-5ce0413f3bc8",
+      "name": "Build Pest Lookup Query",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3952,
+        2800
+      ],
+      "parameters": {
+        "jsCode": "const judge = $('Normalize Judge Output').first().json;\nconst sess = $('Check Scan Session').first().json;\nlet vision = {};\ntry { vision = $('Normalize Vision Output').first().json; } catch (e) { vision = {}; }\nconst issues = Array.isArray(vision.suspected_issues) ? vision.suspected_issues.map((s) => String(s).trim()).filter(Boolean) : [];\nconst symptoms = Array.isArray(vision.symptoms_observed) ? vision.symptoms_observed.map((s) => String(s).trim()).filter(Boolean) : [];\nlet query = '';\nif (issues.length) { query = issues[0]; }\nelse if (symptoms.length) { query = symptoms[0]; }\nquery = query.replace(/^(possible|suspected|probable|signs of)\\s+/i, '').slice(0, 80);\nreturn [{ json: {\nquery,\nhas_query: query.length > 0,\nspecies: sess.species_guess || 'unknown',\nverdict: judge.verdict || '',\nsource: issues.length ? 'suspected_issue' : (symptoms.length ? 'symptom' : 'none'),\n} }];"
+      }
+    },
+    {
+      "id": "a7a98550-9b04-4217-a601-063bd9018bed",
+      "name": "Has Pest Query?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        4160,
+        2800
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "q1",
+              "leftValue": "={{ $json.has_query }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "b1d310b0-da7c-44ce-97e9-2d589b5ecc37",
+      "name": "Perenual Pest Lookup",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        4368,
+        2800
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "https://perenual.com/api/v2/pest-disease-list",
+        "authentication": "genericCredentialType",
+        "genericAuthType": "httpQueryAuth",
+        "options": {
+          "timeout": 8000
+        },
+        "sendQuery": true,
+        "specifyQuery": "keypair",
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "q",
+              "value": "={{ $json.query }}"
+            }
+          ]
+        }
+      },
+      "credentials": {
+        "httpQueryAuth": {
+          "name": "PhytoAI Perenual"
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "ca8d5987-9384-4bf2-bcc2-74acdd44a4f4",
+      "name": "Build Perenual Pest Context",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4576,
+        2800
+      ],
+      "parameters": {
+        "jsCode": "const item = $input.first().json;\nconst q = $('Build Pest Lookup Query').first().json.query || '';\nif (item && item.error) { return [{ json: { query: q, pest_text: '' } }]; }\nconst data = Array.isArray(item.data) ? item.data : [];\nif (!data.length) { return [{ json: { query: q, pest_text: '' } }]; }\nconst entries = data.slice(0, 3).map((e) => {\nconst name = String(e.common_name || e.name || (Array.isArray(e.scientific_name) ? e.scientific_name[0] : e.scientific_name) || '').trim();\nconst solution = String(e.solution || '').replace(/\\s+/g, ' ').trim().slice(0, 300);\nconst description = String(e.description || '').replace(/\\s+/g, ' ').trim().slice(0, 220);\nconst extra = solution ? ('solution: ' + solution) : (description ? ('info: ' + description) : '');\nreturn name ? (name + (extra ? ' - ' + extra : '')) : '';\n}).filter(Boolean);\nif (!entries.length) { return [{ json: { query: q, pest_text: '' } }]; }\nreturn [{ json: { query: q, pest_text: 'PERENUAL PEST/DISEASE LOOKUP (on-demand, generic library data, unverified): ' + entries.join(' | ') } }];"
+      }
     }
   ],
   "connections": {
@@ -6248,7 +6628,7 @@
       "main": [
         [
           {
-            "node": "Build Treatment Prompt",
+            "node": "Build Pest Lookup Query",
             "type": "main",
             "index": 0
           }
@@ -6566,7 +6946,7 @@
       "main": [
         [
           {
-            "node": "Build Context",
+            "node": "Check Perenual Cache",
             "type": "main",
             "index": 0
           }
@@ -7231,6 +7611,186 @@
         [
           {
             "node": "Append Session Timeout Notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Perenual Cache": {
+      "main": [
+        [
+          {
+            "node": "Needs Perenual Enrichment?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Needs Perenual Enrichment?": {
+      "main": [
+        [
+          {
+            "node": "Perenual Species Search",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Perenual Species Search": {
+      "main": [
+        [
+          {
+            "node": "Pick Best Perenual Match",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Pick Best Perenual Match": {
+      "main": [
+        [
+          {
+            "node": "Has Perenual Match?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Perenual Match?": {
+      "main": [
+        [
+          {
+            "node": "Perenual Species Detail",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Perenual Cache Rows",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Perenual Species Detail": {
+      "main": [
+        [
+          {
+            "node": "Build Perenual Cache Rows",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Perenual Cache Rows": {
+      "main": [
+        [
+          {
+            "node": "Update Perenual Config",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Quota Exceeded?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Update Perenual Config": {
+      "main": [
+        [
+          {
+            "node": "Build Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Quota Exceeded?": {
+      "main": [
+        [
+          {
+            "node": "Build Perenual Quota Note",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Perenual Quota Note": {
+      "main": [
+        [
+          {
+            "node": "Append AgentNotes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Pest Lookup Query": {
+      "main": [
+        [
+          {
+            "node": "Has Pest Query?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Has Pest Query?": {
+      "main": [
+        [
+          {
+            "node": "Perenual Pest Lookup",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Treatment Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Perenual Pest Lookup": {
+      "main": [
+        [
+          {
+            "node": "Build Perenual Pest Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Perenual Pest Context": {
+      "main": [
+        [
+          {
+            "node": "Build Treatment Prompt",
             "type": "main",
             "index": 0
           }
