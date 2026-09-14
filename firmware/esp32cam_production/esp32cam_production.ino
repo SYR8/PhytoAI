@@ -12,10 +12,10 @@
 //   Wi-Fi: 3 tries x 20 s per pass, then deep-sleep 15 min and retry (RETRY_SOON_SECONDS).
 //   NTP:   2 tries x 15 s; without a valid UTC clock no capture is attempted (retry soon).
 //   HTTP:  15 s upload / 8 s config timeout; uploads retried 3x with 5 s exponential backoff.
-//   Scan:  session window 90 min after the target time, retry every 10 min (handles the
-//          current workflow's human gate / no_active_session); bookkeeping prevents a second
-//          scan in the same week bucket. /yolo-scan has no idempotency key -> a retry after
-//          an already-processing POST can duplicate; the miss is recorded and not retried.
+//   Scan:  session window 90 min after the target time, retry every 10 min (handles
+//          no_active_session, e.g. after a watchdog auto-close); bookkeeping prevents a
+//          second scan in the same week bucket. /yolo-scan has no idempotency key -> a retry
+//          after an already-processing POST can duplicate; the miss is recorded and not retried.
 //   Daily: event_id "cam-<YYYYMMDD>" is upserted by n8n, so reboots/retries cannot duplicate.
 //   Sleep: deep sleep until the next event minus WAKE_LEAD_SECONDS, capped at 12 h per sleep.
 
