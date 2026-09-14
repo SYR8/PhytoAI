@@ -489,12 +489,12 @@ camera_fb_t* captureFrame(bool& flashLit) {
   Serial.print(F("[FLASH] "));
   Serial.println(decisionLog);
   flashLit = dark;
-  captureCameraWarmup();
   bool lit = dark || g_torchOn;
   sensor_t* s = esp_camera_sensor_get();
   if (s) s->set_wb_mode(s, lit ? 1 : 0);
   pinMode(PIN_FLASH_LED, OUTPUT);
   digitalWrite(PIN_FLASH_LED, lit ? FLASH_LED_ON_LEVEL : FLASH_LED_OFF_LEVEL);
+  captureCameraWarmup();
   camera_fb_t* fb = esp_camera_fb_get();
   if (g_torchOn) digitalWrite(PIN_FLASH_LED, FLASH_LED_ON_LEVEL);
   else forceFlashLedOff();
