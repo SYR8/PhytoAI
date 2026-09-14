@@ -55,6 +55,7 @@ Seeded keys:
 | dry_run_mode | `TRUE` | user toggles manually |
 | min_rewater_interval_hours | `6` | seed (user-tunable) |
 | scan_session_active | `FALSE` | Branch C |
+| scan_session_opened_utc | *(empty)* | Branch C — set when the scheduler opens a session, cleared on auto-close (2026-09-14) |
 | camera_battery_percent | *(empty; latest value)* | every CAM webhook |
 | camera_battery_min_percent | `30` | seed (user-tunable; Branch C battery gate) |
 | drive_daily_photos_folder_id | *(empty until setup)* | one-time Drive setup |
@@ -157,6 +158,8 @@ phytoai
 7. **IF "Urgent visual anomaly?"** → pending Notifications row (type `alert_anomaly`, urgent + push). No Telegram.
 
 ### 3.3 Branch C — Weekly disease scan (human-assisted multi-model panel)
+
+> **2026-09-14 — superseded in the live workflow (Change 10, autonomous scan):** the human "position camera" gate below (scheduler steps 3–5) was removed. The scheduler now opens the session directly (`scan_session_active=true` + `scan_session_opened_utc`), `Weekly Scan` runs at `30 5 * * 1`, `/yolo-scan` is gated only by `scan_session_active`, and a watchdog (cron `0 */2 * * *`) force-closes sessions older than 6 h with an informational `scan_postponed` notification. The close path no longer appends a "return camera" notification. HITL Waits remain only for flagged issues (verdict/follow-up). See `STATUS.md` §3.1 for the exact deltas and simulation evidence.
 
 Scheduler path (Schedule Trigger "Weekly Scan", cron `0 6 * * 1` = Mon 06:00 UTC):
 

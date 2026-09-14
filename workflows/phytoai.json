@@ -900,39 +900,6 @@
       }
     },
     {
-      "id": "7d7c4aeb-e545-4ba5-bf34-dae0622740ea",
-      "name": "Scan Session Active?",
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2.3,
-      "position": [
-        672,
-        1808
-      ],
-      "parameters": {
-        "conditions": {
-          "combinator": "and",
-          "options": {
-            "caseSensitive": true,
-            "leftValue": "",
-            "typeValidation": "loose",
-            "version": 2
-          },
-          "conditions": [
-            {
-              "id": "s1",
-              "leftValue": "={{ $json.session_active }}",
-              "rightValue": true,
-              "operator": {
-                "type": "boolean",
-                "operation": "true"
-              }
-            }
-          ]
-        },
-        "options": {}
-      }
-    },
-    {
       "id": "2593a96c-3ce4-48a4-aee4-7a4c5b8f2fe6",
       "name": "Build Scan Postponed Row",
       "type": "n8n-nodes-base.set",
@@ -1116,179 +1083,16 @@
       }
     },
     {
-      "id": "27b3bf59-8a0d-46c8-bbd7-4df87671764a",
-      "name": "Build Position Camera Row",
-      "type": "n8n-nodes-base.set",
-      "typeVersion": 3.4,
-      "position": [
-        880,
-        1808
-      ],
-      "parameters": {
-        "assignments": {
-          "assignments": [
-            {
-              "id": "1",
-              "name": "timestamp",
-              "value": "={{ $now.toISO() }}",
-              "type": "string"
-            },
-            {
-              "id": "2",
-              "name": "type",
-              "value": "scan_position",
-              "type": "string"
-            },
-            {
-              "id": "3",
-              "name": "title",
-              "value": "Weekly disease scan - position the camera",
-              "type": "string"
-            },
-            {
-              "id": "4",
-              "name": "message",
-              "value": "Position the camera facing the whole plant, then confirm below. Use the capture button to send scan photos.",
-              "type": "string"
-            },
-            {
-              "id": "5",
-              "name": "response_options",
-              "value": "[\"Camera positioned\"]",
-              "type": "string"
-            },
-            {
-              "id": "6",
-              "name": "status",
-              "value": "pending",
-              "type": "string"
-            },
-            {
-              "id": "7",
-              "name": "response",
-              "value": "",
-              "type": "string"
-            },
-            {
-              "id": "8",
-              "name": "resume_url",
-              "value": "={{ $execution.resumeUrl }}",
-              "type": "string"
-            },
-            {
-              "id": "9",
-              "name": "context_ref",
-              "value": "",
-              "type": "string"
-            }
-          ]
-        },
-        "includeOtherFields": true,
-        "options": {}
-      }
-    },
-    {
-      "id": "31f11509-48c7-4248-a6d8-4f118c0d36d3",
-      "name": "Camera Positioned?",
-      "type": "n8n-nodes-base.if",
-      "typeVersion": 2.3,
-      "position": [
-        1552,
-        1808
-      ],
-      "parameters": {
-        "conditions": {
-          "combinator": "and",
-          "options": {
-            "caseSensitive": true,
-            "leftValue": "",
-            "typeValidation": "loose",
-            "version": 2
-          },
-          "conditions": [
-            {
-              "id": "s3",
-              "leftValue": "={{ $json.query }}",
-              "rightValue": "",
-              "operator": {
-                "type": "object",
-                "operation": "exists"
-              }
-            }
-          ]
-        },
-        "options": {}
-      }
-    },
-    {
       "id": "944699c0-592c-4e3b-8f5c-b5ec70bf4906",
       "name": "Build Open Session Row",
-      "type": "n8n-nodes-base.set",
-      "typeVersion": 3.4,
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
       "position": [
         1760,
         1792
       ],
       "parameters": {
-        "assignments": {
-          "assignments": [
-            {
-              "id": "1",
-              "name": "Key",
-              "value": "scan_session_active",
-              "type": "string"
-            },
-            {
-              "id": "2",
-              "name": "Value",
-              "value": "true",
-              "type": "string"
-            },
-            {
-              "id": "3",
-              "name": "LastUpdated",
-              "value": "={{ $now.toISO() }}",
-              "type": "string"
-            }
-          ]
-        },
-        "options": {}
-      }
-    },
-    {
-      "id": "99d3b59b-864d-48e0-99f8-1d3a2bee2b3f",
-      "name": "Build Expire Row",
-      "type": "n8n-nodes-base.set",
-      "typeVersion": 3.4,
-      "position": [
-        1760,
-        2112
-      ],
-      "parameters": {
-        "assignments": {
-          "assignments": [
-            {
-              "id": "1",
-              "name": "resume_url",
-              "value": "={{ $json.resume_url }}",
-              "type": "string"
-            },
-            {
-              "id": "2",
-              "name": "status",
-              "value": "expired",
-              "type": "string"
-            },
-            {
-              "id": "3",
-              "name": "response",
-              "value": "",
-              "type": "string"
-            }
-          ]
-        },
-        "includeOtherFields": true,
-        "options": {}
+        "jsCode": "const nowIso = $now.toISO();\nreturn [\n{ json: { Key: 'scan_session_active', Value: 'true', LastUpdated: nowIso } },\n{ json: { Key: 'scan_session_opened_utc', Value: nowIso, LastUpdated: nowIso } },\n];"
       }
     },
     {
@@ -2123,79 +1927,6 @@
       }
     },
     {
-      "id": "e96b1963-a873-469e-9551-c2b1edb14364",
-      "name": "Append Position Camera",
-      "type": "n8n-nodes-base.googleSheets",
-      "typeVersion": 4.7,
-      "position": [
-        1104,
-        1808
-      ],
-      "parameters": {
-        "operation": "append",
-        "documentId": {
-          "__rl": true,
-          "mode": "id",
-          "value": "10a3YXWBN4-hFJQQT4sLERmyu8D2TxYKNkXW-k3QRyLI"
-        },
-        "sheetName": {
-          "__rl": true,
-          "mode": "name",
-          "value": "Notifications"
-        },
-        "columns": {
-          "mappingMode": "defineBelow",
-          "value": {
-            "timestamp": "={{ $json.timestamp }}",
-            "type": "={{ $json.type }}",
-            "title": "={{ $json.title }}",
-            "message": "={{ $json.message }}",
-            "response_options": "={{ $json.response_options }}",
-            "status": "={{ $json.status }}",
-            "response": "={{ $json.response }}",
-            "resume_url": "={{ $json.resume_url }}",
-            "context_ref": "={{ $json.context_ref }}"
-          }
-        },
-        "options": {}
-      }
-    },
-    {
-      "id": "9ccb6cd2-9f5b-4381-902d-efdbc803df17",
-      "name": "Expire Position Notification",
-      "type": "n8n-nodes-base.googleSheets",
-      "typeVersion": 4.7,
-      "position": [
-        1760,
-        2000
-      ],
-      "parameters": {
-        "operation": "appendOrUpdate",
-        "documentId": {
-          "__rl": true,
-          "mode": "id",
-          "value": "10a3YXWBN4-hFJQQT4sLERmyu8D2TxYKNkXW-k3QRyLI"
-        },
-        "sheetName": {
-          "__rl": true,
-          "mode": "name",
-          "value": "Notifications"
-        },
-        "columns": {
-          "mappingMode": "defineBelow",
-          "value": {
-            "resume_url": "={{ $json.resume_url }}",
-            "status": "={{ $json.status }}",
-            "response": "={{ $json.response }}"
-          },
-          "matchingColumns": [
-            "resume_url"
-          ]
-        },
-        "options": {}
-      }
-    },
-    {
       "id": "23f68162-9b94-4548-a0c9-878894ff9aa9",
       "name": "Read Event History Vision",
       "type": "n8n-nodes-base.googleSheets",
@@ -2579,24 +2310,6 @@
         },
         "options": {}
       }
-    },
-    {
-      "id": "d11b118b-5354-466c-bfb3-b714b342083e",
-      "name": "Wait Camera Positioned",
-      "type": "n8n-nodes-base.wait",
-      "typeVersion": 1.1,
-      "position": [
-        1328,
-        1808
-      ],
-      "parameters": {
-        "resume": "webhook",
-        "limitWaitTime": true,
-        "resumeAmount": 60,
-        "resumeUnit": "minutes",
-        "options": {}
-      },
-      "webhookId": "59401808-f19f-434b-be83-a9fdffed4804"
     },
     {
       "id": "63f9df4f-3341-47ba-84f8-b2b46cf537ff",
@@ -4648,116 +4361,6 @@
       }
     },
     {
-      "id": "2f46ac39-14c2-4b4e-9f42-762cbce9cfd3",
-      "name": "Build Return Camera Row",
-      "type": "n8n-nodes-base.set",
-      "typeVersion": 3.4,
-      "position": [
-        224,
-        3200
-      ],
-      "parameters": {
-        "assignments": {
-          "assignments": [
-            {
-              "id": "1",
-              "name": "timestamp",
-              "value": "={{ $now.toISO() }}",
-              "type": "string"
-            },
-            {
-              "id": "2",
-              "name": "type",
-              "value": "scan_return_dock",
-              "type": "string"
-            },
-            {
-              "id": "3",
-              "name": "title",
-              "value": "Return camera to charging dock",
-              "type": "string"
-            },
-            {
-              "id": "4",
-              "name": "message",
-              "value": "Scan finished - put the camera back into its charging dock at the pot edge.",
-              "type": "string"
-            },
-            {
-              "id": "5",
-              "name": "response_options",
-              "value": "[\"Done\"]",
-              "type": "string"
-            },
-            {
-              "id": "6",
-              "name": "status",
-              "value": "pending",
-              "type": "string"
-            },
-            {
-              "id": "7",
-              "name": "response",
-              "value": "",
-              "type": "string"
-            },
-            {
-              "id": "8",
-              "name": "resume_url",
-              "value": "",
-              "type": "string"
-            },
-            {
-              "id": "9",
-              "name": "context_ref",
-              "value": "",
-              "type": "string"
-            }
-          ]
-        },
-        "includeOtherFields": true,
-        "options": {}
-      }
-    },
-    {
-      "id": "72928064-7f8a-4a11-bf93-8b0af04d233c",
-      "name": "Append Return Camera",
-      "type": "n8n-nodes-base.googleSheets",
-      "typeVersion": 4.7,
-      "position": [
-        448,
-        3200
-      ],
-      "parameters": {
-        "operation": "append",
-        "documentId": {
-          "__rl": true,
-          "mode": "id",
-          "value": "10a3YXWBN4-hFJQQT4sLERmyu8D2TxYKNkXW-k3QRyLI"
-        },
-        "sheetName": {
-          "__rl": true,
-          "mode": "name",
-          "value": "Notifications"
-        },
-        "columns": {
-          "mappingMode": "defineBelow",
-          "value": {
-            "timestamp": "={{ $json.timestamp }}",
-            "type": "={{ $json.type }}",
-            "title": "={{ $json.title }}",
-            "message": "={{ $json.message }}",
-            "response_options": "={{ $json.response_options }}",
-            "status": "={{ $json.status }}",
-            "response": "={{ $json.response }}",
-            "resume_url": "={{ $json.resume_url }}",
-            "context_ref": "={{ $json.context_ref }}"
-          }
-        },
-        "options": {}
-      }
-    },
-    {
       "id": "af52aa61-d80e-485a-9fc4-b4fc6fd0c9c8",
       "name": "Build Close Session Row",
       "type": "n8n-nodes-base.set",
@@ -4790,7 +4393,8 @@
           ]
         },
         "options": {}
-      }
+      },
+      "executeOnce": true
     },
     {
       "id": "29571da5-3ee5-445a-bf12-f784266d3945",
@@ -5439,7 +5043,7 @@
           "interval": [
             {
               "field": "cronExpression",
-              "expression": "0 6 * * 1"
+              "expression": "30 5 * * 1"
             }
           ]
         }
@@ -5480,7 +5084,7 @@
         1808
       ],
       "parameters": {
-        "jsCode": "const rows = $('Read SystemConfig Scan').all().map((i) => i.json);\nconst cfg = {};\nfor (const row of rows) {\nif (row.Key !== undefined && row.Key !== null && String(row.Key).trim() !== '') { cfg[String(row.Key).trim()] = row.Value; }\n}\nconst sessionActive = String(cfg['scan_session_active'] || 'false').toLowerCase() === 'true';\nconst batteryRaw = cfg['camera_battery_percent'];\nconst battery = (batteryRaw === undefined || batteryRaw === null || batteryRaw === '') ? null : Number(batteryRaw);\nconst minBatteryPercent = Number(cfg['camera_battery_min_percent'] ?? 30);\nconst batteryLow = battery !== null && battery < minBatteryPercent;\nreturn [{ json: {\nsession_active: sessionActive,\nbattery_percent: battery,\nbattery_low: batteryLow,\npostpone_reason: sessionActive ? 'a scan session is already active' : (batteryLow ? 'low camera battery' : ''),\n} }];"
+        "jsCode": "const rows = $('Read SystemConfig Scan').all().map((i) => i.json);\nconst cfg = {};\nfor (const row of rows) {\nif (row.Key !== undefined && row.Key !== null && String(row.Key).trim() !== '') { cfg[String(row.Key).trim()] = row.Value; }\n}\nlet sessionActive = String(cfg['scan_session_active'] || 'false').toLowerCase() === 'true';\nconst staleReset = sessionActive;\nif (staleReset) { console.log('stale scan session reset'); sessionActive = false; }\nconst batteryRaw = cfg['camera_battery_percent'];\nconst battery = (batteryRaw === undefined || batteryRaw === null || batteryRaw === '') ? null : Number(batteryRaw);\nconst minBatteryPercent = Number(cfg['camera_battery_min_percent'] ?? 30);\nconst batteryLow = battery !== null && battery < minBatteryPercent;\nreturn [{ json: {\nsession_active: sessionActive,\nstale_reset: staleReset,\nbattery_percent: battery,\nbattery_low: batteryLow,\npostpone_reason: batteryLow ? 'low camera battery' : '',\n} }];"
       }
     },
     {
@@ -5695,6 +5299,301 @@
         "width": 2060,
         "height": 200
       }
+    },
+    {
+      "id": "80290cc4-5766-42da-b451-c430184b5028",
+      "name": "Build Scan Scheduled Row",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        880,
+        1808
+      ],
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "1",
+              "name": "timestamp",
+              "value": "={{ $now.toISO() }}",
+              "type": "string"
+            },
+            {
+              "id": "2",
+              "name": "type",
+              "value": "scan_scheduled",
+              "type": "string"
+            },
+            {
+              "id": "3",
+              "name": "title",
+              "value": "Weekly scan photo will be taken soon",
+              "type": "string"
+            },
+            {
+              "id": "4",
+              "name": "message",
+              "value": "Weekly scan photo will be taken at 06:00 UTC (Monday) — make sure the camera is docked facing the plant. No action needed.",
+              "type": "string"
+            },
+            {
+              "id": "5",
+              "name": "response_options",
+              "value": "[]",
+              "type": "string"
+            },
+            {
+              "id": "6",
+              "name": "status",
+              "value": "done",
+              "type": "string"
+            },
+            {
+              "id": "7",
+              "name": "response",
+              "value": "",
+              "type": "string"
+            },
+            {
+              "id": "8",
+              "name": "resume_url",
+              "value": "",
+              "type": "string"
+            },
+            {
+              "id": "9",
+              "name": "context_ref",
+              "value": "",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "executeOnce": true
+    },
+    {
+      "id": "fdd4d3cd-c30b-44a2-9632-f0b94e3f506c",
+      "name": "Append Scan Scheduled",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        1104,
+        1808
+      ],
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "10a3YXWBN4-hFJQQT4sLERmyu8D2TxYKNkXW-k3QRyLI"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Notifications"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "timestamp": "={{ $json.timestamp }}",
+            "type": "={{ $json.type }}",
+            "title": "={{ $json.title }}",
+            "message": "={{ $json.message }}",
+            "response_options": "={{ $json.response_options }}",
+            "status": "={{ $json.status }}",
+            "response": "={{ $json.response }}",
+            "resume_url": "={{ $json.resume_url }}",
+            "context_ref": "={{ $json.context_ref }}"
+          }
+        },
+        "options": {}
+      },
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "BtlC7i6yZtrvbClV",
+          "name": "Google Sheets Zaki"
+        }
+      }
+    },
+    {
+      "id": "84063360-b8a8-47f5-ba01-909d75469f74",
+      "name": "Scan Session Watchdog",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.3,
+      "position": [
+        0,
+        3450
+      ],
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "cronExpression",
+              "expression": "0 */2 * * *"
+            }
+          ]
+        }
+      }
+    },
+    {
+      "id": "e06b5a58-c718-47e2-90ba-7127692a16e9",
+      "name": "Read SystemConfig Watchdog",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        224,
+        3450
+      ],
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "10a3YXWBN4-hFJQQT4sLERmyu8D2TxYKNkXW-k3QRyLI"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "SystemConfig"
+        },
+        "options": {}
+      },
+      "executeOnce": true,
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "BtlC7i6yZtrvbClV",
+          "name": "Google Sheets Zaki"
+        }
+      }
+    },
+    {
+      "id": "36b5929d-9288-4f37-9eda-2950799e5e41",
+      "name": "Check Session Timeout",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        448,
+        3450
+      ],
+      "parameters": {
+        "jsCode": "const SCAN_SESSION_TIMEOUT_HOURS = 6;\nconst rows = $('Read SystemConfig Watchdog').all().map((i) => i.json);\nconst cfg = {};\nfor (const row of rows) {\nif (row.Key !== undefined && row.Key !== null && String(row.Key).trim() !== '') { cfg[String(row.Key).trim()] = row.Value; }\n}\nconst active = String(cfg['scan_session_active'] || 'false').toLowerCase() === 'true';\nif (!active) { return []; }\nconst opened = cfg['scan_session_opened_utc'];\nlet timedOut = false;\nlet ageHours = null;\nif (opened) {\nconst t = Date.parse(opened);\nif (!isNaN(t)) {\nageHours = Math.round(((Date.now() - t) / 3600000) * 10) / 10;\ntimedOut = ageHours >= SCAN_SESSION_TIMEOUT_HOURS;\n}\n} else {\ntimedOut = true;\n}\nif (!timedOut) { return []; }\nconsole.log('scan session timeout close (open ' + ageHours + ' h)');\nconst nowIso = $now.toISO();\nreturn [\n{ json: { Key: 'scan_session_active', Value: 'false', LastUpdated: nowIso, timed_out_hours: ageHours } },\n{ json: { Key: 'scan_session_opened_utc', Value: '', LastUpdated: nowIso } },\n];"
+      }
+    },
+    {
+      "id": "3f37f601-34d3-48e4-b7c6-4c035a21d440",
+      "name": "Build Session Timeout Notification",
+      "type": "n8n-nodes-base.set",
+      "typeVersion": 3.4,
+      "position": [
+        672,
+        3450
+      ],
+      "parameters": {
+        "assignments": {
+          "assignments": [
+            {
+              "id": "1",
+              "name": "timestamp",
+              "value": "={{ $now.toISO() }}",
+              "type": "string"
+            },
+            {
+              "id": "2",
+              "name": "type",
+              "value": "scan_postponed",
+              "type": "string"
+            },
+            {
+              "id": "3",
+              "name": "title",
+              "value": "Weekly scan session timed out",
+              "type": "string"
+            },
+            {
+              "id": "4",
+              "name": "message",
+              "value": "No /yolo-scan/done arrived within 6 h; the scan session was closed automatically.",
+              "type": "string"
+            },
+            {
+              "id": "5",
+              "name": "response_options",
+              "value": "[]",
+              "type": "string"
+            },
+            {
+              "id": "6",
+              "name": "status",
+              "value": "done",
+              "type": "string"
+            },
+            {
+              "id": "7",
+              "name": "response",
+              "value": "",
+              "type": "string"
+            },
+            {
+              "id": "8",
+              "name": "resume_url",
+              "value": "",
+              "type": "string"
+            },
+            {
+              "id": "9",
+              "name": "context_ref",
+              "value": "",
+              "type": "string"
+            }
+          ]
+        },
+        "options": {}
+      },
+      "executeOnce": true
+    },
+    {
+      "id": "ca566a02-9fcf-4154-866d-c4a37d5923ef",
+      "name": "Append Session Timeout Notification",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        896,
+        3450
+      ],
+      "parameters": {
+        "operation": "append",
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "10a3YXWBN4-hFJQQT4sLERmyu8D2TxYKNkXW-k3QRyLI"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Notifications"
+        },
+        "columns": {
+          "mappingMode": "defineBelow",
+          "value": {
+            "timestamp": "={{ $json.timestamp }}",
+            "type": "={{ $json.type }}",
+            "title": "={{ $json.title }}",
+            "message": "={{ $json.message }}",
+            "response_options": "={{ $json.response_options }}",
+            "status": "={{ $json.status }}",
+            "response": "={{ $json.response }}",
+            "resume_url": "={{ $json.resume_url }}",
+            "context_ref": "={{ $json.context_ref }}"
+          }
+        },
+        "options": {}
+      },
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "BtlC7i6yZtrvbClV",
+          "name": "Google Sheets Zaki"
+        }
+      }
     }
   ],
   "connections": {
@@ -5865,24 +5764,6 @@
         ]
       ]
     },
-    "Scan Session Active?": {
-      "main": [
-        [
-          {
-            "node": "Build Scan Postponed Row",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "Battery Low?",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
     "Build Scan Postponed Row": {
       "main": [
         [
@@ -5905,7 +5786,12 @@
         ],
         [
           {
-            "node": "Build Position Camera Row",
+            "node": "Build Open Session Row",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Build Scan Scheduled Row",
             "type": "main",
             "index": 0
           }
@@ -5923,56 +5809,11 @@
         ]
       ]
     },
-    "Build Position Camera Row": {
-      "main": [
-        [
-          {
-            "node": "Append Position Camera",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Camera Positioned?": {
-      "main": [
-        [
-          {
-            "node": "Build Open Session Row",
-            "type": "main",
-            "index": 0
-          }
-        ],
-        [
-          {
-            "node": "Build Expire Row",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
     "Build Open Session Row": {
       "main": [
         [
           {
             "node": "Update SystemConfig",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Build Expire Row": {
-      "main": [
-        [
-          {
-            "node": "Expire Position Notification",
-            "type": "main",
-            "index": 0
-          },
-          {
-            "node": "Build Scan Postponed Row",
             "type": "main",
             "index": 0
           }
@@ -6216,17 +6057,6 @@
         ]
       ]
     },
-    "Append Position Camera": {
-      "main": [
-        [
-          {
-            "node": "Wait Camera Positioned",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
     "Read Event History Vision": {
       "main": [
         [
@@ -6309,17 +6139,6 @@
         [
           {
             "node": "Append Event Row",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Wait Camera Positioned": {
-      "main": [
-        [
-          {
-            "node": "Camera Positioned?",
             "type": "main",
             "index": 0
           }
@@ -7104,39 +6923,6 @@
         ]
       ]
     },
-    "Read SystemConfig D2": {
-      "main": [
-        [
-          {
-            "node": "Build Return Camera Row",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Build Return Camera Row": {
-      "main": [
-        [
-          {
-            "node": "Append Return Camera",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Append Return Camera": {
-      "main": [
-        [
-          {
-            "node": "Build Close Session Row",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
     "Build Close Session Row": {
       "main": [
         [
@@ -7324,17 +7110,6 @@
         ]
       ]
     },
-    "Check Scan Preconditions": {
-      "main": [
-        [
-          {
-            "node": "Scan Session Active?",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
     "Normalize Judge Output": {
       "main": [
         [
@@ -7374,6 +7149,88 @@
         [
           {
             "node": "Build YOLO Opinion",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Scan Preconditions": {
+      "main": [
+        [
+          {
+            "node": "Battery Low?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Scan Scheduled Row": {
+      "main": [
+        [
+          {
+            "node": "Append Scan Scheduled",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read SystemConfig D2": {
+      "main": [
+        [
+          {
+            "node": "Build Close Session Row",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Scan Session Watchdog": {
+      "main": [
+        [
+          {
+            "node": "Read SystemConfig Watchdog",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read SystemConfig Watchdog": {
+      "main": [
+        [
+          {
+            "node": "Check Session Timeout",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Check Session Timeout": {
+      "main": [
+        [
+          {
+            "node": "Update SystemConfig",
+            "type": "main",
+            "index": 0
+          },
+          {
+            "node": "Build Session Timeout Notification",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Session Timeout Notification": {
+      "main": [
+        [
+          {
+            "node": "Append Session Timeout Notification",
             "type": "main",
             "index": 0
           }
