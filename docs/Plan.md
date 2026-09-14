@@ -68,6 +68,15 @@ Seeded keys:
 | preheat_lead_minutes | `25` | seed (exposed via `GET /config`) |
 | max_water_temp_c | `28` | seed (documentation; firmware hard cap) |
 | heater_hysteresis_c | `2` | seed (documentation; firmware constant) |
+| perenual_species_id | *(empty)* | Branch A lazy species enrichment (2026-09-14) |
+| perenual_cached_species | *(empty)* | Branch A enrichment — species name the cache belongs to |
+| perenual_cached_utc | *(empty)* | Branch A enrichment — ISO-8601 of the last lookup attempt |
+| perenual_status | *(empty)* | Branch A enrichment — `ok` / `not_found` / `lookup_failed_<reason>` / `quota_exhausted` |
+| perenual_water_benchmark | *(empty)* | Branch A enrichment — e.g. `5-7 days` |
+| perenual_common_name | *(empty)* | Branch A enrichment |
+| perenual_care_json | *(empty)* | Branch A enrichment — compact JSON: watering, sunlight[], soil[], pests[], care_level, drought_tolerant, indoor |
+
+**Perenual cache (2026-09-14):** secondary reference layer, free tier only — endpoints `species-list`, `species/details/{id}`, `pest-disease-list` (Supreme-only endpoints/fields such as care guides, hardiness map and `xWatering*` are off-limits). The API key lives only in the n8n credential `PhytoAI Perenual` (Query Auth, parameter `key`). Cache validity: `perenual_cached_species` must equal `last_species_guess` and `perenual_status = ok`; `not_found` is settled for that species, `lookup_failed_*` retries after 24 h, `quota_exhausted` suppresses lookups until the next UTC day. Perenual data is a low-priority prior — it never enters Safety Guardrails and never outranks this plant's own history.
 
 **REMOVED keys:** `telegram_chat_id`, `current_cycle_week`, `drive_map_photos_folder_id`.
 

@@ -160,3 +160,5 @@ Every weekly scan logs the photo plus the vision opinion, the YOLO opinion, the 
 ## Known issues / lessons
 
 API/MCP-created Sheets nodes can have empty or legacy-format match columns that render EMPTY in the UI — always verify "Column to match on" visually after MCP edits. Sheet By-name mode works fine at runtime; From-list only affects UI dropdown population.
+
+**Pre-push key scan (mandatory for workflow changes).** Before committing anything under `workflows/`, scan the exported JSON for credential material — e.g. `Select-String -Path workflows/phytoai.json -Pattern 'key=|api[_-]?key|bearer\s|sk-'`. The Perenual API key lives ONLY in the n8n credential `PhytoAI Perenual` (Query Auth, parameter name `key`); it must never appear in workflow JSON, Code nodes, docs, git, or the dashboard. HTTP Request nodes reference credentials by name only — MCP cannot create or read credentials, so after an MCP update the owner must create/select them in the n8n UI.

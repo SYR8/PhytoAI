@@ -14,14 +14,16 @@ Scope: everything below is sourced from the working copy `C:\Users\moham\Downloa
 - `docs/opencode-firmware-brief.md` (2026-09-12) — firmware brief (Deliverable 1 calibration, Deliverable 2 production).
 - `docs/opencode-esp32cam-production-brief.md` (2026-09-14) — production CAM implementation brief (scope, contract gaps, test plan).
 - `docs/flash-light-gating-spec.md`, `docs/yolo-service-spec.md` (both 2026-09-14) — approved specs implemented on 2026-09-14.
+- `docs/perenual-integration-spec.md` (2026-09-14) — approved Perenual secondary-knowledge-layer spec (free tier only; implemented 2026-09-14 — §3.2).
 
 **Workflow exports**
-- `workflows/phytoai.json` (2026-09-14 12:33 UTC) — **authoritative**: name `phytoai`, workflow ID `WXd35adnUc9QQA84`, **154 nodes / 164 edges**, settings `{executionOrder:"v1", binaryMode:"separate", availableInMCP:true}`. Re-applied to the live workflow via MCP on 2026-09-14 (autonomous scan change + explicit Sheets credential refs on the 3 new nodes) and re-fetched to confirm the live definition matches this export.
+- `workflows/phytoai.json` (2026-09-14 16:57 UTC) — **authoritative**: name `phytoai`, workflow ID `WXd35adnUc9QQA84`, **168 nodes / 182 edges**, settings `{executionOrder:"v1", binaryMode:"separate", availableInMCP:true}`. Re-applied to the live workflow via MCP on 2026-09-14 (autonomous scan change, then the Perenual integration §3.2) and re-fetched to confirm the live definition matches this export.
   - Webhooks: `Core Sensor Webhook` (`core/sensor`), `Daily Photo Webhook` (`core/photo`), `Scan Photo Webhook` (`yolo-scan`), `Scan Sweep Done` (`yolo-scan/done`), `Device Config` (`config`, GET).
   - Agents: `History Analyst`, `Decision Agent`, `Photo Analysis Agent`, `Vision Analyst`, `Judge`, `Treatment Advisor`.
   - Added 2026-09-14: `YOLO Analyst` (HTTP node id `1692f6cd-3c04-4c31-89a8-92c5ccab6737`), `Attach Scan Image` (Code node id `ca423560-cd65-4414-acbe-5358f47cbe4f`).
   - Added 2026-09-14 (autonomous scan change, §3.1): `Build Scan Scheduled Row`, `Append Scan Scheduled`, `Scan Session Watchdog`, `Read SystemConfig Watchdog`, `Check Session Timeout`, `Build Session Timeout Notification`, `Append Session Timeout Notification`.
   - Removed 2026-09-14 (same change): `Scan Session Active?`, `Build Position Camera Row`, `Append Position Camera`, `Wait Camera Positioned`, `Camera Positioned?`, `Build Expire Row`, `Expire Position Notification`, `Build Return Camera Row`, `Append Return Camera`.
+  - Added 2026-09-14 (Perenual integration, §3.2): Branch A — `Check Perenual Cache`, `Needs Perenual Enrichment?`, `Perenual Species Search`, `Pick Best Perenual Match`, `Has Perenual Match?`, `Perenual Species Detail`, `Build Perenual Cache Rows`, `Quota Exceeded?`, `Build Perenual Quota Note`, `Update Perenual Config`; Branch C — `Build Pest Lookup Query`, `Has Pest Query?`, `Perenual Pest Lookup`, `Build Perenual Pest Context`.
   - Wait nodes now 2 (`Wait Verdict Response`, `Wait Followup Response`); `Plant Profile Agent — TODO` schedule placeholder still present. No Telegram, servo, or BranchMap nodes.
 - `workflows/phytoai.backup.json` (2026-09-09) — pre-redesign raw export: 105 nodes, `active:false`, `triggerCount:0`.
 - Root `phytoai-workflowone.json` no longer exists (moved into `workflows/` in commit `e5b81f8`).
@@ -45,14 +47,14 @@ Scope: everything below is sourced from the working copy `C:\Users\moham\Downloa
 
 ## 2. ARCHITECTURE AS IT STANDS
 
-Per `docs/Plan.md`: one n8n workflow **`phytoai`** (ID `WXd35adnUc9QQA84`) is the whole cloud brain. Devices (ESP32 WROOM "body" + battery ESP32-CAM "eye") talk only to n8n webhooks; **Google Sheets is the database** (Events, SystemConfig, Notifications, DiseaseScans, AgentNotes, PushSubscriptions); photos go to **Google Drive**; the **static dashboard is the only user interface** (Telegram removed; no servos/pan-tilt/BranchMap/aiming). Branch A = history-aware watering council with deterministic Safety Guardrails; Branch B = daily photo analysis; Branch C = weekly disease-scan panel — **updated 2026-09-14 to run autonomously** (scheduler opens the session; no dashboard approval; a watchdog force-closes stale sessions; notifications are informational; HITL Waits remain only for flagged issues — §3.1); Branch E = scheduler + `GET /config`. `dry_run_mode=true` (13 refs in the export) and the workflow is meant to stay **INACTIVE** until the manual prerequisites are done. AI runs on one shared OpenRouter model node (`OpenRouter Gemma`).
+Per `docs/Plan.md`: one n8n workflow **`phytoai`** (ID `WXd35adnUc9QQA84`) is the whole cloud brain. Devices (ESP32 WROOM "body" + battery ESP32-CAM "eye") talk only to n8n webhooks; **Google Sheets is the database** (Events, SystemConfig, Notifications, DiseaseScans, AgentNotes, PushSubscriptions); photos go to **Google Drive**; the **static dashboard is the only user interface** (Telegram removed; no servos/pan-tilt/BranchMap/aiming). Branch A = history-aware watering council with deterministic Safety Guardrails; Branch B = daily photo analysis; Branch C = weekly disease-scan panel — **updated 2026-09-14 to run autonomously** (scheduler opens the session; no dashboard approval; a watchdog force-closes stale sessions; notifications are informational; HITL Waits remain only for flagged issues — §3.1); Branch E = scheduler + `GET /config`. A **Perenual species-reference layer** (§3.2) adds a lazy, cached knowledge prior (free tier only) to Branch A's decision prompt and to Branch C's treatment prompt; it is advisory only and never enters Safety Guardrails. `dry_run_mode=true` (13 refs in the export) and the workflow is meant to stay **INACTIVE** until the manual prerequisites are done. AI runs on one shared OpenRouter model node (`OpenRouter Gemma`).
 
 ## 3. WHAT IS DEPLOYED VS ONLY PLANNED
 
 | Item | Evidence in this repo | Status |
 |---|---|---|
-| n8n workflow `phytoai` (WXd35adnUc9QQA84) | exported + re-applied 2026-09-14 via MCP (154 nodes; autonomous scan change §3.1); commits `bbf4f7c`…`5993d31` | **VERIFIED LIVE (definition)** — re-fetched after the MCP update and matches the repo export; **INACTIVE** (live read `active:false`) |
-| Workflow executions | MCP test executions `691`–`696` (2026-09-14, pinned — §3.1); no device executions recorded | **test-level VERIFIED**; device executions **UNKNOWN** |
+| n8n workflow `phytoai` (WXd35adnUc9QQA84) | exported + re-applied 2026-09-14 via MCP (168 nodes; autonomous scan change §3.1; Perenual integration §3.2); commits `bbf4f7c`…`5993d31` | **VERIFIED LIVE (definition)** — re-fetched after the MCP updates and matches the repo export; **INACTIVE** (live read `active:false`) |
+| Workflow executions | MCP test executions `691`–`696` (autonomous scan, §3.1) and `697`–`725` (Perenual suite, §3.2); all pinned; no device executions recorded | **test-level VERIFIED**; device executions **UNKNOWN** |
 | Branch B end-to-end | commit `bbf4f7c` "Branch B verified end-to-end (known-good baseline)" | user-verified per commit message; executions UNKNOWN |
 | M1 named Cloudflare tunnel | Plan §7 | PLANNED |
 | M2 Sheets tabs + seed keys | `docs/PhytoAI.v2.xlsx` audited vs Plan §2 + workflow | **DONE / VERIFIED — audited 2026-09-14 (audit file v2), 0 sheet-side issues** |
@@ -90,6 +92,41 @@ Verification (MCP `test_workflow`; trigger, credential and HTTP-request nodes ar
 
 This is **workflow-level simulation only, not a device end-to-end test**: no real camera JPEG, real Drive upload, or real Sheets write has been exercised yet.
 
+### 3.2 Perenual integration (2026-09-14) — implemented & simulated
+
+Implements `docs/perenual-integration-spec.md` exactly: a free-tier, cached, advisory species-reference layer. 14 nodes added (10 in Branch A, 4 in Branch C); live definition re-fetched and identical to the repo export (168 nodes / 182 edges).
+
+**Branch A — lazy species enrichment (owner of the cache).** Inserted between `Read AgentNotes History` and `Build Context`: `Check Perenual Cache` (code) decides from SystemConfig whether enrichment is due; `Needs Perenual Enrichment?` (IF) routes to `Perenual Species Search` → `Pick Best Perenual Match` → `Has Perenual Match?` → `Perenual Species Detail` → `Build Perenual Cache Rows` → `Update Perenual Config` (Sheets upsert, Key/Value rows) → back into `Build Context`. A `Quota Exceeded?` → `Build Perenual Quota Note` branch appends one AgentNote on HTTP 429.
+
+- Only runs when `last_species_guess` is set (not `unknown`) AND the cache is missing/for another species.
+- Cache semantics: `ok`/`not_found` are settled for that species (no refetch); `lookup_failed_*` retries after 24 h; `quota_exhausted` suppresses lookups until the next UTC day; a species switch always refetches once.
+- 7 SystemConfig keys upserted (rows, not headers — Plan §2.2 updated): `perenual_species_id`, `perenual_cached_species`, `perenual_cached_utc`, `perenual_status`, `perenual_water_benchmark`, `perenual_common_name`, `perenual_care_json`. The 7th key (`perenual_common_name`) was confirmed with the owner — spec §5's table listed 6 while §9 said 7.
+- `Build Context` merges freshly written rows (try/catch; cache-hit runs read the existing cache) and emits `decision_parts_perenual` + `perenual_status`. The PERENUAL REFERENCE paragraph is injected into the Decision Agent user prompt **only when** `perenual_status=ok` AND the cached species matches, explicitly framed as a low-priority prior that never outranks this plant's own history (and never touches Safety Guardrails).
+
+**Branch C — on-demand pest/disease lookup.** Inserted between `Read AgentNotes Treatment` and `Build Treatment Prompt`: `Build Pest Lookup Query` → `Has Pest Query?` → `Perenual Pest Lookup` (only when the Judge verdict is `issue`; query = first suspected issue, else first symptom) → `Build Perenual Pest Context`. `Build Treatment Prompt` also adds the cached species `pest_susceptibility` line. Two HTTP Request nodes (per spec) plus the pest lookup, all: query-auth credential `PhytoAI Perenual`, `Continue on fail` ON, 8 s timeout. Supreme-only endpoints/fields are untouched (care guides, hardiness map, `xWatering*`, `xSunlightDuration`).
+
+**Failure semantics:** all 4xx/429/timeout/empty-`data[]` outcomes degrade silently to `perenual_status` values; no workflow error, no alert spam; zero impact on Safety Guardrails, `dry_run_mode`, or decision/DiseaseScans schemas. The API key is not in the export — the HTTP nodes carry a **name-only** credential reference (`PhytoAI Perenual`); the MCP cannot create/read credentials, so the owner must create the credential (Query Auth, parameter `key`) and select it on the 3 HTTP nodes in the UI (Plan §8 note; spec §8 also recommends regenerating the key that was shared in chat).
+
+**Verification (spec §9), all via pinned MCP `test_workflow` — HTTP nodes pinned, so no real Perenual requests were made; the AI agents ran for real; no live Sheets/Drive writes):**
+
+| Check | Execution(s) | Result |
+|---|---|---|
+| 1. Mock `Monstera deliciosa`: 7 keys written, `status=ok`, Decision prompt contains PERENUAL REFERENCE | `712` (also `698`, `699`) | PASS — best match id 750, benchmark `5-7 days`, common name, `care_json` with pests; prompt block present |
+| 2. Nonsense species `zzzzplant`: `not_found`, zero downstream impact | `713` | PASS — `data: []` → `not_found`; no detail call; no prompt block; guardrails ran |
+| 3. Invalid key: `lookup_failed_4xx`, guardrails identical | `714` | PASS — `lookup_failed_401`; no prompt block |
+| 3b. HTTP 429: `quota_exhausted` + one AgentNote | `715` | PASS — note `agent=Perenual` appended (fan-out bug found here and fixed, below) |
+| 3c. Quota suppression (same UTC day) | `716` | PASS — `needs_enrichment=false`, zero calls |
+| 4. Same species 3 days: ZERO Perenual calls (cache hit) | `725`, `718`, `719` | PASS — search/detail absent from runData; cached block still injected |
+| 5. Species switches away and back: refetch once per switch | `720`, `721` | PASS — `reason=species_changed`, exactly one search each |
+| 6. Judge=`issue`: pest lookup fires at most once | `722` | PASS — one `Perenual Pest Lookup` call (`spider mites`); treatment prompt gets both species-pest and on-demand blocks |
+| 6b. Judge=healthy: no lookup | `723` | PASS — pest nodes absent; DiseaseScans row still built |
+| 7. Regression with Perenual down: schema-identical output | `724` vs baseline `697` | PASS — `Build Event Row` (27 keys), `Safety Guardrails` (34), `Build Decision Response` (11), `Normalize Decision Output` (29) identical; `Build Context` gains only the 2 additive internal fields; no prompt block |
+
+- **Bug found & fixed during verification:** `Build Perenual Cache Rows` initially emitted the quota branch as a second output (Code nodes have one output), making `Quota Exceeded?` unreachable. Fixed to a single-output fan-out, re-applied via MCP, and the whole suite re-run on the final definition (`712`–`725`; pre-fix runs `698`–`711`).
+- **Documented deviations:** quota suppression is same-UTC-day (no cross-device jitter — a single pot has no thundering herd); `lookup_failed_*` retries after 24 h (spec did not define a retry cadence); the 429 AgentNote is one row per 429.
+- **Pre-push key scan:** `workflows/phytoai.json` and the generated SDK scanned for `key=`, `api_key`, bearer/`sk-` tokens and long literal tokens in Perenual nodes — no key material found (only the Google Sheets document id, which every Sheets node already contains).
+- **Not yet real:** the Perenual credential is name-only and unresolved until the owner creates/selects it; the real API response shapes, real quota behavior, and a live Branch A/Branch C run with the actual key have not been exercised. No production-ready claim.
+
 **Firmware test status (owner-verified, 2026-09-14):**
 - **WROOM calibration/test** (`firmware/wroom_calibration/wroom_calibration.ino`) — two parts. **Part 1 (upload) DONE:** flashed to the ESP32-WROOM; board boots, sketch runs, Wi-Fi/serial output works. **Part 2 (sensor-by-sensor verification) PARTIAL:** sensors that did not depend on missing hardware were read and returned values; **HX711 load cell NOT tested** — blocked, waiting on 2 extra screws for the scale mount (`HX711_SCALE_FACTOR` stays provisional `305.070f`); **water-heater path NOT tested** — heater module not delivered, so `heater_on` / `max_heater_seconds=600` remains validated only in dry-run. Results were reported back as planned but the set is **INCOMPLETE** (scale + heater rows open).
 - **ESP32-CAM** (`firmware/esp32cam/esp32cam.ino`) — test sketch written and bench-tested **DONE**: camera init, Wi-Fi connect, and webhook upload path verified.
@@ -112,6 +149,7 @@ This is **workflow-level simulation only, not a device end-to-end test**: no rea
 10. Apply the remaining documented-but-not-live Phase-5 workflow changes: Changes 7–9 contracts and the placement-review / framing-quality safety net from the Changes 10–11 doc. (The Change 10 scheduled-camera/no-approval part is APPLIED + simulated — §3.1.)
 11. **Dataset cleanup (2026-09-14):** `plantvillage` and `plantvillage_repo` were deleted from `~/PhytoAI` on the VPS; disk afterward **66 % used / 25 G free**. Re-run `scripts/prepare_plantvillage.py` before any bootstrap; **update dataset references** in `scripts/README.md`, `yolo-service/README.md`, and `docs/yolo-service-spec.md` to reflect that the local dataset must be recreated.
 12. After any MCP edit, verify Sheets "Column to match on" in the n8n UI (see README "Known issues / lessons").
+13. **Perenual go-live steps:** create the n8n credential `PhytoAI Perenual` (Query Auth, parameter `key`, value = a regenerated key — the one shared in chat should be rotated per spec §8), select it on the 3 HTTP nodes (`Perenual Species Search`, `Perenual Species Detail`, `Perenual Pest Lookup`), then run one real Branch A and one Branch C pass to validate the live response shapes (spec §9 items 1–6 were simulated only).
 
 ## 5. OPEN QUESTIONS
 
@@ -133,3 +171,4 @@ New / still open (found in the working copy):
 13. **Autonomous scan** — Change 10 is APPLIED live and simulated (§3.1): the `Wait Camera Positioned` gate is gone, the scheduler opens sessions, and a 6 h watchdog closes stale ones. Remaining contract gap: `GET /config` has no `next_scan_utc`, so the production CAM falls back to its local weekly schedule (Monday 06:00 UTC) and retries `no_active_session` for up to 90 min. A framing-quality (`scan_quality`) safety net is also not implemented.
 14. **`/yolo-scan` idempotency** — the contract has no `scan_id`/`event_id` field, so a retry after a lost response can duplicate a DiseaseScans row (daily photos are idempotent via the deterministic `event_id` + Events upsert). Proposed contract addition: optional scan id.
 15. **Production CAM firmware is not flashed** — compile-verified only; no hardware results recorded (see `firmware/esp32cam_production/PRODUCTION-TESTS.md`). Workflow side (Change 10) is ready (§3.1).
+16. **Perenual credential + real API validation** — the integration is simulated only (§3.2): the credential `PhytoAI Perenual` must be created/selected in the n8n UI (MCP cannot), the key should be regenerated, and one real lookup pass should confirm the live v2 response shapes and the free-tier behavior. `GET /config` does not expose any Perenual data (by design).
