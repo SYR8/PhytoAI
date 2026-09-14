@@ -2596,7 +2596,7 @@
         "resumeUnit": "minutes",
         "options": {}
       },
-      "webhookId": "fda0163c-d599-477b-b34c-f0a9205fb99a"
+      "webhookId": "59401808-f19f-434b-be83-a9fdffed4804"
     },
     {
       "id": "63f9df4f-3341-47ba-84f8-b2b46cf537ff",
@@ -2691,7 +2691,7 @@
         "resumeUnit": "days",
         "options": {}
       },
-      "webhookId": "0fe8d091-778e-45fb-8a63-83a875e925ff"
+      "webhookId": "fb0c66d8-269b-4ca6-8725-d4684c11f846"
     },
     {
       "id": "7bede0f6-8db2-46d6-9542-821d4c8330a6",
@@ -3343,16 +3343,16 @@
       }
     },
     {
-      "id": "ee88fe31-86ee-4c3f-9db0-ac509c02e8cb",
-      "name": "Build YOLO Opinion",
+      "id": "ca423560-cd65-4414-acbe-5358f47cbe4f",
+      "name": "Attach Scan Image",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2208,
+        2100,
         2400
       ],
       "parameters": {
-        "jsCode": "return [{ json: { status: 'not_yet_trained' } }];"
+        "jsCode": "const src = $('Check Scan Session').first().binary;\nreturn [{ json: $json, binary: src }];"
       }
     },
     {
@@ -3455,7 +3455,20 @@
         "resumeUnit": "days",
         "options": {}
       },
-      "webhookId": "e5a8ec20-d3e3-4f7d-9e52-a80c22e98a72"
+      "webhookId": "f407c7e1-2c20-4ee9-8868-a22af7361f8f"
+    },
+    {
+      "id": "ee88fe31-86ee-4c3f-9db0-ac509c02e8cb",
+      "name": "Build YOLO Opinion",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2320,
+        2400
+      ],
+      "parameters": {
+        "jsCode": "const item = $input.first().json;\nif (item.error) return [{ json: { status: 'unavailable' } }];\nreturn [{ json: item }];"
+      }
     },
     {
       "id": "cba2cca9-2c0d-4bf2-983b-3db592b65d7f",
@@ -3592,6 +3605,19 @@
       }
     },
     {
+      "id": "50d381de-647a-4092-9a54-9e991530c824",
+      "name": "Build Judge Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2640,
+        2400
+      ],
+      "parameters": {
+        "jsCode": "const vision = $('Normalize Vision Output').first().json;\nconst yolo = $('Build YOLO Opinion').first().json;\nconst sess = $('Check Scan Session').first().json;\nconst notes = $('Read AgentNotes Judge').all().map((i) => i.json);\nconst noteText = notes.length ? notes.map((n) => '- ' + n.note).join('\\n') : 'none';\nconst text = [\n'VISION OPINION (strict JSON): ' + JSON.stringify({ framing_quality: vision.framing_quality, symptoms_observed: vision.symptoms_observed, suspected_issues: vision.suspected_issues, confidence: vision.confidence, affected_areas: vision.affected_areas }),\n'YOLO OPINION: ' + JSON.stringify(yolo),\n'IMAGE CONTEXT: weekly scan, species ' + sess.species_guess + ' (confidence ' + sess.species_confidence + ').',\n'YOUR UNVERIFIED HYPOTHESES (context only, never ground truth):',\nnoteText,\n'Return strict JSON: verdict (string, one of \"healthy\" | \"monitor\" | \"issue\"), verdict_confidence (0-1), reasoning (string, explain weighting), recommended_action (string), agent_notes (array of 0-3 short strings).',\n].join('\\n');\nreturn [{ json: { judge_text: text } }];"
+      }
+    },
+    {
       "id": "2e12e017-48ba-40ad-a1a0-60b47c972d45",
       "name": "Core Sensor Webhook",
       "type": "n8n-nodes-base.webhook",
@@ -3606,7 +3632,7 @@
         "responseMode": "responseNode",
         "options": {}
       },
-      "webhookId": "6f9bdd09-c49a-40c1-a938-a03b930febe1"
+      "webhookId": "009bbb90-d003-4977-8a15-445db3084ac3"
     },
     {
       "id": "b1b424bc-498d-4125-a9fc-f8cc4a2964b3",
@@ -4211,7 +4237,7 @@
           "responseData": "{\"status\":\"received\"}"
         }
       },
-      "webhookId": "87b97578-6593-4da3-a065-716f9b3f7ab9"
+      "webhookId": "9943959d-1ceb-4f3f-a6a4-91d3da0abd62"
     },
     {
       "id": "c35311f9-ed13-42f3-9db4-03c861541efe",
@@ -4496,7 +4522,7 @@
         "responseMode": "responseNode",
         "options": {}
       },
-      "webhookId": "2a5c36f6-7e63-43d7-a4d9-2ba20a37da37"
+      "webhookId": "8ae629af-fbc2-4088-abd0-bc86834221ba"
     },
     {
       "id": "0dc652fa-ba0d-45a2-993a-09b26bf6e3b1",
@@ -4549,16 +4575,35 @@
       }
     },
     {
-      "id": "50d381de-647a-4092-9a54-9e991530c824",
-      "name": "Build Judge Prompt",
-      "type": "n8n-nodes-base.code",
-      "typeVersion": 2,
+      "id": "b54ba0de-85b5-4ab7-a793-96d8ac548900",
+      "name": "Judge",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
       "position": [
-        2640,
+        2864,
         2400
       ],
       "parameters": {
-        "jsCode": "const vision = $('Normalize Vision Output').first().json;\nconst yolo = $('Build YOLO Opinion').first().json;\nconst sess = $('Check Scan Session').first().json;\nconst notes = $('Read AgentNotes Judge').all().map((i) => i.json);\nconst noteText = notes.length ? notes.map((n) => '- ' + n.note).join('\\n') : 'none';\nconst text = [\n'VISION OPINION (strict JSON): ' + JSON.stringify({ framing_quality: vision.framing_quality, symptoms_observed: vision.symptoms_observed, suspected_issues: vision.suspected_issues, confidence: vision.confidence, affected_areas: vision.affected_areas }),\n'YOLO OPINION: ' + JSON.stringify(yolo),\n'IMAGE CONTEXT: weekly scan, species ' + sess.species_guess + ' (confidence ' + sess.species_confidence + ').',\n'YOUR UNVERIFIED HYPOTHESES (context only, never ground truth):',\nnoteText,\n'Return strict JSON: verdict (string, one of \"healthy\" | \"monitor\" | \"issue\"), verdict_confidence (0-1), reasoning (string, explain weighting), recommended_action (string), agent_notes (array of 0-3 short strings).',\n].join('\\n');\nreturn [{ json: { judge_text: text } }];"
+        "promptType": "define",
+        "text": "={{ $json.judge_text }}",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "You are the cross-check judge of an autonomous smart plant pot. You receive the Vision Analyst's symptom reasoning and the YOLO Analyst's output. Weighting: the vision model provides symptom reasoning; YOLO provides a label + confidence from a model still learning this environment - treat YOLO as LOW WEIGHT until it is fine-tuned on this pot's own verified data. If YOLO reports \"not_yet_trained\", ignore it except to note it. Output the final verdict, your own reasoning, and the recommended action."
+        }
+      }
+    },
+    {
+      "id": "6a7b0205-8f45-4f2f-8eab-0f55c6177065",
+      "name": "Judge Parser",
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        3072,
+        2528
+      ],
+      "parameters": {
+        "jsonSchemaExample": "{\"verdict\":\"healthy\",\"verdict_confidence\":0.9,\"reasoning\":\"...\",\"recommended_action\":\"...\",\"agent_notes\":[\"...\"]}",
+        "autoFix": true
       }
     },
     {
@@ -4577,7 +4622,7 @@
           "responseData": "{\"status\":\"ok\"}"
         }
       },
-      "webhookId": "e23247c5-6659-40d0-a9c3-167571907938"
+      "webhookId": "fac6210b-8f61-4e43-b70d-ffd0fb9ad5b7"
     },
     {
       "id": "15556762-4b96-4146-a5c7-94000171a363",
@@ -4954,7 +4999,7 @@
         "responseMode": "lastNode",
         "options": {}
       },
-      "webhookId": "6d4510e9-c254-414e-9dd5-45d1c631e806"
+      "webhookId": "eb77ab27-4a92-4287-8a0f-2d528bdfa96a"
     },
     {
       "id": "980a6fbb-84ce-4cf1-b50a-5cf27c50ca17",
@@ -5387,7 +5432,7 @@
       "typeVersion": 1.3,
       "position": [
         0,
-        1808
+        1760
       ],
       "parameters": {
         "rule": {
@@ -5436,38 +5481,6 @@
       ],
       "parameters": {
         "jsCode": "const rows = $('Read SystemConfig Scan').all().map((i) => i.json);\nconst cfg = {};\nfor (const row of rows) {\nif (row.Key !== undefined && row.Key !== null && String(row.Key).trim() !== '') { cfg[String(row.Key).trim()] = row.Value; }\n}\nconst sessionActive = String(cfg['scan_session_active'] || 'false').toLowerCase() === 'true';\nconst batteryRaw = cfg['camera_battery_percent'];\nconst battery = (batteryRaw === undefined || batteryRaw === null || batteryRaw === '') ? null : Number(batteryRaw);\nconst minBatteryPercent = Number(cfg['camera_battery_min_percent'] ?? 30);\nconst batteryLow = battery !== null && battery < minBatteryPercent;\nreturn [{ json: {\nsession_active: sessionActive,\nbattery_percent: battery,\nbattery_low: batteryLow,\npostpone_reason: sessionActive ? 'a scan session is already active' : (batteryLow ? 'low camera battery' : ''),\n} }];"
-      }
-    },
-    {
-      "id": "b54ba0de-85b5-4ab7-a793-96d8ac548900",
-      "name": "Judge",
-      "type": "@n8n/n8n-nodes-langchain.agent",
-      "typeVersion": 3.1,
-      "position": [
-        2864,
-        2400
-      ],
-      "parameters": {
-        "promptType": "define",
-        "text": "={{ $json.judge_text }}",
-        "hasOutputParser": true,
-        "options": {
-          "systemMessage": "You are the cross-check judge of an autonomous smart plant pot. You receive the Vision Analyst's symptom reasoning and the YOLO Analyst's output. Weighting: the vision model provides symptom reasoning; YOLO provides a label + confidence from a model still learning this environment - treat YOLO as LOW WEIGHT until it is fine-tuned on this pot's own verified data. If YOLO reports \"not_yet_trained\", ignore it except to note it. Output the final verdict, your own reasoning, and the recommended action."
-        }
-      }
-    },
-    {
-      "id": "6a7b0205-8f45-4f2f-8eab-0f55c6177065",
-      "name": "Judge Parser",
-      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
-      "typeVersion": 1.3,
-      "position": [
-        3072,
-        2528
-      ],
-      "parameters": {
-        "jsonSchemaExample": "{\"verdict\":\"healthy\",\"verdict_confidence\":0.9,\"reasoning\":\"...\",\"recommended_action\":\"...\",\"agent_notes\":[\"...\"]}",
-        "autoFix": true
       }
     },
     {
@@ -5535,6 +5548,36 @@
       "parameters": {
         "jsCode": "const notes = $('Normalize Judge Output').first().json.agent_notes ?? [];\nconst ctx = $('Check Scan Session').first().json.captured_at_utc;\nconst list = Array.isArray(notes) ? notes.slice(0, 3) : [];\nreturn list.map((n) => ({ json: { timestamp: $now.toISO(), agent: 'Judge', note: String(n), context_ref: ctx || '', status: 'active' } }));"
       }
+    },
+    {
+      "id": "1692f6cd-3c04-4c31-89a8-92c5ccab6737",
+      "name": "YOLO Analyst",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        2200,
+        2400
+      ],
+      "parameters": {
+        "method": "POST",
+        "url": "http://yolo:8090/predict",
+        "sendBody": true,
+        "contentType": "multipart-form-data",
+        "specifyBody": "keypair",
+        "bodyParameters": {
+          "parameters": [
+            {
+              "parameterType": "formBinaryData",
+              "name": "image",
+              "inputDataFieldName": "data"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 30000
+        }
+      },
+      "onError": "continueErrorOutput"
     },
     {
       "id": "8c7f9575-b2b3-4913-9c2f-e77e2b92e426",
@@ -6518,7 +6561,7 @@
       "main": [
         [
           {
-            "node": "Build YOLO Opinion",
+            "node": "Attach Scan Image",
             "type": "main",
             "index": 0
           },
@@ -6563,11 +6606,11 @@
         ]
       ]
     },
-    "Build YOLO Opinion": {
+    "Attach Scan Image": {
       "main": [
         [
           {
-            "node": "Read AgentNotes Judge",
+            "node": "YOLO Analyst",
             "type": "main",
             "index": 0
           }
@@ -6612,6 +6655,17 @@
         ]
       ]
     },
+    "Build YOLO Opinion": {
+      "main": [
+        [
+          {
+            "node": "Read AgentNotes Judge",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
     "Read AgentNotes Judge": {
       "main": [
         [
@@ -6628,6 +6682,17 @@
         [
           {
             "node": "Append AgentNotes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Judge Prompt": {
+      "main": [
+        [
+          {
+            "node": "Judge",
             "type": "main",
             "index": 0
           }
@@ -7006,12 +7071,23 @@
         ]
       ]
     },
-    "Build Judge Prompt": {
+    "Judge": {
       "main": [
         [
           {
-            "node": "Judge",
+            "node": "Normalize Judge Output",
             "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Judge Parser": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Judge",
+            "type": "ai_outputParser",
             "index": 0
           }
         ]
@@ -7259,28 +7335,6 @@
         ]
       ]
     },
-    "Judge": {
-      "main": [
-        [
-          {
-            "node": "Normalize Judge Output",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Judge Parser": {
-      "ai_outputParser": [
-        [
-          {
-            "node": "Judge",
-            "type": "ai_outputParser",
-            "index": 0
-          }
-        ]
-      ]
-    },
     "Normalize Judge Output": {
       "main": [
         [
@@ -7302,6 +7356,24 @@
         [
           {
             "node": "Append AgentNotes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "YOLO Analyst": {
+      "main": [
+        [
+          {
+            "node": "Build YOLO Opinion",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build YOLO Opinion",
             "type": "main",
             "index": 0
           }
