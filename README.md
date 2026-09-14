@@ -152,7 +152,8 @@ Every weekly scan logs the photo plus the vision opinion, the YOLO opinion, the 
 - [ ] WROOM sensor verification complete — **PARTIAL**: HX711 blocked on 2 scale-mount screws; heater module not delivered (2026-09-14)
 - [ ] ESP32 WROOM production firmware (sensor routine, NTP re-sync, pump/heater execution)
 - [x] ESP32-CAM test sketch bench-tested (camera init, Wi-Fi connect, webhook upload — 2026-09-14)
-- [ ] ESP32-CAM production firmware (capture, battery ADC, capture-button debounce, uploads)
+- [x] ESP32-CAM production firmware written + compile-verified (`firmware/esp32cam_production/`; autonomous capture/upload, not flashed)
+- [ ] ESP32-CAM production firmware flashed + end-to-end verified (test plan: `firmware/esp32cam_production/PRODUCTION-TESTS.md`; capture-button debounce still open, Plan §8 Q4)
 - [ ] Full dashboard (charts, history, AgentNotes, battery status, Web Push)
 - [ ] Plant Profile Agent build; YOLO fine-tuning on accumulated gold labels
 
