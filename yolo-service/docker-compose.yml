@@ -17,4 +17,4 @@ services:
 networks:
   n8n_net:
     external: true
-    name: n8n_default
+    name: tunnel-net
