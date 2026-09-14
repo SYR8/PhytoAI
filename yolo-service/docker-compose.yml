@@ -1,0 +1,20 @@
+services:
+  yolo:
+    build: .
+    image: phytoai-yolo:latest
+    container_name: yolo
+    restart: unless-stopped
+    environment:
+      MODEL_PATH: /models/model.pt
+      MODEL_NAME: plantvillage-yolov8n-cls
+    volumes:
+      - ./models:/models
+    expose:
+      - "8090"
+    networks:
+      - n8n_net
+
+networks:
+  n8n_net:
+    external: true
+    name: n8n_default

@@ -9,3 +9,8 @@ client_secret_*.json
 *.pem
 *.key
 secrets.h
+yolo-service/models/
+scripts/dataset/
+scripts/dataset_split/
+runs/
+*.pt
