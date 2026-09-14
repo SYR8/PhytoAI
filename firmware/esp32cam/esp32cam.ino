@@ -65,6 +65,10 @@ const char* PATH_CONFIG    = "/config";
 #define FLASH_LED_ON_LEVEL    HIGH
 #define FLASH_LED_OFF_LEVEL   LOW
 
+// Light gating: a light reading older than this falls back to sun times.
+#define LIGHT_READING_MAX_AGE_S 21600
+#define CONFIG_FETCH_TIMEOUT_MS 8000
+
 // Camera frame settings (PSRAM when present, DRAM fallback).
 #define CAM_FRAME_SIZE_PSRAM  FRAMESIZE_UXGA
 #define CAM_FRAME_SIZE_DRAM   FRAMESIZE_VGA
@@ -90,6 +94,7 @@ const char* PATH_CONFIG    = "/config";
 // -----------------------------------------------------------------------
 
 bool cameraReady = false;
+bool g_torchOn = false;
 
 struct MultipartField {
   const char* name;
@@ -146,7 +151,6 @@ void captureCameraWarmup() {
   }
   sensor_t* s = esp_camera_sensor_get();
   if (s) {
-    s->set_wb_mode(s, 1);
     s->set_ae_level(s, -2);
     s->set_saturation(s, 0);
     s->set_brightness(s, 0);
@@ -334,6 +338,7 @@ bool postJson(const char* endpoint, const String& json, int& status, String& res
 bool httpGet(const char* endpoint, int& status, String& respBody) {
   WiFiClientSecure client;
   if (!openConnection(client)) return false;
+  client.setTimeout(CONFIG_FETCH_TIMEOUT_MS);
   String host = hostFromBaseUrl(String(BASE_URL));
   client.print(String("GET ") + WEBHOOK_PREFIX + endpoint + " HTTP/1.1\r\n");
   client.print(String("Host: ") + host + "\r\n");
@@ -385,17 +390,122 @@ bool connectWiFi() {
   return true;
 }
 
-camera_fb_t* captureFrame() {
+bool jsonFindValue(const String& body, const char* key, String& out) {
+  String pat = String("\"") + key + "\"";
+  int i = body.indexOf(pat);
+  if (i < 0) return false;
+  int c = body.indexOf(':', i + pat.length());
+  if (c < 0) return false;
+  int j = c + 1;
+  while (j < (int)body.length() && (body[j] == ' ' || body[j] == '\t' || body[j] == '\n' || body[j] == '\r')) j++;
+  if (j >= (int)body.length()) return false;
+  if (body.startsWith("null", j)) return false;
+  if (body[j] == '"') {
+    int e = body.indexOf('"', j + 1);
+    if (e < 0) return false;
+    out = body.substring(j + 1, e);
+    return true;
+  }
+  int e = j;
+  while (e < (int)body.length() && body[e] != ',' && body[e] != '}' && body[e] != ']' && body[e] != '\n' && body[e] != '\r') e++;
+  out = body.substring(j, e);
+  out.trim();
+  return out.length() > 0;
+}
+
+bool jsonNumber(const String& body, const char* key, double& out) {
+  String s;
+  if (!jsonFindValue(body, key, s)) return false;
+  out = s.toFloat();
+  return true;
+}
+
+long isoToEpoch(const String& iso) {
+  int y, mo, d, h, mi, se;
+  if (sscanf(iso.c_str(), "%d-%d-%dT%d:%d:%d", &y, &mo, &d, &h, &mi, &se) != 6) return 0;
+  struct tm tmv;
+  memset(&tmv, 0, sizeof(tmv));
+  tmv.tm_year = y - 1900;
+  tmv.tm_mon = mo - 1;
+  tmv.tm_mday = d;
+  tmv.tm_hour = h;
+  tmv.tm_min = mi;
+  tmv.tm_sec = se;
+  return (long)mktime(&tmv);
+}
+
+String fmtNum(double v) {
+  long r = (long)(v + (v >= 0 ? 0.5 : -0.5));
+  if (fabs(v - (double)r) < 0.001) return String(r);
+  return String(v, 1);
+}
+
+bool decideFlashForShot(String& logLine) {
+  int status = -1;
+  String body;
+  if (!httpGet(PATH_CONFIG, status, body) || status != 200) {
+    logLine = "config fetch failed -> flash ON (fallback)";
+    return true;
+  }
+  double ll = 0;
+  double thr = 0;
+  bool hasLl = jsonNumber(body, "last_lightlevel", ll);
+  bool hasThr = jsonNumber(body, "flash_dark_threshold", thr);
+  String llUtc;
+  bool hasLlUtc = jsonFindValue(body, "last_lightlevel_utc", llUtc);
+  time_t now = time(nullptr);
+  long age = -1;
+  if (hasLlUtc && now >= 1600000000UL) {
+    long t = isoToEpoch(llUtc);
+    if (t > 0) {
+      age = (long)now - t;
+      if (age < 0) age = 0;
+    }
+  }
+  if (hasLl && hasThr && !(age > LIGHT_READING_MAX_AGE_S)) {
+    bool dark = ll < thr;
+    logLine = "light=" + fmtNum(ll) + " (age " + (age >= 0 ? String(age) + "s" : String("?")) + ") threshold=" + fmtNum(thr) + " -> flash " + String(dark ? "ON" : "OFF") + " (sensor)";
+    return dark;
+  }
+  String srIso;
+  String ssIso;
+  bool hasSr = jsonFindValue(body, "next_sunrise_utc", srIso);
+  bool hasSs = jsonFindValue(body, "next_sunset_utc", ssIso);
+  long sr = hasSr ? isoToEpoch(srIso) : 0;
+  long ss = hasSs ? isoToEpoch(ssIso) : 0;
+  if (now >= 1600000000UL && sr > 0 && ss > 0) {
+    bool night = ((long)now < sr) || ((long)now > ss);
+    logLine = (hasLl ? String("light reading stale -> ") : String("no light reading -> ")) + "suntimes (" + (night ? "night" : "day") + ") -> flash " + String(night ? "ON" : "OFF") + " (suntimes)";
+    return night;
+  }
+  logLine = "no light data -> flash ON (fallback)";
+  return true;
+}
+
+camera_fb_t* captureFrame(bool& flashLit) {
   if (!ensureCamera()) return nullptr;
+  String decisionLog;
+  bool dark = decideFlashForShot(decisionLog);
+  Serial.print(F("[FLASH] "));
+  Serial.println(decisionLog);
+  flashLit = dark;
   captureCameraWarmup();
+  bool lit = dark || g_torchOn;
+  sensor_t* s = esp_camera_sensor_get();
+  if (s) s->set_wb_mode(s, lit ? 1 : 0);
+  pinMode(PIN_FLASH_LED, OUTPUT);
+  digitalWrite(PIN_FLASH_LED, lit ? FLASH_LED_ON_LEVEL : FLASH_LED_OFF_LEVEL);
   camera_fb_t* fb = esp_camera_fb_get();
+  if (g_torchOn) digitalWrite(PIN_FLASH_LED, FLASH_LED_ON_LEVEL);
+  else forceFlashLedOff();
   if (!fb) Serial.println(F("[CAM] frame capture FAILED"));
   return fb;
 }
 
 void doPhotoPost() {
   if (!connectWiFi()) return;
-  camera_fb_t* fb = captureFrame();
+  bool flashLit = false;
+  camera_fb_t* fb = captureFrame(flashLit);
   if (!fb) return;
   char eventId[48];
   snprintf(eventId, sizeof(eventId), "cam-bench-%lu", (unsigned long)time(nullptr));
@@ -420,6 +530,7 @@ void doPhotoPost() {
 
 void cmdHealth() {
   if (!ensureCamera()) return;
+  forceFlashLedOff();
   camera_fb_t* fb = esp_camera_fb_get();
   if (!fb) {
     Serial.println(F("[CAM] frame capture FAILED"));
@@ -459,7 +570,8 @@ void cmdBattery() {
 
 void cmdScan() {
   if (!connectWiFi()) return;
-  camera_fb_t* fb = captureFrame();
+  bool flashLit = false;
+  camera_fb_t* fb = captureFrame(flashLit);
   if (!fb) return;
   MultipartField fields[3] = {
     {"device_id", DEVICE_ID},
@@ -504,12 +616,11 @@ void cmdConfig() {
 }
 
 void cmdFlashToggle() {
-  static bool torchOn = false;
-  torchOn = !torchOn;
+  g_torchOn = !g_torchOn;
   pinMode(PIN_FLASH_LED, OUTPUT);
-  digitalWrite(PIN_FLASH_LED, torchOn ? FLASH_LED_ON_LEVEL : FLASH_LED_OFF_LEVEL);
+  digitalWrite(PIN_FLASH_LED, g_torchOn ? FLASH_LED_ON_LEVEL : FLASH_LED_OFF_LEVEL);
   Serial.print(F("[FLASH] "));
-  Serial.println(torchOn ? F("ON (torch)") : F("OFF"));
+  Serial.println(g_torchOn ? F("ON (torch)") : F("OFF"));
 }
 
 bool buttonPressedEdge() {
