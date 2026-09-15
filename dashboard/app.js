@@ -166,9 +166,15 @@
     var connected = !!state.token;
     $('connect-btn').hidden = connected;
     $('refresh-btn').hidden = !connected;
+    var panel = $('signin-panel');
+    if (panel) panel.hidden = connected;      // auth is mandatory; the panel never pretends otherwise
     var el = $('auth-status');
     el.textContent = connected ? 'Google connected' : 'Not connected';
     el.className = 'auth-status ' + (connected ? 'ok' : 'warn');
+  }
+  function requestSignIn() {
+    if (!state.tokenClient) { initAuth(); return; }
+    state.tokenClient.requestAccessToken({ prompt: '' });
   }
   function authHeaders() { return { Authorization: 'Bearer ' + state.token }; }
 
@@ -795,7 +801,9 @@
     var meta = $('viewer-meta');
     img.removeAttribute('src');
     meta.textContent = item.label + ' · ' + fmtTime(item.ts) + ' · loading…';
+    state.viewerReturnFocus = document.activeElement;
     v.hidden = false;
+    document.body.classList.add('modal-open');
     $('viewer-close').focus();
     driveMedia(item.id).then(function (url) {
       img.src = url;
@@ -989,27 +997,44 @@
     }).join('');
   }
 
+  function closeViewer() {
+    var v = $('viewer');
+    if (!v || v.hidden) return;
+    v.hidden = true;
+    document.body.classList.remove('modal-open');
+    if (state.viewerReturnFocus && state.viewerReturnFocus.focus) {
+      try { state.viewerReturnFocus.focus(); } catch (err) { /* ignore */ }
+    }
+    state.viewerReturnFocus = null;
+  }
+
   /* ------------------------------------------------------------------ wiring */
   function bind() {
-    $('connect-btn').addEventListener('click', function () {
-      if (!state.tokenClient) { initAuth(); return; }
-      state.tokenClient.requestAccessToken({ prompt: '' });
-    });
+    $('connect-btn').addEventListener('click', requestSignIn);
+    $('signin-btn').addEventListener('click', requestSignIn);
     $('refresh-btn').addEventListener('click', loadAll);
     $('notification-list').addEventListener('click', function (ev) {
       var btn = ev.target.closest('.btn-answer');
       if (!btn) return;
       respondToNotification(btn.closest('.notif'), btn.getAttribute('data-label'));
     });
-    $('viewer-close').addEventListener('click', function () { $('viewer').hidden = true; });
-    $('viewer').addEventListener('click', function (ev) { if (ev.target === $('viewer')) $('viewer').hidden = true; });
+    // Delegated close: works for the static button id, the data-action marker and any future markup.
+    document.addEventListener('click', function (ev) {
+      var closer = ev.target.closest ? ev.target.closest('[data-action="close-viewer"]') : null;
+      if (closer) { closeViewer(); return; }
+      if (ev.target === $('viewer')) closeViewer();   // backdrop click — safe: the viewer holds no state
+    });
+    // Escape closes the viewer (auth state is never affected).
     document.addEventListener('keydown', function (ev) {
-      if (ev.key === 'Escape' && !$('viewer').hidden) { $('viewer').hidden = true; }
+      if (ev.key === 'Escape' && !$('viewer').hidden) closeViewer();
     });
   }
 
-  window.addEventListener('load', function () {
+  function start() {
+    if (!restoreToken()) $('signin-panel').hidden = false;   // auth is mandatory; never faked
     bind();
     initAuth();
-  });
+  }
+  if (document.readyState === 'loading') document.addEventListener('DOMContentLoaded', start);
+  else start();
 })();

@@ -198,8 +198,10 @@ view (debug), per the brief's adapter requirement.
 - **Auth:** Google Identity Services token flow (`google.accounts.oauth2.initTokenClient`) with scopes
   `spreadsheets` + `drive.readonly`; token kept in `sessionStorage`; no secrets in browser files (the OAuth
   client ID is public by design; the VAPID **private** key never appears — only the public key row exists).
-- **EdgeOne requirements:** add the EdgeOne site origin to the OAuth client's *Authorized JavaScript
-  origins* (and the client ID is already configured in `dashboard/config.js`); HTTPS is required by GIS.
+- **EdgeOne requirements (deployed origin):** `https://phytoai.edgeone.dev` — add **exactly** this value
+  (scheme + host, no trailing slash, no path) to the OAuth client's *Authorized JavaScript origins*, and make
+  sure the client ID configured in `dashboard/config.js` belongs to that same Google Cloud OAuth client.
+  HTTPS is required by GIS. (Deployed site: https://phytoai.edgeone.dev/ — verified 2026-09-15.)
 - **CORS:** Google Sheets/Drive REST APIs send permissive CORS headers and accept `Authorization: Bearer`;
   Drive media fetch (`?alt=media`) also works with the token. n8n `resume_url` calls are best-effort:
   the dashboard POSTs/GETs with `no-cors` fallback when CORS headers are absent and **always persists the

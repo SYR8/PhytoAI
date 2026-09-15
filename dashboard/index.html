@@ -33,6 +33,15 @@
   <div id="banner" class="banner" role="status" aria-live="polite" hidden></div>
   <div id="toasts" class="toasts" aria-live="polite" aria-atomic="false"></div>
 
+  <section class="panel signin-panel" id="signin-panel" aria-labelledby="signin-title" hidden>
+    <h2 id="signin-title">Sign in to load plant data</h2>
+    <p>This console reads your plant's Google Sheets and Drive with <em>your own</em> Google access. No data can
+    load until that access is granted — nothing is faked, cached, or shown from another account.</p>
+    <p><button class="btn btn-primary" id="signin-btn" type="button">Sign in with Google</button></p>
+    <p class="muted small">Sign-in problems are never hidden: errors appear in the banner above and in the
+    connection status. There is no demo data mode.</p>
+  </section>
+
   <section class="panel hero" id="overview" aria-labelledby="overview-title">
     <div class="hero-main">
       <div class="hero-head">
@@ -141,7 +150,7 @@
 </footer>
 
 <div id="viewer" class="viewer" role="dialog" aria-modal="true" aria-label="Image viewer" hidden>
-  <button class="viewer-close" id="viewer-close" aria-label="Close viewer">✕</button>
+  <button type="button" class="viewer-close" id="viewer-close" data-action="close-viewer" aria-label="Close image viewer (Esc)">✕</button>
   <figure>
     <img id="viewer-img" alt="">
     <figcaption id="viewer-meta"></figcaption>

@@ -5,8 +5,11 @@
  * measurements come from SystemConfig at runtime — themes and profile values
  * below are presentation-only and must never alter safety behaviour.
  *
- * EdgeOne: add this site's origin to the OAuth client's "Authorized JavaScript
- * origins", keep the site on HTTPS, and serve these files statically as-is.
+ * EdgeOne: add EXACTLY this origin to the OAuth client's "Authorized JavaScript
+ * origins" (Google matches scheme + host exactly — no trailing slash, no path):
+ *     https://phytoai.edgeone.dev
+ * Keep the site on HTTPS and serve these files statically as-is. The client ID
+ * below must belong to that same Google Cloud OAuth client.
  */
 window.PHYTOAI_CONFIG = {
   clientId: 'REPLACE_WITH_GOOGLE_OAUTH_CLIENT_ID.apps.googleusercontent.com',
