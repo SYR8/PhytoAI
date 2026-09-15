@@ -213,6 +213,7 @@ No third shape exists in the repo, in the live instance, or in the specs of reco
 | M6 | Repo hygiene | One authoritative reference xlsx | `docs/PhytoAI-final.xlsx` (untracked) is content-identical to `docs/PhytoAI.v2.xlsx` | LOW | Keep v2 as authoritative; delete or explicitly label the duplicate. STATUS Q21 |
 | M7 | Backup artifact | Strictly parseable export | `workflows/phytoai.backup.json` has a BOM/zero-width prefix + escaped legacy formatting | LOW | Historical only; won't-fix (documented) |
 | M8 | Architecture docs | Brief assumes MCP-server/M5/serial layer | Never materialized in repo or live instance (validated) | INFO | Recording closure in this audit + STATUS; Plan needs no change (it never described M5/MCP hardware) |
+| M9 | Hardware docs | Correct production pin map recorded (from the bench-verified wiring) | The early Part A brief carried a stale doc pin map (pump 4 / HX711 5,25 / OneWire 13 / soil 26) that contradicted the bench sketch/DHT/LDR reality — GPIO4 would have been driven as a pump output while it is the OneWire bus | **HIGH** (would have miswired production firmware) | **Resolved 2026-09-15:** bench map is authoritative (pump 13, heater 16, HX711 DT 26/SCK 33, OneWire 4, soil 34, tank 27, DHT22 14, LDR 25, LED 2); recorded in `docs/opencode-wroom-production-brief.md` §1 + `docs/hw-bench-2026-09-15.md` errata |
 
 ## 8. B5 — STATUS §5 updates from this audit
 
