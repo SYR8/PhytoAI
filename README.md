@@ -150,7 +150,8 @@ Every weekly scan logs the photo plus the vision opinion, the YOLO opinion, the 
 - [ ] Workflow smoke-tested end to end (still inactive, dry-run)
 - [x] ESP32 WROOM calibration/test sketch flashed and running (part 1 DONE — 2026-09-14; boots, Wi-Fi/serial OK)
 - [ ] WROOM sensor verification complete — **PARTIAL**: HX711 blocked on 2 scale-mount screws; heater now wired (CH2/GPIO16) with bench-test command, physical test pending (2026-09-14)
-- [ ] WROOM HX711 recalibration — the old baked-in factor was computed with broken (non-offset-compensated) math and is **invalid**; the sketch now ships `HX711_SCALE_FACTOR = 0.0f` (unset) — re-run `w` after flashing (tare empty platform → known weight) and copy the new factor back
+- [x] HX711 + full bench run complete 2026-09-15, constants recorded in `docs/hw-bench-2026-09-15.md`
+- [ ] **Still open:** (a) `PUMP_FLOW_ML_PER_SEC` repeat run (confirm 9.706, rule out siphon); (b) heater `e` safety drill — 40.0 °C cutoff + 120 s lockout both demonstrably trip
 - [ ] ESP32 WROOM production firmware (sensor routine, NTP re-sync, pump/heater execution)
 - [x] ESP32-CAM test sketch bench-tested (camera init, Wi-Fi connect, webhook upload — 2026-09-14)
 - [x] ESP32-CAM production firmware written + compile-verified (`firmware/esp32cam_production/`; autonomous capture/upload, not flashed)
