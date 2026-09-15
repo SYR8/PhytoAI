@@ -1,68 +1,152 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="en" data-theme="botanical">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<title>PhytoAI Dashboard</title>
+<meta name="color-scheme" content="dark">
+<title>PhytoAI — Plant Care Console</title>
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
+<a class="skip-link" href="#overview">Skip to overview</a>
+
 <header class="topbar">
   <div class="brand">
-    <span class="brand-mark">PhytoAI</span>
-    <span class="brand-sub">Smart Pot</span>
+    <span class="brand-mark" aria-hidden="true">
+      <svg viewBox="0 0 24 24" width="26" height="26"><path d="M12 22c0-6 0-9 0-12M12 10C12 6 9 3 4 3c0 5 3 8 8 7zM12 13c0-3 2-6 7-6-1 4-3 6-7 6z" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round"/></svg>
+    </span>
+    <span class="brand-text">
+      <span class="brand-name">PhytoAI</span>
+      <span class="brand-sub" id="plant-identity">Plant care console</span>
+    </span>
   </div>
   <div class="topbar-actions">
-    <span id="auth-status" class="auth-status"></span>
+    <span id="dryrun-pill" class="pill pill-warn" hidden>DRY-RUN</span>
+    <span id="stale-pill" class="pill pill-bad" hidden>STALE DATA</span>
+    <span id="auth-status" class="auth-status" role="status"></span>
     <button id="connect-btn" class="btn btn-primary" hidden>Connect Google</button>
     <button id="refresh-btn" class="btn" hidden>Refresh</button>
   </div>
 </header>
 
 <main>
-  <div id="banner" class="banner" hidden></div>
+  <div id="banner" class="banner" role="status" aria-live="polite" hidden></div>
+  <div id="toasts" class="toasts" aria-live="polite" aria-atomic="false"></div>
 
-  <section class="panel" id="status-section">
-    <div class="panel-head">
-      <h2>Plant status</h2>
-      <span id="status-updated" class="muted"></span>
+  <section class="panel hero" id="overview" aria-labelledby="overview-title">
+    <div class="hero-main">
+      <div class="hero-head">
+        <h1 id="overview-title">Live overview</h1>
+        <span id="status-updated" class="muted"></span>
+      </div>
+      <p id="status-summary" class="status-summary">Connect to load the plant state.</p>
+      <div id="warnings" class="warnings" aria-live="polite"></div>
+      <div id="overview-metrics" class="metric-grid" aria-label="Live measurements"></div>
+      <p class="muted small" id="units-note">All values are the latest persisted event unless labelled otherwise. Units: °C, %, g (gross platform weight), s.</p>
     </div>
-    <div id="status-card" class="status-grid"></div>
+    <aside class="hero-side" aria-label="Plant card">
+      <div id="plant-card" class="plant-card"></div>
+      <div id="safety-card" class="safety-card"></div>
+    </aside>
   </section>
 
-  <section class="panel" id="pending-section">
+  <section class="panel" id="history-section" aria-labelledby="history-title">
     <div class="panel-head">
-      <h2>Pending questions</h2>
-      <span id="pending-count" class="badge" hidden></span>
+      <h2 id="history-title">History</h2>
+      <div class="head-tools">
+        <div class="segmented" id="range-select" role="group" aria-label="Time range"></div>
+        <select id="metric-select" class="select" aria-label="Metric"></select>
+      </div>
     </div>
-    <div id="pending-list" class="pending-list"></div>
+    <div id="chart-wrap" class="chart-wrap">
+      <svg id="chart" class="chart" role="img" aria-label="History chart"></svg>
+      <div id="chart-empty" class="empty" hidden>No persisted events in this range.</div>
+    </div>
+    <div class="chart-legend" id="chart-legend">
+      <span class="legend-item"><i class="dot dot-water"></i> watering</span>
+      <span class="legend-item"><i class="dot dot-heat"></i> heating</span>
+      <span class="legend-item"><i class="dot dot-tank"></i> tank empty</span>
+      <span class="legend-item"><i class="dash"></i> data gap</span>
+    </div>
+    <div id="watering-summary" class="watering-summary"></div>
   </section>
 
-  <section class="panel" id="events-section">
+  <section class="panel" id="images-section" aria-labelledby="images-title">
     <div class="panel-head">
-      <h2>Event history</h2>
+      <h2 id="images-title">Images</h2>
+      <div class="head-tools">
+        <span id="camera-status" class="muted"></span>
+        <div class="segmented" id="image-filter" role="group" aria-label="Image filter"></div>
+      </div>
+    </div>
+    <div id="latest-image" class="latest-image"></div>
+    <div id="image-gallery" class="gallery"></div>
+  </section>
+
+  <section class="panel" id="notifications-section" aria-labelledby="notifications-title">
+    <div class="panel-head">
+      <h2 id="notifications-title">Notifications</h2>
+      <div class="head-tools">
+        <span id="pending-count" class="badge" hidden></span>
+        <div class="segmented" id="severity-filter" role="group" aria-label="Severity filter"></div>
+        <select id="status-filter" class="select" aria-label="Status filter">
+          <option value="all">All statuses</option>
+          <option value="pending">Pending</option>
+          <option value="done">Done</option>
+          <option value="expired">Expired</option>
+        </select>
+      </div>
+    </div>
+    <div id="notification-list" class="notification-list"></div>
+  </section>
+
+  <section class="panel" id="ai-section" aria-labelledby="ai-title">
+    <div class="panel-head">
+      <h2 id="ai-title">AI notes &amp; latest decision</h2>
+      <span class="muted">persisted outputs only — unverified hypotheses</span>
+    </div>
+    <div id="latest-decision" class="latest-decision"></div>
+    <div id="notes-list" class="notes-list"></div>
+  </section>
+
+  <section class="panel" id="events-section" aria-labelledby="events-title">
+    <div class="panel-head">
+      <h2 id="events-title">Events</h2>
       <span class="muted" id="events-count"></span>
     </div>
     <div class="table-wrap">
       <table id="events-table">
+        <caption class="visually-hidden">Persisted event rows. ml_est is estimated from commanded duration; measured weight delta is not persisted by the backend.</caption>
         <thead></thead>
         <tbody></tbody>
       </table>
     </div>
+    <p class="muted small">ml_est = commanded seconds × <span id="flow-note"></span> (estimate). Measured <code>wt_delta_g</code> is not persisted by the backend yet — it stays log-only on the device, so no column claims it here.</p>
   </section>
 
-  <section class="panel" id="scans-section">
+  <section class="panel" id="system-section" aria-labelledby="system-title">
     <div class="panel-head">
-      <h2>Scan reports</h2>
-      <span class="muted" id="scans-count"></span>
+      <h2 id="system-title">System &amp; thresholds (read-only)</h2>
+      <span class="muted">backend-driven — themes never change these</span>
     </div>
-    <div id="scans-list" class="scans-list"></div>
+    <div id="system-grid" class="kv-grid"></div>
   </section>
 </main>
 
 <footer>
-  <p>Resume links require the persistent named Cloudflare tunnel. Workflow stays inactive with <code>dry_run_mode=true</code> until the owner tests it.</p>
+  <p>Static dashboard for the <code>phytoai</code> workflow — reads Google Sheets + Drive directly with your
+  OAuth token; no workflow secrets in the browser. Resume links (when present on a notification) require the
+  persistent named Cloudflare tunnel. Workflow stays inactive with <code>dry_run_mode=true</code> until the
+  owner activates it. Data contract: <code>docs/dashboard-data-contract-audit.md</code>.</p>
 </footer>
+
+<div id="viewer" class="viewer" role="dialog" aria-modal="true" aria-label="Image viewer" hidden>
+  <button class="viewer-close" id="viewer-close" aria-label="Close viewer">✕</button>
+  <figure>
+    <img id="viewer-img" alt="">
+    <figcaption id="viewer-meta"></figcaption>
+  </figure>
+</div>
 
 <script src="config.js"></script>
 <script src="app.js"></script>

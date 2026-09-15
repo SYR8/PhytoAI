@@ -17,9 +17,10 @@ Scope: everything below is sourced from the working copy `C:\Users\moham\Downloa
 - `docs/flash-light-gating-spec.md`, `docs/yolo-service-spec.md` (both 2026-09-14) — approved specs implemented on 2026-09-14.
 - `docs/perenual-integration-spec.md` (2026-09-14) — approved Perenual secondary-knowledge-layer spec (free tier only; implemented 2026-09-14 — §3.2).
 - `docs/cross-audit-2026-09-15.md` (2026-09-15) — cross-system audit on the real surfaces (B1 workflow, B2 live/MCP check, B3 reference data, B4 camera); findings M1–M8; decides the WROOM production command envelope (WROOM-initiated HTTP + decision JSON — no M5/serial layer exists).
+- `docs/dashboard-data-contract-audit.md` (2026-09-15) — dashboard Phase-1 contract audit: persisted vs live-only fields, image/notification/endpoint inventory, gap classification (G1–G9), EdgeOne auth/CORS requirements, never-claim list, and the single required n8n change (G1: photo-row timestamps).
 
 **Workflow exports**
-- `workflows/phytoai.json` (2026-09-14 16:57 UTC) — **authoritative**: name `phytoai`, workflow ID `WXd35adnUc9QQA84`, **168 nodes / 182 edges**, settings `{executionOrder:"v1", binaryMode:"separate", availableInMCP:true}`. Re-applied to the live workflow via MCP on 2026-09-14 (autonomous scan change, then the Perenual integration §3.2) and re-fetched to confirm the live definition matches this export.
+- `workflows/phytoai.json` (2026-09-14 16:57 UTC) — **authoritative**: name `phytoai`, workflow ID `WXd35adnUc9QQA84`, **168 nodes / 182 edges**, settings `{executionOrder:"v1", binaryMode:"separate", availableInMCP:true}`. Re-applied to the live workflow via MCP on 2026-09-14 (autonomous scan change, then the Perenual integration §3.2) and again on 2026-09-15 (audit M1–M6 fixes `63274c9`, then the dashboard G1 photo-timestamp change — `Build Photo Update Row` + `Update Event Row` now persist `Timestamp`/`EventType` on daily-photo rows); each re-apply was re-fetched and verified identical to this export.
   - Webhooks: `Core Sensor Webhook` (`core/sensor`), `Daily Photo Webhook` (`core/photo`), `Scan Photo Webhook` (`yolo-scan`), `Scan Sweep Done` (`yolo-scan/done`), `Device Config` (`config`, GET).
   - Agents: `History Analyst`, `Decision Agent`, `Photo Analysis Agent`, `Vision Analyst`, `Judge`, `Treatment Advisor`.
   - Added 2026-09-14: `YOLO Analyst` (HTTP node id `1692f6cd-3c04-4c31-89a8-92c5ccab6737`), `Attach Scan Image` (Code node id `ca423560-cd65-4414-acbe-5358f47cbe4f`).
@@ -43,7 +44,7 @@ Scope: everything below is sourced from the working copy `C:\Users\moham\Downloa
 **Services / scripts / dashboard**
 - `yolo-service/` (2026-09-14): `app/main.py`, `requirements.txt`, `Dockerfile`, `docker-compose.yml`, `README.md`.
 - `scripts/` (2026-09-14): `prepare_plantvillage.py`, `train.py`, `export_dataset.py`, `README.md`.
-- `dashboard/` (2026-09-10): `index.html`, `styles.css`, `app.js`, `config.js`.
+- `dashboard/` (rebuilt 2026-09-15): `index.html`, `styles.css`, `app.js`, `config.js` — contract-audited redesign (live overview, history charts, image gallery + viewer, notification center, themes; direct Google APIs; EdgeOne-ready) per `docs/dashboard-data-contract-audit.md`.
 - `README.md` (2026-09-13) incl. "Known issues / lessons"; `.gitignore` (2026-09-14). Gitignored local secrets: `opencode.json`, `mcp-auth.json`.
 
 **Authoritative workflow JSON: `workflows/phytoai.json`.**
@@ -64,7 +65,7 @@ Per `docs/Plan.md`: one n8n workflow **`phytoai`** (ID `WXd35adnUc9QQA84`) is th
 | M3 Google Sheets/Drive credentials | not in repo (redacted); Plan §7 | PLANNED/UNKNOWN |
 | M4 OpenRouter credential | not in repo; Plan §7 | PLANNED/UNKNOWN |
 | M5 VAPID keys | Plan §7 | PLANNED |
-| M6 dashboard deploy (GitHub Pages) | `dashboard/` files exist; no deploy artifact | code EXISTS; deploy **UNKNOWN** |
+| M6 dashboard deploy (EdgeOne static) | `dashboard/` rebuilt 2026-09-15 per `docs/dashboard-data-contract-audit.md`; no deploy artifact | code EXISTS; deploy **UNKNOWN** — needs the EdgeOne origin added to the OAuth client (HTTPS), no secrets in browser files |
 | M7 Drive folders (`SmartPot/DailyPhotos`, `SmartPot/ScanPhotos`) | Plan §3.5/§7 | PLANNED |
 | WROOM firmware (`firmware/wroom_calibration/wroom_calibration.ino`) | owner-verified 2026-09-14; sketch updated + compile-checked 2026-09-14 (§3.3); **bench run 2026-09-15 recorded** (`docs/hw-bench-2026-09-15.md`) | code EXISTS; **Part 1 (flash) DONE**; **Part 2 (sensor verification) PARTIAL** — measured constants recorded; heater safety-limit drill still to record |
 | WROOM production firmware (`firmware/wroom_production/wroom_production.ino`) | compile-verified 2026-09-15 (1,094,076 B / 83 % flash, 49,288 B / 15 % RAM; `esp32:esp32:esp32`); operating rules §3.4 | **COMPILED ONLY — NOT FLASHED**; dry-run default; no auto-tare (NVS offset restore); production `/webhook` paths require the workflow ACTIVE (or editor test mode) |
@@ -163,7 +164,7 @@ Implemented + documented in `firmware/wroom_production/wroom_production.ino` (co
 3. **M3 — n8n Google Sheets + Drive credentials** (Plan expects names "PhytoAI Google Sheets" / "PhytoAI Google Drive").
 4. **M4 — n8n OpenRouter credential** ("PhytoAI OpenRouter").
 5. **M5 — VAPID keypair** → SystemConfig `push_vapid_public_key` (private key stays in n8n).
-6. **M6 — Deploy the static dashboard** to GitHub Pages (+ OAuth client for Sheets writes).
+6. **M6 — Deploy the static dashboard** (EdgeOne free static hosting): add the site origin to the OAuth client's authorized JavaScript origins (HTTPS required by GIS). The dashboard reads Sheets/Drive directly with the user token (no browser secrets, no server); per-user OAuth writes to `Notifications` already work; resume links need the named tunnel and degrade gracefully (response is always persisted in the sheet).
 7. **M7 — Run the one-time setup branch** to create the two Drive folders and store their IDs.
 8. Flash/commission firmware — **calibration sketch flashed; bench run 2026-09-15 complete; constants in `docs/hw-bench-2026-09-15.md`.** Remaining: heater safety-limit drill, production WROOM firmware, and the CAM, then a first real end-to-end run:
    - **8a.** HX711 — **DONE 2026-09-15:** two-point calibration completed, new factor `1068.335` recorded in `docs/hw-bench-2026-09-15.md`; the deleted `305.070f` remains invalid and must not be reused. Bake `1068.335` into the production WROOM sketch when it is written (not into `wroom_calibration.ino`).
@@ -210,3 +211,5 @@ Added by the 2026-09-15 cross-system audit (`docs/cross-audit-2026-09-15.md`):
 New (from the WROOM production brief, 2026-09-15):
 22. **LDR is digital, not analog** — the bench-verified LDR module is read via its DO on GPIO25 (`light_level` = 0/1), while `docs/flash-light-gating-spec.md` and Plan §2.2 assume a 0–4095 analog value; GPIO25 is ADC2 and unusable with WiFi. Decide: keep the digital 0/1 (CAM flashes always-dark below threshold 500) or rewire the LDR AO to an ADC1 pin. Not blocking `dry_run_mode`.
 23. **Camera battery assumptions are obsolete** — camera power is wired-only (owner-verified 2026-09-15). Legacy leftovers to decide on: CAM production `PRODUCTION-TESTS.md` test #7 (battery ADC) and `camera_battery_percent` in SystemConfig, Branch C's `camera_battery_min_percent` gate / `alert_battery_low`, and the dashboard battery display. The WROOM firmware has no battery references (§3.4 rule 6). Not blocking `dry_run_mode`.
+24. **Measured-water persistence (P1 from the dashboard audit)** — measured `wt_delta_g` and `ml_est` exist only in WROOM serial logs; persisting them needs a firmware completion POST → n8n → `Events.WaterAddedGrams` (`FinalWaterTempC`/`WateringAborted` likewise unwritten). Firmware was out of scope for the dashboard task, so the UI renders "measured delta: not persisted" instead of fabricating history. `ml_est` is computed in the dashboard from the commanded duration × calibrated flow (9.706 ml/s) and always labelled an estimate.
+25. **Per-image metadata (G4 from the dashboard audit)** — capture reason and per-image light condition are not persisted anywhere; Drive provides dimensions/createdTime only (used). Optional future: extra Sheets columns or a metadata endpoint. Not blocking.

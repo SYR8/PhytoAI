@@ -541,6 +541,8 @@
           "mappingMode": "defineBelow",
           "value": {
             "EventID": "={{ $json.EventID }}",
+            "Timestamp": "={{ $json.Timestamp }}",
+            "EventType": "={{ $json.EventType }}",
             "PhotoFileID": "={{ $json.PhotoFileID }}",
             "SpeciesGuess": "={{ $json.SpeciesGuess }}",
             "SpeciesConfidence": "={{ $json.SpeciesConfidence }}",
@@ -4229,7 +4231,7 @@
         528
       ],
       "parameters": {
-        "jsCode": "const norm = $('Normalize Photo Output').first().json;\nconst driveOut = $('Upload Daily Photo').first().json;\nconst ctx = $('Build Multimodal Context').first().json;\nconst existingRow = ctx.today_row || {};\nreturn [{\njson: {\nEventID: norm.event_id,\nPhotoFileID: driveOut.id || '',\nSpeciesGuess: norm.species_guess,\nSpeciesConfidence: norm.species_confidence,\nAnomalyDetected: norm.anomaly_detected,\nAnomalyDescription: norm.anomaly_description || '',\nAI_Notes: existingRow.AI_Notes ? existingRow.AI_Notes : norm.ai_notes,\nanomaly_detected: norm.anomaly_detected,\ndry_run_mode: norm.dry_run_mode,\nai_notes_text: norm.ai_notes,\nwatering_review: norm.watering_review,\nspecies_guess: norm.species_guess,\nspecies_confidence: norm.species_confidence,\nspecies_confidence_stored: norm.species_confidence_stored,\n},\n}];"
+        "jsCode": "const norm = $('Normalize Photo Output').first().json;\nconst driveOut = $('Upload Daily Photo').first().json;\nconst ctx = $('Build Multimodal Context').first().json;\nconst existingRow = ctx.today_row || {};\nconst wh = $('Daily Photo Webhook').first().json.body || {};\nreturn [{\njson: {\nEventID: norm.event_id,\nTimestamp: wh.captured_at_utc || $now.toISO(),\nEventType: wh.event_type || 'photo',\nPhotoFileID: driveOut.id || '',\nSpeciesGuess: norm.species_guess,\nSpeciesConfidence: norm.species_confidence,\nAnomalyDetected: norm.anomaly_detected,\nAnomalyDescription: norm.anomaly_description || '',\nAI_Notes: existingRow.AI_Notes ? existingRow.AI_Notes : norm.ai_notes,\nanomaly_detected: norm.anomaly_detected,\ndry_run_mode: norm.dry_run_mode,\nai_notes_text: norm.ai_notes,\nwatering_review: norm.watering_review,\nspecies_guess: norm.species_guess,\nspecies_confidence: norm.species_confidence,\nspecies_confidence_stored: norm.species_confidence_stored,\n},\n}];"
       }
     },
     {
