@@ -42,7 +42,9 @@ Hardware safety limits (compile-time, never parameters/serial/OTA):
 ```cpp
 const float    HEATER_CUTOFF_C    = 40.0f;    // continuous cutoff while ON
 const float    HEATER_REFUSE_C    = 39.5f;    // refuse to start at/above
+const float    POLICY_TARGET_C_DEFAULT = 28.0f; // requested safe target when the decision has none
 const uint32_t ACTUATOR_CAP_S     = 120;      // pump and heater hard cap per pulse (firmware)
+const uint32_t SETTLE_AFTER_PUMP_MS = 3000;   // weight settle before the post-watering sample
 const uint32_t WDT_TIMEOUT_S      = 8;        // task watchdog
 ```
 The 28 °C `max_water_temp_c` from SystemConfig/decision is the **policy** limit (n8n Safety Guardrails); the
@@ -93,8 +95,9 @@ pot_latitude, pot_longitude, last_lightlevel, flash_dark_threshold, last_lightle
 ## 5. Behavior
 
 1. **Boot:** relays to OFF level **first**; Serial 115200; LED boot pattern; WiFi (3×20 s); NTP UTC
-   (2×15 s); HX711 `begin` → `tare(10)` → `set_scale`; DS18B20 scan by address; safe soil init
-   (see §7); task WDT (8 s).
+   (2×15 s); HX711 `begin` → `set_scale`, then **restore the recorded empty-platform offset from NVS
+   (never an automatic tare — operating rules 1–2; live weight is gross: pot + soil + tray + plumbing)**;
+   DS18B20 scan by address; safe soil init (see §7); task WDT (8 s).
 2. **Config fetch:** `GET /webhook/config` (8 s timeout). If it fails: use conservative compiled defaults
    **and force dry-run behavior** for the cycle; retry in 15 min.
 3. **Sampling:** every 2 s locally (DHT22, both DS18B20, HX711 average, soil ADC, tank, LDR); one
@@ -105,21 +108,30 @@ pot_latitude, pot_longitude, last_lightlevel, flash_dark_threshold, last_lightle
 5. **POST + parse:** HTTPS POST with retries (3×, 5 s backoff, 15 s timeout); parse the 12-field JSON;
    reject (no actuation) on timeout, non-200, malformed JSON, or missing/invalid `needs_watering`.
 6. **Execute decision** (heater first, then pump):
-   - pump: `min(water_duration_seconds, max_pump_seconds, 120 s)` — never when `tank_empty` or soil invalid
+   - pump: `min(water_duration_seconds, max_pump_seconds, 120 s)` — never when `tank_empty`, soil invalid,
+     or the water probe is invalid (never water on an invalid safety state); capture `wt_before_g`, run,
+     settle `SETTLE_AFTER_PUMP_MS` (3 s), capture `wt_after_g`, report `wt_delta_g = wt_after_g − wt_before_g`
+     when both gross samples are valid. `ml_est = seconds × PUMP_FLOW_ML_PER_SEC` stays SEPARATE — never
+     presented as measured ml.
    - heater: `min(max_heater_seconds, 120 s)` — refuse start when water probe unreadable or ≥ 39.5 °C;
-     continuous cutoff at ≥ 40.0 °C; WDT petted inside both windows
+     stop at the requested safe target (`max_water_temp_c` from the decision when present, else the 28.0 °C
+     policy default) or at the 40.0 °C hard cutoff; WDT petted inside both windows
    - LED: fast blink while pump ON, slow blink while heater ON
 7. **dry-run:** `dry_run_mode` from config **or** decision `dry_run` gates **all** GPIO actuation; timing is
-   simulated and the completion log includes `"simulated":true`. There is no ack endpoint in the decision
-   schema (checked) → completion is **log-only**.
+   simulated and the completion log includes `"simulated":true` with null weight deltas. There is no ack
+   endpoint in the decision schema (checked) → every completion is **log-only**; measured `wt_delta_g` is
+   local/not persisted by n8n. Tare is an explicit INSTALLATION/RESET serial command only (`t`,
+   'y'-confirmed, empty platform) — never automatic.
 8. **Failure policy:** POST/timeout/invalid decision ⇒ no actuation that cycle (retry next schedule);
    sensor read failure ⇒ fields emitted as null/invalid and **never actuate on unknown soil/tank/water**.
 9. **Out of scope v1:** OTA (noted as future in the header), deep sleep, MQTT, capture button.
 
 ## 7. Reuse from `wroom_calibration.ino`
 
-Relay helpers (`relayOnLevel/relayOffLevel`), tank read, DS18B20-by-address, HX711 boot-offset
-(`begin` → `tare(10)` → `set_scale`) are reused. **Note:** `rampSoilSafeInit()` referenced in the earlier
+Relay helpers (`relayOnLevel/relayOffLevel`), tank read, DS18B20-by-address and the HX711 scale/factor path
+are reused, **but the calibration sketch's boot tare is deliberately NOT**: production restores a recorded
+empty-platform offset from NVS and never tares automatically (operating rules 1–2; the plant, soil, tray
+and plumbing remain part of the gross weight). **Note:** `rampSoilSafeInit()` referenced in the earlier
 brief does **not exist** in the calibration sketch (grep: 0 hits); production implements the documented
 equivalent `soilInitSafe()` — settle reads, median of 15, range sanity (never actuate on stuck/rail ADC).
 

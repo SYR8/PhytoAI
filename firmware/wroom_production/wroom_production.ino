@@ -10,6 +10,24 @@
 // LIMITS: heater hard cutoff 40.0 C; refuse start >= 39.5 C; actuator hard cap 120 s/pulse;
 //         8 s task watchdog; dry_run (config or decision) gates ALL GPIO actuation; tank-empty
 //         and invalid sensor readings always block the affected actuator.
+// OPERATING RULES (owner-verified 2026-09-15):
+//   1. The HX711 is NEVER auto-tared — not at boot, not on load/pot detection. Startup only
+//      RESTORES a previously recorded empty-platform offset from NVS. Live weight is GROSS:
+//      plant + soil + tray + plumbing (and water) sit on the platform and must never be
+//      zeroed by an automatic tare. Unset offset => weight is reported "unset", never phantom.
+//   2. Tare is an explicit INSTALLATION/RESET serial command only ('t', empty platform,
+//      'y'-confirmed). It is never part of normal operation.
+//   3. Watering captures wt_before_g, runs the pump, settles SETTLE_AFTER_PUMP_MS, then
+//      captures wt_after_g and reports wt_delta_g = wt_after_g - wt_before_g. Estimated
+//      yield (seconds x PUMP_FLOW_ML_PER_SEC) is kept SEPARATE as ml_est — never called
+//      measured ml.
+//   4. The decision schema has no completion acknowledgement: measured wt_delta_g is
+//      LOCAL/LOG telemetry only and is NOT persisted by n8n (log-only, like all completions).
+//   5. Heat first when requested; stop at the requested safe target (policy default 28.0 C)
+//      or at the 40.0 C hard cutoff; refuse >= 39.5 C or an invalid probe; never water on an
+//      invalid safety state (tank/soil/water probe must be valid and not empty).
+//   6. Camera power is WIRED-ONLY: this firmware has no camera-battery assumptions, and no
+//      battery gate/telemetry is used anywhere on the WROOM side.
 // SPEC:   docs/opencode-wroom-production-brief.md | Bench: docs/hw-bench-2026-09-15.md
 //         Audit: docs/cross-audit-2026-09-15.md | Plan header format: Plan.md section 5.3
 // FUTURE: OTA updates are NOT in v1 (no OTA/WiFi-ap/MQTT). Deep sleep is not used in v1.
@@ -26,6 +44,7 @@
 #include <OneWire.h>
 #include <DallasTemperature.h>
 #include <HX711.h>
+#include <Preferences.h>
 #include "esp_task_wdt.h"
 #include <time.h>
 
@@ -73,7 +92,10 @@ uint8_t soilTempAddress[8]  = {0x28, 0x83, 0xFC, 0xC8, 0x00, 0x00, 0x00, 0x0F};
 // ---------------------------------------------------------------------------
 const float    HEATER_CUTOFF_C = 40.0f;   // continuous cutoff while ON (hardware ceiling)
 const float    HEATER_REFUSE_C = 39.5f;   // refuse to start at/above
+const float    POLICY_TARGET_C_DEFAULT = 28.0f; // requested safe target when the decision carries none
 const uint32_t ACTUATOR_CAP_S  = 120;     // pump and heater hard cap per pulse
+const uint32_t SETTLE_AFTER_PUMP_MS = 3000; // weight settle before the post-watering sample
+const char*    NVS_NS = "phytoai-wroom";
 const uint32_t WDT_TIMEOUT_S   = 8;
 const uint32_t SAMPLE_MS       = 2000;
 const uint32_t HTTP_POST_TIMEOUT_MS = 15000;
@@ -88,6 +110,8 @@ DHT dht(PIN_DHT22, DHT22);
 OneWire oneWire(PIN_ONEWIRE);
 DallasTemperature ds(&oneWire);
 HX711 scale;
+Preferences prefs;
+bool hxOffsetKnown = false;   // true only when a recorded/installed empty-platform offset exists
 
 struct Config {
   bool ok = false;
@@ -124,9 +148,17 @@ struct Decision {
   bool heaterOn = false;
   float maxHeaterSec = 0;
   float maxPumpSec = DEFAULT_MAX_PUMP_SECONDS;
+  float maxWaterTempC = 0;   // requested safe target when present; 0 = use policy default
   bool dryRun = false;
   String species;
   String notes;
+};
+
+struct WaterResult {
+  bool measured = false;
+  float beforeG = NAN;
+  float afterG = NAN;
+  float deltaG = NAN;
 };
 
 Config cfg;
@@ -311,6 +343,14 @@ bool fetchConfig() {
 // ---------------------------------------------------------------------------
 bool validTemp(float t) { return !(isnan(t) || t <= -100.0f || t >= 85.0f); }
 
+// GROSS weight (offset-compensated): plant + soil + tray + plumbing + water. NAN when no
+// recorded offset exists (rule 1/2) or the HX711 is not ready — never a phantom value.
+float readWeightNow() {
+  if (!hxOffsetKnown || !scale.is_ready()) return NAN;
+  float g = scale.get_units(10);
+  return isnan(g) ? NAN : g;
+}
+
 int soilMedian15() {
   int v[15];
   for (int i = 0; i < 15; i++) { v[i] = analogRead(PIN_SOIL_ADC); delay(2); wdtPet(); }
@@ -350,7 +390,7 @@ Reading readAllSensors() {
     r.moisturePct = constrain(map(r.soilRaw, SOIL_ADC_DRY, SOIL_ADC_WET, 0, 100), 0, 100);
   }
 
-  if (scale.is_ready()) {
+  if (hxOffsetKnown && scale.is_ready()) {
     float g = scale.get_units(5);
     if (!isnan(g)) { r.weightValid = true; r.weightG = g; }
   }
@@ -411,6 +451,7 @@ Decision parseDecision(const String& body) {
   d.heaterOn = doc["heater_on"] | false;
   d.maxHeaterSec = doc["max_heater_seconds"] | 0.0f;
   d.maxPumpSec = doc["max_pump_seconds"] | DEFAULT_MAX_PUMP_SECONDS;
+  d.maxWaterTempC = doc["max_water_temp_c"] | 0.0f;   // requested safe target when n8n provides it
   d.dryRun = doc["dry_run"] | false;
   d.species = String((const char*)(doc["species_guess"] | ""));
   d.notes = String((const char*)(doc["ai_notes"] | ""));
@@ -429,10 +470,14 @@ uint32_t clampSec(float requested, float cfgCap) {
   return (uint32_t)v;
 }
 
-void runPump(uint32_t seconds) {
+WaterResult runPumpMeasured(uint32_t seconds) {
+  WaterResult res;
+  res.beforeG = readWeightNow();                    // gross weight before watering
   Serial.print(F("[pump] ON for "));
   Serial.print(seconds);
-  Serial.println(F(" s"));
+  Serial.print(F(" s (wt_before_g="));
+  if (isnan(res.beforeG)) Serial.print(F("unset")); else Serial.print(res.beforeG, 1);
+  Serial.println(')');
   relayPump(true);
   uint32_t t0 = millis();
   uint32_t lastBlink = t0;
@@ -444,13 +489,23 @@ void runPump(uint32_t seconds) {
   }
   relayPump(false);
   ledWrite(false);
-  Serial.println(F("[pump] OFF"));
+  Serial.println(F("[pump] OFF - settling before post-watering weight..."));
+  uint32_t ts = millis();
+  while (millis() - ts < SETTLE_AFTER_PUMP_MS) { wdtPet(); delay(50); }
+  res.afterG = readWeightNow();
+  if (!isnan(res.beforeG) && !isnan(res.afterG)) {
+    res.measured = true;
+    res.deltaG = res.afterG - res.beforeG;
+  }
+  return res;
 }
 
-bool runHeater(uint32_t seconds) {
+bool runHeater(uint32_t seconds, float targetC) {
   Serial.print(F("[heater] ON for "));
   Serial.print(seconds);
-  Serial.print(F(" s (cutoff "));
+  Serial.print(F(" s (target "));
+  Serial.print(targetC, 1);
+  Serial.print(F(" C / hard cutoff "));
   Serial.print(HEATER_CUTOFF_C, 1);
   Serial.println(F(" C)"));
   relayHeater(true);
@@ -459,6 +514,7 @@ bool runHeater(uint32_t seconds) {
   uint32_t lastBlink = t0;
   bool led = false;
   bool cut = false;
+  bool reached = false;
   while (millis() - t0 < seconds * 1000UL) {
     wdtPet();
     if (millis() - lastBlink >= 750UL) { led = !led; ledWrite(led); lastBlink = millis(); }
@@ -471,33 +527,44 @@ bool runHeater(uint32_t seconds) {
       Serial.print(F(" s water_c="));
       Serial.println(validTemp(wt) ? String(wt, 2) : String("invalid"));
       if (validTemp(wt) && wt >= HEATER_CUTOFF_C) { cut = true; break; }
+      if (validTemp(wt) && wt >= targetC) { reached = true; break; }
     }
     delay(10);
   }
   relayHeater(false);
   ledWrite(false);
-  Serial.println(cut ? F("[heater] CUTOFF at 40.0 C - OFF") : F("[heater] OFF"));
-  return !cut;
+  if (cut) Serial.println(F("[heater] CUTOFF at 40.0 C - OFF"));
+  else if (reached) Serial.println(F("[heater] safe target reached - OFF"));
+  else Serial.println(F("[heater] OFF"));
+  return !(cut || reached);
+}
+
+void printNumOrNull(float v, uint8_t dp) {
+  if (isnan(v)) Serial.print(F("null")); else Serial.print(v, dp);
 }
 
 void executeDecision(const Decision& d, const Reading& r, bool configDryRun) {
   bool dry = d.dryRun || configDryRun || !cfg.ok;
   uint32_t pumpSec = d.needsWatering ? clampSec(d.waterSec, d.maxPumpSec) : 0;
   uint32_t heatSec = d.heaterOn ? clampSec(d.maxHeaterSec, d.maxHeaterSec) : 0;
+  float targetC = (d.maxWaterTempC > 0.0f) ? d.maxWaterTempC : POLICY_TARGET_C_DEFAULT;
+  float mlEst = pumpSec * PUMP_FLOW_ML_PER_SEC;   // ESTIMATE only (rule 3/4)
 
-  if (pumpSec > 0 && r.tankEmpty) { Serial.println(F("[pump] blocked: tank empty")); pumpSec = 0; }
-  if (pumpSec > 0 && !r.moistureValid) { Serial.println(F("[pump] blocked: soil reading invalid")); pumpSec = 0; }
+  if (pumpSec > 0 && r.tankEmpty) { Serial.println(F("[pump] blocked: tank empty")); pumpSec = 0; mlEst = 0; }
+  if (pumpSec > 0 && !r.moistureValid) { Serial.println(F("[pump] blocked: soil reading invalid")); pumpSec = 0; mlEst = 0; }
+  if (pumpSec > 0 && !r.waterValid) { Serial.println(F("[pump] blocked: invalid water probe (unsafe state)")); pumpSec = 0; mlEst = 0; }
 
   if (dry) {
+    // Rule 4: completions are log-only; a dry run reports NO measured delta.
     Serial.print(F("[act] completion {\"simulated\":true,\"needs_watering\":"));
     Serial.print(d.needsWatering ? F("true") : F("false"));
     Serial.print(F(",\"water_sec\":"));
     Serial.print(pumpSec);
+    Serial.print(F(",\"ml_est\":"));
+    Serial.print(mlEst, 1);
     Serial.print(F(",\"heater_sec\":"));
     Serial.print(heatSec);
-    Serial.print(F(",\"ml\":"));
-    Serial.print(pumpSec * PUMP_FLOW_ML_PER_SEC, 1);
-    Serial.println('}');
+    Serial.println(F(",\"wt_before_g\":null,\"wt_after_g\":null,\"wt_delta_g\":null}"));
     return;
   }
 
@@ -508,19 +575,32 @@ void executeDecision(const Decision& d, const Reading& r, bool configDryRun) {
       Serial.print(HEATER_REFUSE_C, 1);
       Serial.println(F(" C"));
     } else {
-      runHeater(heatSec);
+      runHeater(heatSec, targetC);
     }
   }
 
-  if (pumpSec > 0) runPump(pumpSec);
+  WaterResult w;
+  if (pumpSec > 0) w = runPumpMeasured(pumpSec);
 
-  Serial.print(F("[act] completion {\"simulated\":false,\"water_sec\":"));
+  Serial.print(F("[act] completion {\"simulated\":false,\"needs_watering\":"));
+  Serial.print(d.needsWatering ? F("true") : F("false"));
+  Serial.print(F(",\"water_sec\":"));
   Serial.print(pumpSec);
+  Serial.print(F(",\"ml_est\":"));
+  Serial.print(mlEst, 1);
   Serial.print(F(",\"heater_sec\":"));
   Serial.print(heatSec);
-  Serial.print(F(",\"ml\":"));
-  Serial.print(pumpSec * PUMP_FLOW_ML_PER_SEC, 1);
+  Serial.print(F(",\"wt_before_g\":"));
+  printNumOrNull(w.beforeG, 1);
+  Serial.print(F(",\"wt_after_g\":"));
+  printNumOrNull(w.afterG, 1);
+  Serial.print(F(",\"wt_delta_g\":"));
+  printNumOrNull(w.measured ? w.deltaG : NAN, 1);
   Serial.println('}');
+  if (pumpSec > 0) {
+    if (w.measured) Serial.println(F("  [note] wt_delta_g is measured locally; log-only (no ack field in the schema, NOT persisted by n8n). ml_est is an estimate."));
+    else Serial.println(F("  [gap] post-watering weight could not be verified (no offset / probe not ready) - wt_delta_g unavailable."));
+  }
 }
 
 // ---------------------------------------------------------------------------
@@ -591,6 +671,60 @@ void decisionCycle() {
 }
 
 // ---------------------------------------------------------------------------
+// Serial commands — INSTALLATION/RESET only (rule 2); normal operation is autonomous
+// ---------------------------------------------------------------------------
+void commandInstallTare() {
+  Serial.println(F("[HX711] INSTALLATION/RESET TARE - NOT normal operation."));
+  Serial.println(F("        Remove the pot, plant, tray and hoses: tare with the platform EMPTY."));
+  Serial.print(F("        This records the empty-platform offset (live weight stays GROSS afterwards)."));
+  Serial.println(F("        Press 'y' to confirm, any other key aborts:"));
+  unsigned long t0 = millis();
+  while (!Serial.available() && millis() - t0 < 60000UL) { wdtPet(); delay(50); }
+  if (!Serial.available()) { Serial.println(F("        timeout - aborted (no changes)")); return; }
+  char c = Serial.read();
+  if (c != 'y' && c != 'Y') { Serial.println(F("        aborted (no changes)")); return; }
+  if (!scale.is_ready()) { Serial.println(F("        HX711 not ready - aborted")); return; }
+  scale.tare(10);
+  hxOffsetKnown = true;
+  prefs.begin(NVS_NS, false);
+  prefs.putLong("hx_offset", scale.get_offset());
+  prefs.end();
+  Serial.print(F("        empty-platform offset recorded: "));
+  Serial.println(scale.get_offset());
+  Serial.println(F("        (stored in NVS; restored at boot without re-taring)"));
+}
+
+void commandStatus() {
+  Serial.print(F("[status] uptime_s="));
+  Serial.print(millis() / 1000UL);
+  Serial.print(F(" wifi="));
+  Serial.print(WiFi.status() == WL_CONNECTED ? F("up") : F("down"));
+  Serial.print(F(" dry_run="));
+  Serial.print(cfg.dryRun ? F("true") : F("false"));
+  Serial.print(F(" hx_offset="));
+  if (hxOffsetKnown) Serial.print(scale.get_offset()); else Serial.print(F("unset"));
+  Serial.print(F(" factor="));
+  Serial.print(HX711_SCALE_FACTOR, 3);
+  Serial.print(F(" tank_empty="));
+  Serial.print(lastReading.tankEmpty ? F("true") : F("false"));
+  Serial.print(F(" water_c="));
+  Serial.println(lastReading.waterValid ? String(lastReading.waterT, 2) : String("invalid"));
+}
+
+void handleSerial() {
+  if (Serial.available() <= 0) return;
+  char c = Serial.read();
+  switch (c) {
+    case 't': case 'T': commandInstallTare(); break;
+    case 'i': case 'I': commandStatus(); break;
+    case 'h': case 'H': case '?':
+      Serial.println(F("commands: t=INSTALLATION tare (EMPTY platform, reset op), i=status, h=help"));
+      break;
+    default: break;
+  }
+}
+
+// ---------------------------------------------------------------------------
 // Arduino entry points
 // ---------------------------------------------------------------------------
 void setup() {
@@ -604,6 +738,8 @@ void setup() {
   Serial.println(F("PhytoAI WROOM production v1 (2026-09-15)"));
   Serial.println(F("[safety] pump CH1 + heater CH2 forced OFF; dry-run gates all actuation"));
   Serial.println(F("[safety] heater hard cutoff 40.0 C, refuse 39.5 C, 120 s actuator cap, 8 s WDT"));
+  Serial.println(F("[rules] no auto-tare (gross weight); 't' = INSTALLATION tare, 'i' = status, 'h' = help"));
+  Serial.println(F("[rules] camera is wired-only: no battery assumptions in this firmware"));
 
   pinMode(PIN_TANK, INPUT);
   pinMode(PIN_LDR, INPUT);
@@ -615,8 +751,21 @@ void setup() {
   dht.begin();
   ds.begin();
   scale.begin(PIN_HX711_DT, PIN_HX711_SCK);
-  scale.tare(10);                       // boot-offset (calibration-sketch fix)
   scale.set_scale(HX711_SCALE_FACTOR);
+  // Rule 1: NEVER auto-tare (boot or load detection). Only restore a RECORDED
+  // empty-platform offset — the pot/soil/tray/plumbing stay part of the gross weight.
+  prefs.begin(NVS_NS, true);
+  long savedOffset = prefs.getLong("hx_offset", 0);
+  prefs.end();
+  if (savedOffset != 0) { scale.set_offset(savedOffset); hxOffsetKnown = true; }
+  Serial.print(F("[hx711] "));
+  if (hxOffsetKnown) {
+    Serial.print(F("restored empty-platform offset "));
+    Serial.print(savedOffset);
+    Serial.println(F(" - live weight is GROSS (pot+soil+tray+plumbing+water)"));
+  } else {
+    Serial.println(F("no recorded offset - weight reported 'unset'; run INSTALLATION tare 't' once (empty platform)"));
+  }
   soilInitSafe();
   ds.requestTemperatures();
 
@@ -634,6 +783,7 @@ void setup() {
 
 void loop() {
   wdtPet();
+  handleSerial();
 
   if (millis() - lastSampleMs >= SAMPLE_MS) {
     lastSampleMs = millis();
