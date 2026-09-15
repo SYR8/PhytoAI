@@ -56,20 +56,19 @@ The system is organized so that judgment and physics never share a path:
 
 The CAM posts one photo + `battery_percent` (`POST /core/photo`, fire-and-forget). One single multimodal call analyzes the photo together with today's event row, history, species, and last-watered time: refine species, detect visual anomalies, review whether today's watering decision still looks reasonable. Photo → Drive (`SmartPot/DailyPhotos/`); event + species + `camera_battery_percent` upserted; urgent visual anomalies create an `alert_anomaly` notification.
 
-**Branch C — weekly human-assisted disease-scan panel** (scheduled Mon 06:00 UTC).
+**Branch C — weekly disease-scan panel (autonomous since 2026-09-14).**
 
-1. Battery check: latest `camera_battery_percent` below threshold → "charge camera" notification, scan postponed, logged.
-2. Else: pending `scan_position` notification ("position the camera facing the whole plant") → Wait node with timeout (timeout → expired + postponed).
-3. On confirm: `scan_session_active=true`; the photo arrives as a separate webhook execution (`POST /yolo-scan`, legacy path kept for firmware compatibility).
-4. Photo → Drive (`SmartPot/ScanPhotos/`) → two analyses **in parallel**: **Vision Analyst** (framing/quality, symptoms, suspected issues, confidence, affected areas) and **YOLO Analyst stub** (`{"status":"not_yet_trained"}` — later swapped for a local FastAPI inference endpoint).
-5. **Judge** — weighting: vision model provides symptom reasoning; YOLO = label + confidence from a model still learning this environment → **low weight until fine-tuned**. Output: final verdict, reasoning, recommended action.
-6. Real issue → **Treatment Advisor** with full plant context (species, conditions, watering history, past diseases/treatments/outcomes, relevant AgentNotes): disease name, severity, plant-specific step-by-step treatment, and product guidance as **active ingredients/categories only, never brand names**, plus an explicit low-confidence statement when uncertain, and why the advice fits *this* plant's data.
-7. Owner verdict HITL: Confirmed / Wrong / Not sure + free text → `user_verdict`; later a follow-up "did it resolve?" HITL → `treatment_outcome`.
-8. Close: "return camera to charging dock" notification, `scan_session_active=false`.
+1. Battery check: latest `camera_battery_percent` below `camera_battery_min_percent` → `alert_battery_low` ("charge camera") notification + `scan_postponed`; otherwise the scheduler opens the scan session itself (`scan_session_active=true`, `scan_session_opened_utc`) and appends an informational `scan_scheduled` row — **no dashboard confirmation required**.
+2. The CAM takes the photo on its local Monday 06:00 UTC schedule and posts it to `POST /yolo-scan` (session-gated; retries `no_active_session` for up to 90 min). A watchdog (every 2 h) force-closes sessions older than 6 h with an informational `scan_postponed`.
+3. Photo → Drive (`SmartPot/ScanPhotos/`) → two analyses **in parallel**: **Vision Analyst** (framing/quality, symptoms, suspected issues, confidence, affected areas) and **YOLO Analyst** (local inference service `yolo-service/`; degrades to `not_yet_trained` when unavailable).
+4. **Judge** — weighting: vision model provides symptom reasoning; YOLO = label + confidence from a model still learning this environment → **low weight until fine-tuned**. Output: final verdict, reasoning, recommended action. On `issue` verdicts the free-tier **Perenual** species/pest reference (cached; advisory only, never overrides history) is added to the Treatment Advisor prompt.
+5. Real issue → **Treatment Advisor** with full plant context (species, conditions, watering history, past diseases/treatments/outcomes, relevant AgentNotes): disease name, severity, plant-specific step-by-step treatment, and product guidance as **active ingredients/categories only, never brand names**, plus an explicit low-confidence statement when uncertain, and why the advice fits *this* plant's data.
+6. Owner verdict HITL: Confirmed / Wrong / Not sure + free text → `user_verdict`; later a follow-up "did it resolve?" HITL → `treatment_outcome`.
+7. Close: `POST /yolo-scan/done` sets `scan_session_active=false` (no return-camera notification anymore); the verdict, treatment and outcomes land in the `DiseaseScans` row.
 
 **Branch E — scheduler.**
 
-Daily NOAA solar-position computation in Code (no external API, no keys) stores next sunrise/sunset UTC in SystemConfig (daily 00:10 UTC refresh); `GET /config` serves sun times + location + `dry_run_mode` to both devices and self-heals by recomputing stale values. A weekly **Plant Profile Agent** trigger exists as a **disabled placeholder** for the memory-janitor build.
+Daily NOAA solar-position computation in Code (no external API, no keys) stores next sunrise/sunset UTC in SystemConfig (daily 00:10 UTC refresh); `GET /config` serves sun times + location + `dry_run_mode` + flash/preheat context to both devices and self-heals by recomputing stale values. A weekly **Plant Profile Agent** trigger exists as a **disabled placeholder** for the memory-janitor build.
 
 **Status:** the workflow stays **INACTIVE** and `dry_run_mode=true` until the owner tests; contracts and schemas are fixed now, firmware comes later.
 
@@ -82,8 +81,8 @@ All device traffic enters `phytoai` through webhooks on the **persistent named C
 | `POST /core/sensor` | WROOM | Sensor payload → synchronous watering decision (≥120 s timeout tolerated for AI latency) |
 | `POST /core/photo` | CAM | Daily photo (multipart JPEG + `battery_percent`), fire-and-forget static ack |
 | `POST /yolo-scan` | CAM | Weekly scan photo (legacy path kept for firmware compatibility), gated by `scan_session_active` |
-| `POST /yolo-scan/done` | CAM | Close scan session → "return camera to dock" notification |
-| `GET /config` | either | Sun times, location, `dry_run_mode` (self-healing recompute) |
+| `POST /yolo-scan/done` | CAM | Close scan session → `scan_session_active=false` |
+| `GET /config` | either | Sun times, location, `dry_run_mode`, flash context (`last_lightlevel`, `flash_dark_threshold`), preheat values (`preheat_margin_c`, `preheat_lead_minutes`) — self-healing recompute |
 
 Full request/response JSON for every endpoint is in `Plan.md` §4.
 
