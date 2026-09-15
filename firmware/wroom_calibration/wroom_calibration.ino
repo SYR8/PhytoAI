@@ -11,14 +11,18 @@
 #define PIN_HX711_DT     26
 #define PIN_HX711_SCK    33
 #define PIN_RELAY_PUMP   13
-#define PIN_RELAY_HEATER (-1)
+#define PIN_RELAY_HEATER 16
 
 #define TANK_EMPTY_LEVEL  LOW
 #define RELAY_ACTIVE_LOW  true
 
-// TODO(load cell): PROVISIONAL - re-measure with 'w' once the load-cell mount
-// has all 4 screws fitted (bar tilts under load until then).
-float HX711_SCALE_FACTOR = 305.070f;
+// 0.0 = NOT calibrated - run 'w'. The old baked-in factor was computed with the
+// broken (non-offset-compensated) read and is invalid; recalibrate two-point.
+float HX711_SCALE_FACTOR = 0.0f;
+
+// Heater bench-test hard limits - literal constants, not settable at runtime.
+const float    HEATER_TEST_CUTOFF_C  = 40.0f;
+const uint32_t HEATER_TEST_MAX_ON_MS = 120000UL;
 
 // Verified on hardware: raw ADC 4095 -> 0 % moisture, 2038 -> 100 %, clamped.
 int   SOIL_ADC_DRY = 4095;
@@ -32,17 +36,14 @@ uint8_t waterTempAddress[8] = {0x28, 0x94, 0x6B, 0xCB, 0x00, 0x00, 0x00, 0xBF};
 uint8_t soilTempAddress[8]  = {0x28, 0x83, 0xFC, 0xC8, 0x00, 0x00, 0x00, 0x0F};
 
 // ---------------------------------------------------------------------------
-// TODO(heating module) - NOT TESTED / NOT ENABLED. Placeholder only.
-//   Relay: PIN_RELAY_HEATER (currently (-1) = inert). Assign the spare relay
-//   channel GPIO to switch the heater; heaterRelay()/heaterSet() below need no
-//   refactor once the pin is set.
-//   Feedback probe: waterTempAddress (water DS18B20), read by address.
-//   TBD: target water temperature, max heater seconds (<= 600), absolute
-//   cutoff and hysteresis.
-//   SAFETY INTERLOCK (must hold before the heater can ever turn on):
-//     - tank NOT empty: digitalRead(PIN_XKC_LEVEL) != TANK_EMPTY_LEVEL
-//     - valid water probe: reject -127.0 / 85.0 / NaN
-//     - fail OFF at boot and on any invalid state
+// Heater (relay CH2, GPIO16) - BENCH TEST ONLY. The 'e' serial command is the
+// only caller of the heater relay in this sketch; nothing in the sensor or
+// runtime paths can start it, and it is never reachable from n8n.
+//   SAFETY (hard limits, compile-time constants):
+//     - OFF at boot and after every reset/watchdog (setup() writes OFF first).
+//     - 40.0 C water auto-cutoff (waterTempAddress DS18B20) + lockout until reset.
+//     - 120 s maximum continuous ON + lockout until reset.
+//     - wet-only interlock before ON: tank NOT empty + valid water probe.
 // ---------------------------------------------------------------------------
 
 DHT dht(PIN_DHT22, DHT22);
@@ -55,6 +56,7 @@ int g_soilMin = -1;
 int g_lastXkcRaw = -1;
 bool g_sawXkcHigh = false;
 bool g_sawXkcLow = false;
+bool g_heaterLockout = false;
 uint8_t g_dsAddr[8][8];
 int g_dsCount = 0;
 
@@ -84,11 +86,13 @@ void heaterRelay(bool on) {
 #endif
 }
 
+bool validWaterTemp(float t) {
+  return !(isnan(t) || t <= -100.0f || t >= 85.0f);
+}
+
 bool heaterInterlockOk() {
   if (digitalRead(PIN_XKC_LEVEL) == TANK_EMPTY_LEVEL) return false;
-  float t = ds.getTempC(waterTempAddress);
-  if (isnan(t) || t <= -100.0f || t >= 85.0f) return false;
-  return true;
+  return validWaterTemp(ds.getTempC(waterTempAddress));
 }
 
 void heaterSet(bool on) {
@@ -110,7 +114,7 @@ long hxRawAvg(uint8_t n) {
   uint8_t got = 0;
   for (uint8_t i = 0; i < n; i++) {
     if (!hxWait(1000)) break;
-    sum += scale.read();
+    sum += scale.get_value();
     got++;
   }
   return got ? (sum / got) : 0;
@@ -181,7 +185,7 @@ void printConstants() {
 
   Serial.print(F("3) HX711_SCALE_FACTOR = "));
   if (HX711_SCALE_FACTOR == 0.0f) Serial.println(F("(unset - run 'w')"));
-  else { Serial.print(HX711_SCALE_FACTOR, 3); Serial.println(F("  (PROVISIONAL - re-measure with 'w')")); }
+  else { Serial.print(HX711_SCALE_FACTOR, 3); Serial.println(F("  (measured this session - copy it back)")); }
 
   Serial.print(F("4) SOIL_ADC_DRY = "));
   if (g_soilMax < 0) Serial.print(F("?")); else Serial.print(g_soilMax);
@@ -450,6 +454,91 @@ void commandPumpFlowCal() {
   printConstants();
 }
 
+void commandHeaterTest() {
+  if (g_heaterLockout) {
+    heaterRelay(false);
+    Serial.println(F("[HEATER] LOCKED OUT until MCU reset (40.0 C or 120 s limit was hit)."));
+    return;
+  }
+  Serial.println(F("HEATER TEST - submerged only. Press 'e' to toggle CH2, 'x' to exit."));
+  if (!heaterInterlockOk()) {
+    Serial.println(F("[HEATER] blocked: tank EMPTY or invalid water probe - heater must stay submerged."));
+    return;
+  }
+
+  bool on = false;
+  uint32_t onSince = 0;
+  uint32_t lastSecond = 0;
+
+  while (true) {
+    if (g_heaterLockout) break;
+
+    if (Serial.available() > 0) {
+      char c = Serial.read();
+      if (c == 'x' || c == 'X') break;
+      if (c == 'e' || c == 'E') {
+        if (on) {
+          heaterRelay(false);
+          on = false;
+          Serial.println(F("[HEATER] CH2 OFF"));
+        } else {
+          ds.requestTemperatures();
+          float t = ds.getTempC(waterTempAddress);
+          if (!validWaterTemp(t)) {
+            Serial.println(F("[HEATER] refused: invalid water probe (submerged + wired?)"));
+          } else if (t >= HEATER_TEST_CUTOFF_C) {
+            g_heaterLockout = true;
+            heaterRelay(false);
+            Serial.println(F("[HEATER] refused: water already >= 40.0 C - LOCKOUT latched until reset."));
+          } else if (digitalRead(PIN_XKC_LEVEL) == TANK_EMPTY_LEVEL) {
+            Serial.println(F("[HEATER] refused: tank EMPTY (wet-only rule)"));
+          } else {
+            heaterRelay(true);
+            on = true;
+            onSince = millis();
+            lastSecond = onSince;
+            Serial.print(F("[HEATER] CH2 ON (bench test) - limits: "));
+            Serial.print(HEATER_TEST_CUTOFF_C, 1);
+            Serial.print(F(" C cutoff / "));
+            Serial.print(HEATER_TEST_MAX_ON_MS / 1000UL);
+            Serial.println(F(" s max"));
+          }
+        }
+      }
+    }
+
+    if (on) {
+      uint32_t now = millis();
+      if (now - lastSecond >= 1000UL) {
+        lastSecond += 1000UL;
+        ds.requestTemperatures();
+        float t = ds.getTempC(waterTempAddress);
+        Serial.print(F("[HEATER] on "));
+        Serial.print((now - onSince) / 1000UL);
+        Serial.print(F(" s  water="));
+        if (validWaterTemp(t)) { Serial.print(t, 2); Serial.print(F(" C")); }
+        else Serial.print(F("INVALID"));
+        Serial.println();
+        if (validWaterTemp(t) && t >= HEATER_TEST_CUTOFF_C) {
+          g_heaterLockout = true;
+          heaterRelay(false);
+          on = false;
+          Serial.println(F("[HEATER] AUTO-CUTOFF at 40.0 C - CH2 OFF, LOCKOUT latched until reset."));
+        } else if (now - onSince >= HEATER_TEST_MAX_ON_MS) {
+          g_heaterLockout = true;
+          heaterRelay(false);
+          on = false;
+          Serial.println(F("[HEATER] 120 s maximum reached - CH2 OFF, LOCKOUT latched until reset."));
+        }
+      }
+    }
+    delay(10);
+  }
+
+  heaterRelay(false);
+  Serial.println(F("[HEATER] CH2 forced OFF - test session ended."));
+}
+
 void liveLoop() {
   Serial.println(F("[LIVE] readings every 2 s - press any key to stop"));
   while (!Serial.available()) {
@@ -469,6 +558,7 @@ void printMenu() {
   Serial.println(F("  w = known-weight calibration"));
   Serial.println(F("  p = pump pulse 2 s (blocked when tank empty)"));
   Serial.println(F("  c = pump flow calibration 10 s (run 'w' first)"));
+  Serial.println(F("  e = heater test CH2 (bench only - SUBMERGED; 'e' toggles, 'x' exits)"));
 }
 
 void setup() {
@@ -485,6 +575,7 @@ void setup() {
   Serial.println(F("PhytoAI WROOM - Deliverable 1 hardware test/calibration"));
   Serial.println(F("[SAFETY] pump relay forced OFF at boot; relay assumed ACTIVE-LOW."));
   Serial.println(F("         If the pump runs now: cut power, set RELAY_ACTIVE_LOW=false, re-flash."));
+  Serial.println(F("[SAFETY] heater relay CH2 forced OFF at boot; 40.0 C / 120 s hard limits, bench-only 'e' test."));
 
   pinMode(PIN_XKC_LEVEL, INPUT);
   pinMode(PIN_LIGHT_DO, INPUT);
@@ -495,6 +586,7 @@ void setup() {
   dht.begin();
   scanDsQuiet();
   scale.begin(PIN_HX711_DT, PIN_HX711_SCK);
+  scale.tare(10);
   if (HX711_SCALE_FACTOR != 0.0f) scale.set_scale(HX711_SCALE_FACTOR);
 
   printMenu();
@@ -512,6 +604,8 @@ void loop() {
       case 'w': case 'W': commandCalibrateWeight(); break;
       case 'p': case 'P': commandPumpPulse(); break;
       case 'c': case 'C': commandPumpFlowCal(); break;
+      case 'e': case 'E': commandHeaterTest(); break;
+      case 'x': case 'X': heaterRelay(false); Serial.println(F("[HEATER] CH2 forced OFF (x)")); break;
       default: break;
     }
   }

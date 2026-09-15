@@ -149,13 +149,22 @@ Every weekly scan logs the photo plus the vision opinion, the YOLO opinion, the 
 - [ ] Minimal dashboard deployed to GitHub Pages (config: see Dashboard section)
 - [ ] Workflow smoke-tested end to end (still inactive, dry-run)
 - [x] ESP32 WROOM calibration/test sketch flashed and running (part 1 DONE — 2026-09-14; boots, Wi-Fi/serial OK)
-- [ ] WROOM sensor verification complete — **PARTIAL**: HX711 blocked on 2 scale-mount screws; heater module not delivered (2026-09-14)
+- [ ] WROOM sensor verification complete — **PARTIAL**: HX711 blocked on 2 scale-mount screws; heater now wired (CH2/GPIO16) with bench-test command, physical test pending (2026-09-14)
+- [ ] WROOM HX711 recalibration — the old baked-in factor was computed with broken (non-offset-compensated) math and is **invalid**; the sketch now ships `HX711_SCALE_FACTOR = 0.0f` (unset) — re-run `w` after flashing (tare empty platform → known weight) and copy the new factor back
 - [ ] ESP32 WROOM production firmware (sensor routine, NTP re-sync, pump/heater execution)
 - [x] ESP32-CAM test sketch bench-tested (camera init, Wi-Fi connect, webhook upload — 2026-09-14)
 - [x] ESP32-CAM production firmware written + compile-verified (`firmware/esp32cam_production/`; autonomous capture/upload, not flashed)
 - [ ] ESP32-CAM production firmware flashed + end-to-end verified (test plan: `firmware/esp32cam_production/PRODUCTION-TESTS.md`; capture-button debounce still open, Plan §8 Q4)
 - [ ] Full dashboard (charts, history, AgentNotes, battery status, Web Push)
 - [ ] Plant Profile Agent build; YOLO fine-tuning on accumulated gold labels
+
+## WROOM bench test (serial menu)
+
+`firmware/wroom_calibration/wroom_calibration.ino` — bench/calibration sketch only: no Wi-Fi/n8n code, no autonomous actuation. Flash, open the serial monitor at 115200, `h` prints the menu.
+
+**Heater test (`e`) — bench only, submerged only.** The 10 W aquarium heater is switched by relay **CH2 (GPIO16)**; the pump stays on CH1 (GPIO13). Wiring: `USB brick 5 V → CH2 COM`, `CH2 NO → heater brown (+)`, `heater blue (−) → USB brick GND`. Press `e` to enter the test session; `e` toggles CH2; while ON it prints elapsed seconds and the water DS18B20 once per second; `x` exits and always forces CH2 OFF. Hard limits (compile-time constants, not settable over serial): **40.0 °C** water auto-cutoff and **120 s** maximum continuous ON, each latching a lockout until MCU reset; CH2 is OFF at boot/reset and refuses to start when the tank is empty or the water probe is invalid. Never run the heater out of water.
+
+**HX711 load cell.** `t` tares; `w` runs the two-point calibration (tare empty platform → place known grams → `factor = offset-compensated raw / grams`). Boot now tares once so `get_units()` no longer shows phantom weight. `HX711_SCALE_FACTOR` ships as `0.0f` (= unset; prints `(unset - run 'w')`) — the previous baked-in value was computed with the broken read and must not be reused; re-calibrate after flashing and record the new factor.
 
 ## Known issues / lessons
 
