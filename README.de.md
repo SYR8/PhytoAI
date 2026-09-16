@@ -32,7 +32,7 @@ Dashboard   ── Resume-URL-Aufrufe ──▶ n8n (Antworten von Menschen)
 
 ## 3. Warum das wichtig ist
 
-Zimmerpflanzen sterben meist an unregelmäßiger oder gedankenloser Pflege, nicht am Raum selbst. PhytoAI ist als günstige Nachrüstlösung gedacht, die eine Pflanze kontinuierlich beobachtet, rechtzeitig reagiert und Probleme von überall meldet — damit Pflanzen nicht still verloren gehen. Das Ziel ist ein bezahlbarer End-to-End-Aufbau statt eines Laboraufbaus. (Motivation und Anwendungsfälle in den Worten des Besitzers: `docs/bwki-answers-draft.md`.)
+Zimmerpflanzen sterben meist an unregelmäßiger oder gedankenloser Pflege, nicht am Raum selbst. PhytoAI ist als günstige Nachrüstlösung gedacht, die eine Pflanze kontinuierlich beobachtet, rechtzeitig reagiert und Probleme von überall meldet — damit Pflanzen nicht still verloren gehen. Das Ziel ist ein bezahlbarer End-to-End-Aufbau statt eines Laboraufbaus. (Motivation und Anwendungsfälle in den Worten des Besitzers: [docs/bwki-answers-draft.md](docs/bwki-answers-draft.md).)
 
 ## 4. Aktueller Status
 
@@ -255,7 +255,8 @@ Geplant/Ideen (vom Besitzer ausgewählt, nicht implementiert): peristaltische Do
 
 ## 22. Projektdokumentation (BWKI)
 
-- Die deutschen BWKI-Antworten (vom Besitzer freigegebener Entwurf mit exakten Zeichenzahlen) liegen unter `docs/` (zusammen mit diesem Doku-Satz hinzugefügt); die Video-Pitch-Skizze kommt ebenso dazu.
+- Die deutschen BWKI-Antworten (vom Besitzer freigegebener Entwurf mit exakten Zeichenzahlen): [docs/bwki-answers-draft.md](docs/bwki-answers-draft.md).
+- Video-Pitch-Skizze: [docs/video-pitch-outline.md](docs/video-pitch-outline.md).
 - Engineering-Plan und Schemas: `docs/Plan.md`; aktueller Stand: `STATUS.md`; Hardware: `docs/SmartPot-Full-Engineering-Spec-PRD.md`.
 
 ## 23. Lizenz und Attribution

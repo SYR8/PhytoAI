@@ -33,7 +33,7 @@ Dashboard   ── resume-URL callbacks ──▶ n8n (human-in-the-loop answers
 
 ## 3. Why it matters
 
-Houseplants usually die from irregular or thoughtless watering, not from the room itself. PhytoAI is meant as a cheap retrofit that watches a plant continuously, reacts in time, and reports problems from anywhere — so plants are not lost silently. The project aims at an affordable end-to-end build rather than a lab setup. (Motivation and use cases in the owner's own words are in `docs/bwki-answers-draft.md`.)
+Houseplants usually die from irregular or thoughtless watering, not from the room itself. PhytoAI is meant as a cheap retrofit that watches a plant continuously, reacts in time, and reports problems from anywhere — so plants are not lost silently. The project aims at an affordable end-to-end build rather than a lab setup. (Motivation and use cases in the owner's own words are in [docs/bwki-answers-draft.md](docs/bwki-answers-draft.md).)
 
 ## 4. Current status
 
@@ -256,7 +256,8 @@ Planned/ideas (owner-selected, not implemented): peristaltic dosing pump for AI-
 
 ## 22. Project documentation (BWKI)
 
-- German BWKI answers (owner-approved draft with exact character counts) live under `docs/` (added together with this documentation set); the video-pitch outline is added the same way.
+- German BWKI answers (owner-approved draft with exact character counts): [docs/bwki-answers-draft.md](docs/bwki-answers-draft.md).
+- Video-pitch outline: [docs/video-pitch-outline.md](docs/video-pitch-outline.md).
 - Engineering plan and schemas: `docs/Plan.md`; current state: `STATUS.md`; hardware: `docs/SmartPot-Full-Engineering-Spec-PRD.md`.
 
 ## 23. License and attribution
