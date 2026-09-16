@@ -17,3 +17,13 @@ runs/
 plantvillage/
 pv_download/
 dataset_replay/
+
+# Superseded / local-only files (owner-approved cleanup 2026-09-16).
+# The files stay on disk; they are simply not part of the public repository.
+docs/PhytoAI.xlsx
+docs/PhytoAI.v2.xlsx
+workflows/*.backup.json
+docs/cross-system-audit-brief.md
+docs/dashboard-redesign-brief.md
+docs/opencode-wroom-heater-hx711-brief.md
+
