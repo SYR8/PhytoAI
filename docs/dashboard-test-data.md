@@ -43,8 +43,8 @@ Everything AI-generated is prefixed **`SAMPLE DATA`**. Photo/folder IDs and `res
    `https://docs.google.com/spreadsheets/d/`**`<SPREADSHEET_ID>`**`/edit`
 2. Open the dashboard with the override (replace `<ID>`):
    **https://phytoai.edgeone.dev/?sheet=\<ID\>**
-3. Sign in with the Google account that owns the test sheet (the hint may suggest
-   `zibrahimzaki7@gmail.com`; any account that owns the sheet works).
+3. Sign in with the Google account that owns the test sheet (any account that owns the sheet works;
+   the login hint field in `config.js` is intentionally empty in the public repository).
 4. A banner appears: **“Test sheet active … Back to production sheet.”** — that confirms the override.
    The override is remembered in this browser (localStorage) until you exit.
 

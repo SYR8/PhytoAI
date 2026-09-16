@@ -16,7 +16,7 @@ Key design decisions in force for this stage:
 
 ## 2. Google Sheets Plan
 
-**Target spreadsheet (fixed):** `https://docs.google.com/spreadsheets/d/10a3YXWBN4-hFJQQT4sLERmyu8D2TxYKNkXW-k3QRyLI/edit` (ID `10a3YXWBN4-hFJQQT4sLERmyu8D2TxYKNkXW-k3QRyLI`).
+**Target spreadsheet (fixed):** `https://docs.google.com/spreadsheets/d/<SPREADSHEET_ID>/edit` (ID `<SPREADSHEET_ID>`).
 
 **Application method — documentation only this phase.** The Sheets MCP has historically returned `The caller does not have permission` for this spreadsheet. Therefore this phase only *documents* the schemas below; the tabs are applied **manually by the owner** (or via MCP later if access is restored). Application = create tabs `Events`, `SystemConfig`, `Notifications`, `PushSubscriptions`, `AgentNotes`, `DiseaseScans`; write the header rows and seed keys exactly as specified; **delete the `BranchMap` tab entirely** (no servo positioning remains anywhere).
 

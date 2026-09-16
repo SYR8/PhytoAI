@@ -1,173 +1,271 @@
-# PhytoAI Smart Pot
+# PhytoAI — AI-assisted plant monitoring and climate control
 
-An autonomous, AI-driven plant care device. Two ESP32s live in the pot: an **ESP32 WROOM** (the "body") reads soil moisture, soil/water/air temperature, air humidity, pot weight, light level, and tank level, and executes the watering and heating commands it receives; a **static, battery-powered ESP32-CAM** (the "eye") sits in a charging dock at the pot edge, its default view framing the plant, manually movable for close-ups, with a manual capture button. All thinking happens in a single n8n workflow (**`phytoai`**, running via Docker on the main PC) with **Google Sheets as the plant's database**. The **dashboard is the only user interface** — Telegram has been removed. Routine results are never pushed anywhere; the dashboard reads them directly from the database. The whole system stays **INACTIVE** and in `dry_run_mode=true` until the owner has tested it.
+PhytoAI is a DIY smart-pot system: an ESP32-based device senses soil moisture, temperatures, air humidity, pot weight, light and tank level, a self-hosted n8n workflow decides when to water or heat, Google Sheets acts as the plant's database, and a static web dashboard shows the plant's state — with an optional camera and a local image classifier for disease suspicion.
 
-## Data flow at a glance
+> German description: **PhytoAI: KI-gestützte Pflanzenüberwachung & Klimasteuerung**.
+> A German translation of this file is available: **[README.de.md](README.de.md)**.
+
+**Honest one-line status:** the software chain is implemented and tested with simulations and test data; the hardware is bench-tested component by component; a continuous run on a real plant has **not** happened yet. See [Current status](#4-current-status).
+
+---
+
+## 1. Project title and one-sentence explanation
+
+**PhytoAI** monitors a plant around the clock and makes care decisions — watering and water heating — from sensor history instead of a fixed timer, and shows everything in a web dashboard. It was built as a solo project by **Mohammad Abdin** (`MOs`).
+
+## 2. What PhytoAI does — the complete data flow
 
 ```
-WROOM ──sensor JSON──► n8n "phytoai" ──decision JSON──► WROOM (pump/heater)
-CAM  ──photos + battery_percent──► n8n "phytoai"
-n8n  ◄──reads/writes──► Google Sheets (memory, HITL queue, config)
-n8n  ──photos──► Google Drive
-n8n  ──pending Notifications──► dashboard (GitHub Pages) ──resume-URL calls──► n8n
-n8n  ──Web Push──► dashboard service worker (urgent events only)
+ESP32-WROOM ── sensor JSON ──▶ n8n workflow ── decision JSON ──▶ WROOM (pump / heater)
+ESP32-CAM   ── photos      ──▶ n8n workflow ──▶ Google Drive (photos) + AI analysis
+n8n         ── reads / writes ──▶ Google Sheets (Events, SystemConfig, DiseaseScans,
+                                  Notifications, AgentNotes)
+n8n         ── pending rows / answers ──▶ Dashboard (static site, user's Google login)
+Dashboard   ── resume-URL callbacks ──▶ n8n (human-in-the-loop answers)
 ```
 
-## Architecture: the council pattern
+1. **Sense:** the WROOM wakes on its schedule, reads all sensors, and POSTs a JSON payload to the workflow (`POST /webhook/core/sensor`).
+2. **Decide:** the workflow reads recent history and SystemConfig, an AI agent proposes a decision from the history, and a deterministic guardrails layer (plain code, never AI) enforces the safety rules. The decision JSON goes back in the same HTTP response; the WROOM only executes, it never decides locally.
+3. **Store:** every event is appended to the `Events` sheet; photos go to Google Drive; scan verdicts, working notes and configuration live in their own tabs.
+4. **Analyse (optional):** a second ESP32-CAM posts daily photos and a weekly scan photo. A vision agent plus a local YOLOv8 classification service produce a verdict; the owner confirms it in the dashboard (human in the loop).
+5. **Show:** the dashboard reads Sheets/Drive directly with the user's own Google login and renders status, history, charts, the Plant Doctor and the assistant. Optional in-page browser alerts mirror critical notifications while the tab is open.
+6. **Ask the human:** open questions (e.g. “was this watering right?”) are `Notifications` rows with a resume URL; dashboard buttons resume the paused workflow.
 
-The system is organized so that judgment and physics never share a path:
+## 3. Why it matters
 
-- **AI specialists think freely** — *History Analyst*, *Core Decision Agent*, *Vision Analyst*, *Judge*, *Treatment Advisor* (and later a weekly *Plant Profile Agent*). They reason with history and context, never decide from a snapshot alone, and may hold hypotheses in AgentNotes.
-- **Deterministic code guards physics** — a Code-only Safety Guardrails layer that no AI output can ever override:
-  - tank-empty → watering forced off;
-  - `min_rewater_interval_hours=6` blocks premature rewatering (unless the AI returns high confidence *and* cites evidence the previous watering failed — blocked attempts are logged either way);
-  - hard caps: max pump seconds, `max_heater_seconds=600`, maximum water temperature;
-  - `dry_run_mode` zeroes all physical actuation fields.
-- **Humans verify via the dashboard** — every human-in-the-loop moment is a pending `Notifications` row carrying an n8n resume URL; the workflow pauses on a Wait node and the dashboard's buttons resume it (with a timeout → expired → documented fallback path).
-- **The database remembers** — every event, opinion, verdict, and outcome lands in Google Sheets.
+Houseplants usually die from irregular or thoughtless watering, not from the room itself. PhytoAI is meant as a cheap retrofit that watches a plant continuously, reacts in time, and reports problems from anywhere — so plants are not lost silently. The project aims at an affordable end-to-end build rather than a lab setup. (Motivation and use cases in the owner's own words are in `docs/bwki-answers-draft.md`.)
 
-## The three memory layers
+## 4. Current status
 
-1. **`Events` — episodic history.** One raw row per sensor/photo event; everything the plant has ever experienced, with `ReasoningSummary` for audits.
-2. **`AgentNotes` — working memory.** Each agent keeps short, status-tracked notes (`active` / `promoted` / `expired`). Its own last ~10 active notes are injected into its future contexts explicitly labeled **UNVERIFIED HYPOTHESES** — useful context, never ground truth (prevents self-confirmation loops). Each run may append 1–3 short notes.
-3. **`SystemConfig` profile — distilled long-term knowledge.** Key/value facts like species + confidence, `last_watered_utc`, sun times, camera battery level, and tunable guardrails. The future weekly **Plant Profile Agent** acts as the memory janitor: it reviews recent notes + events + scans + user feedback, promotes validated insights into the profile (e.g. "this plant dries in ~5 days in summer"), and marks stale or disproven notes expired.
+Legend: **implemented** (code exists and works in tests) · **tested** (verified, with how) · **prototype** (works but rough) · **optional** · **not implemented** · **owner-specific** (only works in this deployment).
 
-## Hardware summary
+| Part | Status |
+|---|---|
+| n8n workflow (`workflows/phytoai.json`, 224 nodes) | **implemented + tested** via many simulated executions and pinned-data tests. **Owner-specific:** currently deactivated by the owner (can be re-activated anytime); `dry_run_mode` is `TRUE`. |
+| Dashboard (`dashboard/`) | **implemented + tested** (headless end-to-end suites: startup requests, charts, assistant, notifications — see `docs/dashboard-ux-v3.md`, `docs/dashboard-notifications.md`); deployed by the owner on a static host. |
+| WROOM production firmware | **implemented**; compile-verified only — **not flashed** yet. |
+| WROOM calibration/bench sketch | **tested**: flashed and bench-run 2026-09-15 (constants recorded in `docs/hw-bench-2026-09-15.md`). |
+| ESP32-CAM production firmware | **implemented**; compile-verified only — **not flashed**; 14-test plan prepared in `firmware/esp32cam_production/PRODUCTION-TESTS.md`. |
+| ESP32-CAM test sketch | **tested** on the bench (camera init, Wi-Fi, webhook upload). |
+| Local disease classifier (`yolo-service/`) | **implemented + tested**: deployed on the owner's server with the trained model (validation metrics below). |
+| In-app notification centre | **implemented + tested** (`docs/dashboard-notifications.md`). |
+| Browser alerts while the tab is open | **implemented + tested** (permission requested only on click). |
+| Closed-site push notifications | **not implemented** (no service worker, no Web Push). |
+| Continuous real-plant operation | **not yet** — first full end-to-end run is still pending. |
+| Camera power | **owner-specific:** wired-only; legacy battery fields remain in schema/firmware and are obsolete. |
 
-- **ESP32 WROOM — the body.** Sensors: capacitive soil moisture, 2× DS18B20 (soil + water temperature on one OneWire bus), DHT22 (air temperature + humidity), 1 kg load cell + HX711 (pot weight), LDR (light level), XKC-Y25 non-contact tank-level sensor. Actuators: 3 V submersible water pump and 10 W aquarium heater via relays. Firmware reports data and executes commands; it never decides locally.
-- **ESP32-CAM — the eye.** Static, battery-powered, in a charging dock at the pot edge. Default view = the plant; manually movable for close-ups; manual capture button triggers capture + upload. The system **never commands movement and never knows its position** — per-image quality/framing is assessed by the vision AI instead.
-- **Battery monitoring.** Two-resistor voltage divider from the battery to an ADC1-capable GPIO (**GPIO33**; ADC2 conflicts with Wi-Fi), sized so 4.2 V full charge reads under 3.3 V, calibrated against a multimeter. Firmware maps ADC → `battery_percent` and includes it in every CAM webhook payload; the latest value is stored in SystemConfig.
-- **Removed in the redesign:** all servos, pan/tilt mechanics, GT2 belt, and YOLO-for-aiming — gone everywhere (workflow, schemas, docs).
+Measured model result (validation split only): **96.08 % top-1 / 99.955 % top-5**; no separate test set and no training-accuracy measurement, so none is claimed. Details: [Model support](#14-data-model) and [docs/yolo-service-spec.md](docs/yolo-service-spec.md).
 
-## Workflow branches (`phytoai`)
+## 5. Architecture — who is responsible for what
 
-**Branch A — daily watering (multi-agent + code guardrails).**
+| Layer | Responsibility |
+|---|---|
+| **ESP32-WROOM firmware** (`firmware/wroom_production/`) | Reads sensors, POSTs telemetry, executes the decision JSON (pump / heater), enforces hardware safety limits, never decides locally. `GET /webhook/config` supplies sun times, dry-run and preheat context. |
+| **Sensors** | Capacitive soil moisture, 2× DS18B20 (soil + water temperature on one bus), DHT22 (air temperature/humidity), 1 kg load cell + HX711 (pot weight), LDR (light), XKC-Y25 tank level. |
+| **Camera hardware** (`firmware/esp32cam_production/`) | Static ESP32-CAM; daily photo + weekly scan photo; wired power. |
+| **Automation workflow** (n8n, `workflows/phytoai.json`) | The system's brain: orchestrates branches A–E, talks to Sheets/Drive, runs AI agents, HITL waits and guardrails. |
+| **Storage** (Google Sheets + Drive) | One spreadsheet (five tabs, see data model) is the database; Drive stores the photos. |
+| **AI/ML** | Cloud agents via OpenRouter (`google/gemma-4-26b-a4b-it`, temperature 0.2) for history/decision/vision/treatment; a **local** YOLOv8n-cls classifier (`yolo-service/`, FastAPI + Ultralytics, CPU) gives a low-weighted second opinion for disease scans. |
+| **Dashboard** (`dashboard/`) | Read-only UI for humans: status, charts, Plant Doctor, assistant, notification centre; writes only HITL answers. |
+| **Notifications** | In-app centre + optional browser alerts while the page is open. Closed-site push is **not** built. |
 
-1. Sensor webhook (`POST /core/sensor`, synchronous decision response) → payload normalization.
-2. Read SystemConfig + recent event history.
-3. **Build Context** (pure Code, no AI): hours since last successful watering, watering counts last 7/30 days, moisture/weight trends, effect of last watering (moisture delta), current species + confidence, and sensor sanity flags — impossible values are flagged as anomalies *before* any AI sees them.
-4. **History Analyst** — strict, tiny JSON over the computed facts + compacted history + its own AgentNotes: `trend_reading`, `watering_effectiveness`, `concerns`, `confidence`. The schema is validated; its output cannot smuggle instructions.
-5. **Core Decision Agent** — live sensors + facts + History Analyst interpretation + own notes. Prompt rules: never decide from the snapshot alone; no fixed thresholds; no fixed calendar; must cite concrete historical values in `reasoning_summary`; insufficient or contradictory evidence → `needs_watering=false` + `recheck_hours`.
-6. **Safety Guardrails** (Code, never AI-overridable — see council pattern above).
-7. Respond to the WROOM → append the `Events` row → update SystemConfig (`last_watered_utc` stays **provisional** until firmware confirms pump completion; species most-confident-wins).
-8. A 👍/👎 `watering_feedback` notification row is created (with `context_ref` = the event's `EventID`) so the owner can grade the decision.
+## 6. What a newcomer can build
 
-**Branch B — daily photo (single multimodal call).**
+| Build level | You need |
+|---|---|
+| **A. Software-only demonstration** | n8n (Docker), a Google account with the five-tab sheet (seed from `test-data/dashboard-seed/`), an OpenRouter key for the AI branches, and the dashboard served locally/static. No hardware: you can exercise the workflow with test payloads and see real dashboard behaviour. |
+| **B. Sensor-enabled build** | Level A + ESP32-WROOM + sensors + relay board + pump + heater (see hardware). Flash `wroom_calibration` first, then `wroom_production`. |
+| **C. Complete hardware build** | Level B + ESP32-CAM (wired power) + the camera fins/stand. |
+| **D. Optional camera/AI workflow** | Level C + the local classifier service (`yolo-service/`, CPU-only server or VPS) and an optional free Perenual key for the advisory species/pest layer. |
+| **E. Optional dashboard deployment** | Serve `dashboard/` from any HTTPS static host (the owner uses a static hosting service). |
 
-The CAM posts one photo + `battery_percent` (`POST /core/photo`, fire-and-forget). One single multimodal call analyzes the photo together with today's event row, history, species, and last-watered time: refine species, detect visual anomalies, review whether today's watering decision still looks reasonable. Photo → Drive (`SmartPot/DailyPhotos/`); event + species + `camera_battery_percent` upserted; urgent visual anomalies create an `alert_anomaly` notification.
+Levels are cumulative. Nothing in level A requires the physical device, and nothing in levels B–E is hidden behind a paid service except the OpenRouter key (the AI branches) and your own hosting choices.
 
-**Branch C — weekly disease-scan panel (autonomous since 2026-09-14).**
+## 7. Hardware requirements
 
-1. Battery check: latest `camera_battery_percent` below `camera_battery_min_percent` → `alert_battery_low` ("charge camera") notification + `scan_postponed`; otherwise the scheduler opens the scan session itself (`scan_session_active=true`, `scan_session_opened_utc`) and appends an informational `scan_scheduled` row — **no dashboard confirmation required**.
-2. The CAM takes the photo on its local Monday 06:00 UTC schedule and posts it to `POST /yolo-scan` (session-gated; retries `no_active_session` for up to 90 min). A watchdog (every 2 h) force-closes sessions older than 6 h with an informational `scan_postponed`.
-3. Photo → Drive (`SmartPot/ScanPhotos/`) → two analyses **in parallel**: **Vision Analyst** (framing/quality, symptoms, suspected issues, confidence, affected areas) and **YOLO Analyst** (local inference service `yolo-service/`; degrades to `not_yet_trained` when unavailable).
-4. **Judge** — weighting: vision model provides symptom reasoning; YOLO = label + confidence from a model still learning this environment → **low weight until fine-tuned**. Output: final verdict, reasoning, recommended action. On `issue` verdicts the free-tier **Perenual** species/pest reference (cached; advisory only, never overrides history) is added to the Treatment Advisor prompt.
-5. Real issue → **Treatment Advisor** with full plant context (species, conditions, watering history, past diseases/treatments/outcomes, relevant AgentNotes): disease name, severity, plant-specific step-by-step treatment, and product guidance as **active ingredients/categories only, never brand names**, plus an explicit low-confidence statement when uncertain, and why the advice fits *this* plant's data.
-6. Owner verdict HITL: Confirmed / Wrong / Not sure + free text → `user_verdict`; later a follow-up "did it resolve?" HITL → `treatment_outcome`.
-7. Close: `POST /yolo-scan/done` sets `scan_session_active=false` (no return-camera notification anymore); the verdict, treatment and outcomes land in the `DiseaseScans` row.
+From `Hardware/Hardware-list.txt` plus the bench-verified pin map in `docs/hw-bench-2026-09-15.md`:
 
-**Branch E — scheduler.**
+**Core:** ESP32-WROOM dev board (+ expansion board as in the list) · 5 V 4-channel relay module · DHT22 · capacitive soil moisture sensor · 2× DS18B20 (waterproof, one OneWire bus) · 1 kg load cell + HX711 · 3–5 V submersible pump · 5 V/10 W USB aquarium heater · XKC-Y25 non-contact tank sensor · 5 V USB power supply and wiring.
 
-Daily NOAA solar-position computation in Code (no external API, no keys) stores next sunrise/sunset UTC in SystemConfig (daily 00:10 UTC refresh); `GET /config` serves sun times + location + `dry_run_mode` + flash/preheat context to both devices and self-heals by recomputing stale values. A weekly **Plant Profile Agent** trigger exists as a **disabled placeholder** for the memory-janitor build.
+**Optional:** ESP32-CAM (with its own 5 V supply — never power it from an arbitrary GPIO), LDR module (digital output used), status LED.
 
-**Status:** the workflow stays **INACTIVE** and `dry_run_mode=true` until the owner tests; contracts and schemas are fixed now, firmware comes later.
+**Pins (bench-verified, `firmware/wroom_production/wroom_production.ino`):** pump **13**, heater **16** (both active-low relay), HX711 **DT 26 / SCK 33**, OneWire **4**, soil ADC **34**, tank **27** (LOW = empty), DHT22 **14**, LDR **25**, LED **2**.
 
-## Webhook contracts
+**Safety notes (mandatory):** operate the heater **submerged only**; firmware enforces a 40.0 °C cutoff, refuses to start at ≥ 39.5 °C, and caps any continuous actuation at 120 s; relays default OFF at boot. An early brief contained a stale pin map (pump 4, HX711 5/25, OneWire 13, soil 26) — it is superseded; use the map above.
 
-All device traffic enters `phytoai` through webhooks on the **persistent named Cloudflare tunnel** (base URL = firmware config, never hardcoded):
+## 8. Software requirements
 
-| Endpoint | Caller | Purpose |
+- **Arduino IDE or arduino-cli** with the **ESP32 core 3.3.11**; libraries: ArduinoJson 7.4.2, HX711 0.7.5, OneWire 2.3.8, DallasTemperature 4.0.6, DHT 1.4.7 (versions from the production build).
+- **n8n** (Docker recommended) — the workflow export in `workflows/phytoai.json` is importable.
+- **Python 3** for the training scripts and the classifier service (`scripts/requirements` list is in `scripts/README.md`; service deps in `yolo-service/requirements.txt`).
+- **A browser** for the dashboard — no build step, no npm dependencies.
+- **Optional:** any HTTPS static host for the dashboard; a small CPU server/VPS for `yolo-service` (CPU is enough; the model was trained CPU-only).
+
+## 9. Accounts and external services (you create these yourself)
+
+| Service | Why | Notes |
 |---|---|---|
-| `POST /core/sensor` | WROOM | Sensor payload → synchronous watering decision (≥120 s timeout tolerated for AI latency) |
-| `POST /core/photo` | CAM | Daily photo (multipart JPEG + `battery_percent`), fire-and-forget static ack |
-| `POST /yolo-scan` | CAM | Weekly scan photo (legacy path kept for firmware compatibility), gated by `scan_session_active` |
-| `POST /yolo-scan/done` | CAM | Close scan session → `scan_session_active=false` |
-| `GET /config` | either | Sun times, location, `dry_run_mode`, flash context (`last_lightlevel`, `flash_dark_threshold`), preheat values (`preheat_margin_c`, `preheat_lead_minutes`) — self-healing recompute |
+| Google account + Google Cloud project | Sheets + Drive + OAuth login for the dashboard | Enable **Google Sheets API** and **Google Drive API**; create an OAuth **Web** client; add your origins; client **secret is never used or stored** here. |
+| Google Sheets spreadsheet | The database | Create the five tabs with the exact headers from the data model, or import the seed CSVs from `test-data/dashboard-seed/`. |
+| n8n instance | Runs the workflow | Self-hosted (Docker) or your own server. |
+| OpenRouter account + API key | The AI agents (Gemma) | Needed for the AI branches; deterministic assistant intents work without an LLM call. |
+| Static host (optional) | Dashboard | Any HTTPS host; the owner uses one too. |
+| VPS / small server (optional) | Local classifier (`yolo-service`) | CPU-only, reachable from n8n inside the same Docker network. |
+| Perenual API key (optional) | Advisory species/pest reference for scan treatments | Free tier; the workflow degrades gracefully without it. |
 
-Full request/response JSON for every endpoint is in `Plan.md` §4.
+## 10. Configuration — templates and what stays private
 
-## AI model & prompts
+- **Dashboard:** copy [`dashboard/config.example.js`](dashboard/config.example.js) to `dashboard/config.js` and fill in your client ID, spreadsheet ID and n8n host. The example contains only `<PLACEHOLDER>` values.
+- **Firmware:** each sketch has a `secrets.h` section (`SECRET_WIFI_SSID`, `SECRET_WIFI_PASSWORD`, `SECRET_BASE_URL`, `SECRET_WEBHOOK_PREFIX`). `secrets.h` is git-ignored — **never commit it**. For production use the `/webhook` prefix; `/webhook-test` is for the n8n test listener.
+- **Workflow:** credentials are referenced **by name only**; create them in the n8n UI (see workflow setup).
 
-Every agent node shares one wiring: Gemma via OpenRouter (OpenRouter Chat Model subnode, Responses API disabled, temperature 0.2) with a per-agent strict-JSON `outputParserStructured` schema and `autoFix`. Credentials are referenced by name (created by the owner in the n8n UI) — never hardcoded. Prompt rules are agent-specific (see `Plan.md` §5); two rules apply to **all** agents: their own AgentNotes arrive labeled **UNVERIFIED HYPOTHESES**, and outputs are small, validated schemas so no agent can smuggle instructions into another.
+**Must stay private:** OAuth client secrets, Wi-Fi credentials, OpenRouter/Perenual API keys, n8n API keys, bearer tokens, personal email addresses, and any production-only IDs you do not want public. This repository intentionally contains **no** secrets; a pre-push key scan is documented in section 19.
 
-## Google Sheets database
+## 11. Build order (recommended)
 
-One spreadsheet, six tabs (full column lists and seed values in `Plan.md` §2):
+1. **Clone** this repository.
+2. **Prepare the hardware** (solder/plug sensors, relay, pump, heater per section 7).
+3. **Install dependencies** (Arduino core + libraries, n8n, Python for the service/scripts).
+4. **Configure services**: Google Cloud APIs + OAuth client; n8n instance; OpenRouter key.
+5. **Create the storage schema**: five tabs with exact headers (or import `test-data/dashboard-seed/*.csv` into a *test* spreadsheet first).
+6. **Configure the workflow**: import `workflows/phytoai.json`, create the credentials by name, set your sheet/folder IDs in SystemConfig.
+7. **Flash the firmware**: first `firmware/wroom_calibration/` (bench, calibrate, record values), then `firmware/wroom_production/` after filling `secrets.h` and your bench constants.
+8. **Test device data**: watch the serial monitor, then confirm rows appear in `Events`.
+9. **Deploy the dashboard**: copy config, serve statically, sign in, verify data.
+10. **Test notifications**: in-app centre first, then the optional browser alerts in Settings.
+11. **Troubleshoot** with section 19.
 
-- **`Events`** — raw episodic history, one row per sensor/photo event; `ReasoningSummary` must cite concrete historical values.
-- **`SystemConfig`** — key/value store incl. `dry_run_mode`, `min_rewater_interval_hours`, `camera_battery_percent` + `camera_battery_min_percent` (default `30`, user-tunable), `scan_session_active`, sun times, species; `last_watered_utc` provisional until firmware confirms pump completion.
-- **`DiseaseScans`** — the new scan-panel schema: drive links, vision + YOLO opinions, judge verdict + reasoning, treatment plan, user verdict, treatment outcome.
-- **`Notifications`** — the HITL queue: pending rows with `resume_url`, `response_options`, `response`, `context_ref`, status `pending/done/expired`.
-- **`PushSubscriptions`** — Web Push subscription registry (written by the dashboard, read by n8n).
-- **`AgentNotes`** — working memory (see memory layers).
+## 12. Firmware setup
 
-(`BranchMap` was deleted entirely — no servo positioning remains.)
+- **Board:** ESP32-WROOM dev module (FQBN `esp32:esp32:esp32` for ESP32 Dev Module in the ESP32 core; the CAM uses `esp32:esp32:esp32cam`).
+- **Libraries:** see section 8.
+- **Pins:** the table in section 7 (do not use ADC2 pins for analog sensors while Wi-Fi is active — that is why soil is on GPIO34).
+- **Wi-Fi / server:** fill `secrets.h`. `SECRET_BASE_URL` is the HTTPS base of your n8n instance (e.g. your tunnel/domain); `SECRET_WEBHOOK_PREFIX` = `/webhook` for production.
+- **Calibration (`firmware/wroom_calibration/`):** serial menu at 115200; `t` tares, `w` runs the two-point calibration (empty platform → known grams; factor = offset-compensated raw / grams), `e` runs the bench heater test (submerged only). Measured reference values: scale factor `1068.335`, `SOIL_ADC_DRY 4095`, `SOIL_ADC_WET 1964`, pump flow `9.706 ml/s`, tank LOW = empty, relay active-low. The historical factor `305.070f` was computed with a broken read and **must not be reused**.
+- **Safe restart behaviour:** relay OFF at boot; 8 s watchdog; actuator hard cap 120 s; heater 40.0 °C cutoff / 39.5 °C refuse; `dry_run_mode` in SystemConfig zeroes all actuation fields, so a fresh system cannot move anything until you turn it off intentionally.
+- **Verify output:** serial log shows Wi-Fi + NTP + sensor values; `Events` rows appear after a sensor cycle; the decision response is printed by the firmware.
 
-## Dashboard
+## 13. Camera setup
 
-The single place where everything about the plant lives.
+- **Power:** the camera is **wired-only** in the owner's build (owner-verified). Give the ESP32-CAM its own stable 5 V supply; do not try to power it from a spare GPIO or from the WROOM board's regulator. Legacy battery fields (`camera_battery_percent`, `camera_battery_min_percent`, the battery test in `PRODUCTION-TESTS.md`) are leftovers from an earlier design and are obsolete.
+- **Optional:** yes — levels A and B of section 6 work without a camera.
+- **How images reach the pipeline:** the CAM posts a daily photo to `POST /webhook/core/photo` and a weekly scan photo to `POST /webhook/yolo-scan` (session-gated), then closes the session with `/webhook/yolo-scan/done`. Photos land in Google Drive; the workflow analyses them (vision agent + local YOLO service) and writes the outcome to `DiseaseScans`.
+- **Limitations:** one camera cannot see all leaves of a large plant (the owner’s stated weakness); framing is fixed and only manually adjustable; per-photo capture reason and light condition are **not persisted**; the vision verdict is an unverified AI hypothesis until the owner confirms it.
 
-- **Minimal version (built first, required to replace Telegram):** current plant status card; event history; scan reports with Drive images; pending Notifications with working buttons that call the stored resume URLs (log `response`, mark `status=done`); free-text corrections; 👍/👎 on watering decisions; user-verdict and treatment-outcome feedback for scans.
-- **Full version (later):** charts/trends of all sensor history, full disease history, AgentNotes/profile visibility, camera battery status, service-worker Web Push.
-- **Stack:** static HTML/CSS/JS on GitHub Pages; Sheets API for reads (OAuth for writes); dashboard → n8n resume calls through a **persistent named Cloudflare tunnel** (quick-tunnel URLs change on every restart and would invalidate stored resume URLs).
+## 14. Data model
 
-### Implementation (`dashboard/`)
+One spreadsheet, **five tabs** (headers exactly as in `test-data/dashboard-seed/`):
 
-- `dashboard/index.html`, `dashboard/styles.css`, `dashboard/app.js` — no build step, no dependencies.
-- `dashboard/config.js` — the only file to edit: Google OAuth **client ID** and spreadsheet ID (already set to the fixed `10a3YXWBN4-hFJQQT4sLERmyu8D2TxYKNkXW-k3QRyLI`).
-- **Flow:** `Connect Google` → Google Identity Services token (scopes `spreadsheets` + `drive.readonly`, token kept in `sessionStorage`) → reads `SystemConfig`, `Events`, `Notifications`, `DiseaseScans` via the Sheets API v4 → renders the four sections.
-- **Answering a question:** button click calls the stored `resume_url` with `?response=<label>&comment=<text>` (the exact contract the Wait nodes read), then the dashboard writes `status=done` + `response` back to the `Notifications` row (columns resolved by header name). The workflow itself also updates `Notifications` and logs `user_verdict`/`treatment_outcome` to `DiseaseScans` when resumed.
-- **Push is intentionally not in the minimal version** — Change 6 lists service-worker Web Push under the FULL version, so it stays deferred with the full dashboard.
-- **Setup:** enable Sheets API + Drive API in a Google Cloud project; create an OAuth Client ID (type *Web application*) with authorized JavaScript origins `https://<your-username>.github.io` (and `http://localhost:8000` for local testing); put the client ID in `config.js`; add yourself as a test user on the OAuth consent screen (Testing mode is fine for a single owner). For local preview: `npx serve dashboard` (or any static server). For production: GitHub Pages from the repo root/folder.
-- **Tunnel requirement:** resume URLs stored in `Notifications` are absolute and point at the n8n tunnel — the persistent named Cloudflare tunnel must be configured before the workflow produces real rows.
+**`Events`** — one row per sensor/photo event:
+`EventID, Timestamp, EventType, MoisturePercent, SoilTempC, WaterTempC, AirTempC, AirHumidityPercent, WeightGrams, LightLevel, TankEmpty, WateringTriggered, WaterDurationSeconds, HeaterUsed, HeaterDurationSeconds, SpeciesGuess, SpeciesConfidence, PhotoFileID, AnomalyDetected, AnomalyDescription, AI_Notes, ReasoningSummary, WateringAborted, FinalWaterTempC, WaterAddedGrams`
 
-## Web Push
+**`SystemConfig`** — key/value store. Reference keys (from the seed set): `pot_latitude`, `pot_longitude`, `last_watered_utc`, `last_species_guess`, `species_confidence`, `next_sunrise_utc`, `next_sunset_utc`, `last_tank_empty_alert_sent`, `dry_run_mode`, `min_rewater_interval_hours`, `scan_session_active`, `max_pump_seconds`, `max_water_temp_c`, `preheat_margin_c`, `preheat_lead_minutes`, `heater_hysteresis_c`, `flash_dark_threshold`, plus optional `camera_battery_*`, `drive_*_folder_id`, `push_vapid_public_key` (unused today).
 
-The dashboard registers a service worker and a VAPID push subscription, stored in `PushSubscriptions`. n8n sends browser push notifications for urgent events only: tank empty, low camera battery, disease/anomaly detected, scan verdicts. This (like resume URLs) requires the persistent named tunnel.
+**`DiseaseScans`** — scan results:
+`timestamp, drive_links, vision_opinion, yolo_opinion, judge_verdict, judge_reasoning, treatment_plan, user_verdict, treatment_outcome, ai_notes`
 
-## The dataset flywheel
+**`Notifications`** — the human-in-the-loop queue:
+`timestamp, type, title, message, response_options, status, response, resume_url, context_ref` (status: `pending` → `done`/`expired`)
 
-Every weekly scan logs the photo plus the vision opinion, the YOLO opinion, the judge's verdict, and the owner's verification — human-verified gold labels accumulating with zero extra effort, destined for later YOLO fine-tuning on *this* plant's real home conditions. Public lab datasets (PlantVillage-style) transfer poorly to real home lighting and backgrounds, which is exactly why self-accumulated data matters.
+**`AgentNotes`** — agent working memory:
+`timestamp, agent, note, context_ref, status`
 
-## Repository map
+Full schemas and seeds: `docs/Plan.md` §2 and `test-data/dashboard-seed/`.
 
-- `Plan.md` — the canonical plan: schemas, workflow structure, prompts, webhook contracts, manual prerequisites, open questions.
-- `SmartPot-Full-Engineering-Spec-PRD.md` — the full engineering specification (hardware, wiring, firmware behavior, safety notes).
-- `phytoai-workflowone.json` — n8n export of the workflow; the live instance in n8n is the source of truth.
-- `phytoai-workflowone.backup.json` — pre-redesign backup of the workflow.
-- `dashboard/` — minimal static dashboard (HTML/CSS/JS, no build step); setup in the Dashboard section.
-- `Hardware/` — hardware documentation (parts list, wiring notes).
-- `phytoai-redesign-prompt.md` — the redesign spec this architecture was rebuilt from.
+## 15. Important semantics
 
-## Current status / what's next
+- **Measured vs estimated:** `ml_est` in the dashboard is an **estimate** from pump runtime × calibrated flow (`9.706 ml/s` reference) and is labelled as such. The **measured** weight delta is handled separately; it is currently **device-log only** — the workflow does not persist it, so the `WaterAddedGrams` column deliberately stays empty.
+- **NOT-PERSISTED fields:** measured water delta (log only), capture reason and per-photo light condition, and raw resume-URL texts beyond `Notifications.resume_url`.
+- **Timestamps:** UTC ISO-8601, all ending in `Z`.
+- **Units:** moisture %, temperatures °C, weight g, light raw digital (0/1), durations s, flow ml/s.
+- **Calibration values:** scale factor, soil dry/wet ADC, pump flow, DS18B20 addresses, relay polarity, tank level semantics — all measured on the bench (`docs/hw-bench-2026-09-15.md`); recalibrate for your own hardware.
+- **Safety boundaries:** firmware hard limits (40.0 °C cutoff, 39.5 °C refuse, 120 s actuator cap, 8 s WDT) are authoritative over everything; the workflow’s guardrails (tank-empty forces watering off, `min_rewater_interval_hours`, `max_pump_seconds`, `max_water_temp_c`, `dry_run_mode`) are authoritative over AI output; the AI is advisory only. No AI output can override the code guardrails.
 
-- [ ] Persistent named Cloudflare tunnel to the n8n instance
-- [ ] n8n credentials created by the owner (Google Sheets, Google Drive, OpenRouter)
-- [ ] Google Sheets tabs created per `Plan.md` §2 (`BranchMap` deleted) — **blocking dependency for the Phase 5 wiring test**
-- [x] Minimal dashboard built (`dashboard/`; OAuth client ID + GitHub Pages deploy still to do)
-- [ ] Minimal dashboard deployed to GitHub Pages (config: see Dashboard section)
-- [ ] Workflow smoke-tested end to end (still inactive, dry-run)
-- [x] ESP32 WROOM calibration/test sketch flashed and running (part 1 DONE — 2026-09-14; boots, Wi-Fi/serial OK)
-- [ ] WROOM sensor verification complete — **PARTIAL**: HX711 blocked on 2 scale-mount screws; heater now wired (CH2/GPIO16) with bench-test command, physical test pending (2026-09-14)
-- [x] HX711 + full bench run complete 2026-09-15, constants recorded in `docs/hw-bench-2026-09-15.md`
-- [ ] **Still open:** (a) `PUMP_FLOW_ML_PER_SEC` repeat run (confirm 9.706, rule out siphon); (b) heater `e` safety drill — 40.0 °C cutoff + 120 s lockout both demonstrably trip
-- [ ] ESP32 WROOM production firmware (sensor routine, NTP re-sync, pump/heater execution)
-- [x] ESP32-CAM test sketch bench-tested (camera init, Wi-Fi connect, webhook upload — 2026-09-14)
-- [x] ESP32-CAM production firmware written + compile-verified (`firmware/esp32cam_production/`; autonomous capture/upload, not flashed)
-- [ ] ESP32-CAM production firmware flashed + end-to-end verified (test plan: `firmware/esp32cam_production/PRODUCTION-TESTS.md`; capture-button debounce still open, Plan §8 Q4)
-- [ ] Full dashboard (charts, history, AgentNotes, battery status, Web Push)
-- [ ] Plant Profile Agent build; YOLO fine-tuning on accumulated gold labels
+## 16. Dashboard
 
-## WROOM bench test (serial menu)
+- **Deployment:** any static HTTPS host (no build step). Locally: `npx serve dashboard` or `python -m http.server` inside `dashboard/`.
+- **Google client:** create a Web OAuth client, add your exact origin, copy the client ID into `config.js` (see `dashboard/config.example.js`).
+- **Production vs test sheet:** `?sheet=<SPREADSHEET_ID>` switches the dashboard to a test spreadsheet (remembered in the browser, banner shown, “Back to production sheet” button). See `docs/dashboard-test-data.md`.
+- **Routes:** Overview, Timeline, Assistant, Doctor, Photos, Insights, Settings.
+- **Browser notification permission:** requested **only** after clicking “Enable browser alerts” in Settings — never on page load. States unsupported / not requested / granted / denied are shown explicitly; denial leaves the in-app centre fully working; permission is never used as backend authorization.
+- **In-app centre:** the Timeline screen lists all `Notifications` rows with severity, source, time, plant context and answer buttons. No read/unread state is invented — status comes from the sheet.
+- **Visible-tab polling limitation:** notifications are polled once a minute **while the tab is visible**; hidden or closed tabs receive nothing.
+- **Closed-site push is not implemented** — there is no service worker and no Web Push. `SystemConfig.push_vapid_public_key` is unused. Details: `docs/dashboard-notifications.md`.
 
-`firmware/wroom_calibration/wroom_calibration.ino` — bench/calibration sketch only: no Wi-Fi/n8n code, no autonomous actuation. Flash, open the serial monitor at 115200, `h` prints the menu.
+## 17. Workflow setup
 
-**Heater test (`e`) — bench only, submerged only.** The 10 W aquarium heater is switched by relay **CH2 (GPIO16)**; the pump stays on CH1 (GPIO13). Wiring: `USB brick 5 V → CH2 COM`, `CH2 NO → heater brown (+)`, `heater blue (−) → USB brick GND`. Press `e` to enter the test session; `e` toggles CH2; while ON it prints elapsed seconds and the water DS18B20 once per second; `x` exits and always forces CH2 OFF. Hard limits (compile-time constants, not settable over serial): **40.0 °C** water auto-cutoff and **120 s** maximum continuous ON, each latching a lockout until MCU reset; CH2 is OFF at boot/reset and refuses to start when the tank is empty or the water probe is invalid. Never run the heater out of water.
+1. Import `workflows/phytoai.json` into your n8n instance.
+2. Create credentials **in the n8n UI** (the export references them by name only): Google Sheets (OAuth2), Google Drive (OAuth2), an OpenRouter credential for the Gemma nodes, and — optionally — a Perenual Query-Auth credential (parameter name `key`).
+3. Set your spreadsheet and folder IDs in `SystemConfig` (`drive_daily_photos_folder_id`, `drive_scan_photos_folder_id`).
+4. Point your devices at your own HTTPS base (`secrets.h`) and use the production `/webhook` prefix.
+5. Test with the n8n editor/test webhook first (the flows tolerate `dry_run_mode=TRUE` end to end).
+6. **Privacy:** the workflow JSON contains no secrets — verify this before sharing any modified export (`Select-String -Path workflows\phytoai.json -Pattern 'key=|api[_-]?key|bearer\s|sk-'`).
 
-**HX711 load cell.** `t` tares; `w` runs the two-point calibration (tare empty platform → place known grams → `factor = offset-compensated raw / grams`). Boot now tares once so `get_units()` no longer shows phantom weight. `HX711_SCALE_FACTOR` ships as `0.0f` (= unset; prints `(unset - run 'w')`) — the previous baked-in value was computed with the broken read and must not be reused; re-calibrate after flashing and record the new factor.
+## 18. Testing and verification checklist
 
-## Known issues / lessons
+**Hardware**
+- [ ] WROOM boots, serial log shows Wi-Fi + NTP + sensor readings.
+- [ ] Sensor values are plausible (compare with a multimeter/reference; soil dry vs wet).
+- [ ] Calibration: run `t` and `w`; record your own factor/dry/wet values.
+- [ ] Tank sensor: LOW = empty confirmed; relay polarity confirmed (dry-run does not actuate).
 
-API/MCP-created Sheets nodes can have empty or legacy-format match columns that render EMPTY in the UI — always verify "Column to match on" visually after MCP edits. Sheet By-name mode works fine at runtime; From-list only affects UI dropdown population.
+**Workflow + storage**
+- [ ] A test sensor POST produces a decision response and an `Events` row.
+- [ ] `dry_run_mode=TRUE` yields actuation fields zeroed in the response.
+- [ ] Guardrails tested (tank empty forces watering off; re-water gap respected).
+- [ ] HITL: a `Notifications` row is created and resuming it marks it `done`.
 
-**Pre-push key scan (mandatory for workflow changes).** Before committing anything under `workflows/`, scan the exported JSON for credential material — e.g. `Select-String -Path workflows/phytoai.json -Pattern 'key=|api[_-]?key|bearer\s|sk-'`. The Perenual API key lives ONLY in the n8n credential `PhytoAI Perenual` (Query Auth, parameter name `key`); it must never appear in workflow JSON, Code nodes, docs, git, or the dashboard. HTTP Request nodes reference credentials by name only — MCP cannot create or read credentials, so after an MCP update the owner must create/select them in the n8n UI.
+**Dashboard**
+- [ ] Loads on your host; sign-in works from your origin.
+- [ ] Data appears (no fake rows) and the test-sheet override shows its banner.
+- [ ] Charts render at phone and desktop widths.
+- [ ] Browser permission asks only after the Settings click; granted/denied/unsupported states render.
+- [ ] A new critical notification raises at most one system alert, and never repeats after refresh.
+- [ ] Error handling is honest: quota shows a countdown, never fabricated data.
+
+**Camera (optional, after flashing)**
+- [ ] Follow `firmware/esp32cam_production/PRODUCTION-TESTS.md` (14 tests; several require hardware and end-to-end).
+
+## 19. Troubleshooting
+
+Confirmed issues and lessons:
+
+- **Sheets nodes created via API can have empty/legacy “Column to match on”** — always verify it visually in the n8n UI after programmatic edits.
+- **A stale pin map circulated in an early brief** (pump 4, HX711 5/25, OneWire 13, soil 26). It is wrong; use section 7.
+- **The old HX711 factor `305.070f` is invalid** (computed with a broken, non-offset-compensated read). Use your own calibrated factor (reference: `1068.335`).
+- **Heater did not work at first** because the relay’s coil supply was insufficient — the owner added a dedicated supply. If your heater stays off, check relay power, polarity and the firmware’s refuse/ cutoff conditions.
+- **Frequent HTTPS test calls were blocked by a home router** during development; if device uploads fail while the server is reachable, check your router’s security/DoS settings.
+- **Dashboard API calls fail while data exists** — the signed-in Google account must have access to the spreadsheet and the Drive folders; that sharing is the access boundary.
+- **Workflow webhook returns 404** — the workflow must be active (or you must use the test listener + `/webhook-test` prefix).
+- *Requires verification:* items in `STATUS.md` §5/§6 record open hardware questions (relay board specifics, power supply, free GPIOs); treat those as open until measured on your own build.
+
+## 20. Privacy and security
+
+- **No secrets in this repository.** `secrets.h`, `opencode.json`, `mcp-auth.json`, `.env*`, `client_secret_*.json`, `*.pem`, `*.key` and `yolo-service/models/` are git-ignored.
+- **OAuth client ID vs client secret:** the ID is public by design and appears in `config.js`; the secret is never used — the dashboard performs user OAuth only.
+- **Spreadsheet sharing:** data access is controlled by sharing the sheet/Drive with the signed-in account; the dashboard cannot read anything you did not share.
+- **Webhook URLs:** treat your n8n base URL as private infrastructure. This README uses `<PLACEHOLDER>`s; do not paste live webhook URLs into issues.
+- **Personal data:** the system stores plant data, not personal profiles. Avoid putting personal email addresses into public configs (the login hint field ships empty).
+- **Test vs production separation:** use a second spreadsheet (`?sheet=` override) for experiments; the seed pack in `test-data/dashboard-seed/` is safe test data.
+
+## 21. Limitations and future work
+
+Known limitations (owner-assessed): Wi-Fi and a server are required; one camera cannot cover very large plants; sensor calibration takes time; the system has not yet run continuously on a live plant; closed-site push is not implemented.
+
+Planned/ideas (owner-selected, not implemented): peristaltic dosing pump for AI-controlled nutrient/treatment dosing · water-cooling module (fan + Peltier) for hot summers · rechargeable battery pack built from discarded vape cells · standalone Wi-Fi variant for locations without internet · multiple ESP32-CAMs for large plants · garden and multi-plant scaling.
+
+## 22. Project documentation (BWKI)
+
+- German BWKI answers (owner-approved draft with exact character counts) live under `docs/` (added together with this documentation set); the video-pitch outline is added the same way.
+- Engineering plan and schemas: `docs/Plan.md`; current state: `STATUS.md`; hardware: `docs/SmartPot-Full-Engineering-Spec-PRD.md`.
+
+## 23. License and attribution
+
+- **License:** MIT — see [LICENSE](LICENSE). © 2026 Mohammad Abdin.
+- **Dataset:** PlantVillage color images by spMohanty (`spMohanty/PlantVillage-Dataset`). Check the dataset's own terms before redistribution.
+- **Model/library:** Ultralytics YOLOv8 (check Ultralytics' license terms for your use case), FastAPI, n8n, Google APIs — each under its own license.
+- **Illustrations:** unDraw SVGs in `dashboard/assets/` (unDraw license).
+
+## 24. Contributing / build your own
+
+This is a solo learning/competition project; it is shared so others can build their own version. Practical ways to help: report reproducible bugs, improve documentation, or adapt the workflow for different plants. Please keep credentials and personal data out of issues and pull requests, and describe which build level (section 6) you used. No support guarantees are given, and nothing here is production-certified.

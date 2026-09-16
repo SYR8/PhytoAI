@@ -15,8 +15,9 @@ window.PHYTOAI_CONFIG = {
   /* Public by design (OAuth Web client ID); client secrets never belong here. */
   clientId: '515418269010-ensbsq2skmsrsk3npg9quupqt76rboc2.apps.googleusercontent.com',
   /* login suggestion only — Google account chooser still decides; users can select a different account.
-     Empty/absent = the hint parameter is omitted entirely. */
-  GOOGLE_LOGIN_HINT: 'zibrahimzaki7@gmail.com',
+     Empty/absent = the hint parameter is omitted entirely. Never put a personal email address here
+     in a public repository; leave it empty. */
+  GOOGLE_LOGIN_HINT: '',
   /* Spreadsheet of record (production). Owner-tooling override precedence:
    *   1) ?sheet=<SPREADSHEET_ID> in the URL (ID shape validated, then remembered)
    *   2) localStorage key 'phytoai_sheet_override' (set by the URL parameter)

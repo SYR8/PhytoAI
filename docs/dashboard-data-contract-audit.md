@@ -206,7 +206,7 @@ view (debug), per the brief's adapter requirement.
   (public Web client ID; safe to commit) — the authorized JavaScript origin above must be configured **in the
   same Google Cloud project that owns this client ID**.
 - **Data sharing is the access boundary:** the spreadsheet and both Drive folders must be shared with the
-  signed-in Google account (owner intends `zibrahimzaki7@gmail.com`). Without that sharing the dashboard
+  signed-in Google account (the owner's own account). Without that sharing the dashboard
   loads but every data call fails — by design, nothing is faked.
 - **Secrets:** the client ID is public; **client secrets never belong in this repo or in dashboard files**.
   The dashboard performs user-OAuth only; no server-side secret exists.
