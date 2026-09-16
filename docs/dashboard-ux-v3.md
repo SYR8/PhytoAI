@@ -146,6 +146,52 @@ Auth guard coverage: exec **745** (wrong audience denied before any Sheets read;
 (over-length question rejected before reads). Assistant endpoint denial/empty paths verified at workflow
 level.
 
+## 2026-09-16 — assistant response-path fix (deployed symptom: success shown as failure)
+
+**Symptom:** the n8n execution for `POST /dashboard/ask` completed with the correct reply, but the dashboard
+showed the generic “assistant unreachable (network or CORS)” error; retries then pushed Sheets reads into
+quota exhaustion.
+
+**Live capture (curl against the deployed endpoint, `Origin: https://phytoai.edgeone.dev`, no token → deny
+path runs before any Sheets read so it costs no quota):**
+- `OPTIONS /webhook/dashboard/ask` → `204`, `access-control-allow-origin: https://phytoai.edgeone.dev`,
+  `access-control-allow-headers: authorization,content-type`, `access-control-allow-methods: OPTIONS, POST`.
+- `POST` → `200`, `Content-Type: application/json; charset=utf-8`,
+  `access-control-allow-origin: https://phytoai.edgeone.dev`.
+- Body is a plain JSON object (documented shape), e.g.
+  `{"ok":false,"denied":true,"answer":"I cannot answer that reliably…","answer_type":"unavailable","needs_more_data":true,"warnings":["missing_authorization"],"generated_at_utc":"…"}`.
+- Success path body (captured from execution `743`, the exact `Dash Ask Respond` input): plain object with
+  all nine documented fields (`ok`, `answer`, `answer_type`, `generated_at_utc`, `data_as_of_utc`,
+  `confidence`, `evidence`, `warnings`, `needs_more_data`) — no nesting, no double-encoding, no array.
+
+**Root causes (frontend, not n8n):**
+1. **Client aborted at 15 s** while the AI path legitimately takes ~20–60 s — the browser rejected the
+   request, the workflow kept working and finished successfully. (`assistantTimeoutMs: 15000`.)
+2. **Generic error masking:** every non-timeout fetch rejection rendered “unreachable (network or CORS)”,
+   hiding the real condition.
+3. **Shape check too strict after the fix:** requiring `answer` on every endpoint rejected the documented
+   overview (`summary`) and detection (`detection`) shapes — found by the regression probe and made
+   route-aware.
+
+**Fix (dashboard only; no n8n contract change):**
+- Timeouts aligned to real latency, hard caps: `assistantTimeouts: { ask: 60000, overview: 25000, detection: 25000 }`.
+- Full failure taxonomy: 2xx valid JSON renders; 2xx invalid/missing-shape → “replied in an unexpected
+  format”; 401/403 and the workflow's 2xx `warning: missing_authorization|wrong_audience` denials →
+  “session expired — reconnect”; 404 → “workflow is not published at this endpoint”; 429 and the workflow's
+  `rate_limited` warning → “temporarily busy; try again in a minute”; 5xx → “workflow failed; see the
+  execution”; fetch `TypeError` → “Browser could not access the endpoint”; abort → “still working (longer
+  than N s)” with a pointer to the execution.
+- Send button + input disabled while a request is in flight (single-flight guard also blocks Enter-key
+  duplicates); client cooldown after failures (`failure 15 s`, `busy 60 s`) so retries cannot create a
+  Sheets read storm; no tokens, headers, sheet data or private responses are logged.
+
+**Validation:** scenario-driven headless suite (stubbed transport, 1.2 s timeout override) — valid JSON
+renders the answer; malformed JSON, 401, 403, 404, 429, 500, blocked fetch, 2xx deny, busy cooldown,
+duplicate-click and delayed-response-timeout all render their exact classified messages; duplicate clicks
+increment the request count by exactly **1**; cooldown blocks retries with **0** new requests; 0 console
+errors. Full v3 layout probe re-run: PASS (all routes, 5 widths, themes, reduced motion). Static smoke
+8/8. Live CORS/HTTP verified from the EdgeOne origin.
+
 ## Still missing / not yet real
 
 - **The endpoints are not reachable over HTTP until the workflow is activated** — the dashboard currently

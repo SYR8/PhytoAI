@@ -69,6 +69,13 @@ window.PHYTOAI_CONFIG = {
     overview: '/webhook/dashboard/overview',
     detection: '/webhook/dashboard/detection'
   },
-  assistantTimeoutMs: 15000,
+  /* Client patience must outlast real workflow time: an AI synthesis can take
+   * 20-60 s (agent + parser + bounded context). The browser used to abort at
+   * 15 s while n8n kept working - the execution succeeded and the UI showed an
+   * error. These are hard caps, not targets. */
+  assistantTimeouts: { ask: 60000, overview: 25000, detection: 25000 },
+  /* Failures throttle retries so a refresh storm cannot hammer Sheets reads.
+   * `busy` applies to rate-limit/'temporarily busy' responses. */
+  assistantCooldownMs: { failure: 15000, busy: 60000 },
   plantId: 'default'
 };

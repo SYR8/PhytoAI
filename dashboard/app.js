@@ -71,7 +71,7 @@
     token: null, tokenExpiry: 0, tokenClient: null, sheetId: null,
     cfg: {}, events: [], notifications: [], scans: [], notes: [], images: [], media: {}, meta: {},
     theme: 'botanical', route: 'overview', range: null, imageFilter: 'all', severityFilter: 'all', statusFilter: 'all',
-    chartsExpanded: false, timelineExpanded: false, viewerReturnFocus: null, loadErrors: [],
+    chartsExpanded: false, timelineExpanded: false, viewerReturnFocus: null, loadErrors: [], askInFlight: false, askCooldownUntil: 0,
     ai: { overview: null, overviewAi: null, detection: null, loading: {}, loaded: {} }
   };
 
@@ -514,12 +514,16 @@
     var path = (CFG.assistantRoutes || {})[route];
     return base && path ? base + path : null;
   }
+  function assistantTimeoutMs(route) {
+    var per = (CFG.assistantTimeouts || {})[route];
+    return Number(per || CFG.assistantTimeoutMs || 60000);
+  }
   function assistantFetch(route, opts) {
     var url = assistantUrl(route);
     if (!url) return Promise.resolve({ ok: false, error: 'not_configured' });
     if (!state.token) return Promise.resolve({ ok: false, error: 'not_signed_in' });
     var ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
-    var timer = setTimeout(function () { if (ctrl) ctrl.abort(); }, Number(CFG.assistantTimeoutMs || 15000));
+    var timer = setTimeout(function () { if (ctrl) ctrl.abort(); }, assistantTimeoutMs(route));
     var init = {
       method: opts.method,
       headers: Object.assign({ Authorization: 'Bearer ' + state.token }, opts.body ? { 'Content-Type': 'application/json' } : null),
@@ -530,26 +534,54 @@
       clearTimeout(timer);
       return res.text().then(function (txt) {
         var json = null;
-        try { json = JSON.parse(txt); } catch (err) { json = null; }
-        if (res.status === 404) return { ok: false, error: 'inactive', status: res.status };
-        if (res.status === 401 || res.status === 403) return { ok: false, error: 'denied', status: res.status, json: json };
-        if (!res.ok) return { ok: false, error: 'http_' + res.status, status: res.status, json: json };
-        if (!json) return { ok: false, error: 'bad_json', status: res.status };
-        return Object.assign({ ok: !!json.ok, json: json }, json);
+        var parsed = true;
+        try { json = JSON.parse(txt); } catch (err) { parsed = false; json = null; }
+        var st = res.status;
+        if (st === 401 || st === 403) return { ok: false, error: 'auth', status: st, json: json };
+        if (st === 404) return { ok: false, error: 'inactive', status: st };
+        if (st === 429) return { ok: false, error: 'busy', status: st, json: json };
+        if (st >= 500) return { ok: false, error: 'server', status: st, json: json };
+        if (st < 200 || st >= 300) return { ok: false, error: 'http_' + st, status: st, json: json };
+        if (!parsed || json === null) return { ok: false, error: 'bad_json', status: st };
+        if (Array.isArray(json) || typeof json !== 'object') return { ok: false, error: 'bad_shape', status: st };
+        // Documented per-endpoint shapes (docs/dashboard-ux-v3.md): ask has answer,
+        // overview has summary, detection carries a detection field (null is valid).
+        var shapeOk = typeof json.ok === 'boolean';
+        if (shapeOk && route === 'ask') shapeOk = typeof json.answer === 'string';
+        else if (shapeOk && route === 'overview') shapeOk = typeof json.summary === 'string';
+        else if (shapeOk && route === 'detection') shapeOk = json.ok === false || Object.prototype.hasOwnProperty.call(json, 'detection');
+        if (!shapeOk) return { ok: false, error: 'bad_shape', status: st, json: json };
+        return Object.assign({ ok: json.ok, error: null, status: st, json: json }, json);
       });
     }).catch(function (err) {
       clearTimeout(timer);
-      var e = String(err && err.name === 'AbortError' ? 'timeout' : 'network');
-      return { ok: false, error: e };
+      var aborted = err && (err.name === 'AbortError' || err.code === 20);
+      return { ok: false, error: aborted ? 'timeout' : 'blocked' };
     });
   }
-  function assErrorText(r) {
-    if (r.error === 'inactive') return 'The assistant endpoints are not live yet — the workflow is currently inactive. Nothing is faked while it is off.';
-    if (r.error === 'denied') return 'The workflow rejected this sign-in (token not valid for this dashboard). Sign in again or check the OAuth configuration.';
-    if (r.error === 'timeout') return 'The assistant took too long to answer — try again.';
-    if (r.error === 'not_signed_in') return 'Sign in with Google to use the assistant.';
-    if (r.error === 'not_configured') return 'No assistant endpoint is configured for this deployment.';
-    return 'The assistant is unreachable right now (network or CORS). Try again later.';
+  /* The workflow returns 2xx JSON with ok:false for denied/rate-limited calls
+   * (contract unchanged) — classify those by their warnings. */
+  function classifyDeny(json) {
+    var w = (json && Array.isArray(json.warnings)) ? json.warnings : [];
+    if (w.indexOf('missing_authorization') >= 0 || w.indexOf('wrong_audience') >= 0 || w.indexOf('token_expired_or_invalid') >= 0 || w.indexOf('insufficient_scope') >= 0) return 'auth';
+    if (w.indexOf('rate_limited') >= 0) return 'busy';
+    if (w.indexOf('token_verification_unavailable') >= 0) return 'verify_unavailable';
+    return null;
+  }
+  function assErrorText(r, route) {
+    var e = r && r.error;
+    if (e === 'inactive') return 'The assistant workflow is not published at this endpoint.';
+    if (e === 'auth') return 'Your Google session expired — reconnect to continue.';
+    if (e === 'busy') return 'Plant data is temporarily busy; try again in a minute.';
+    if (e === 'server') return 'The assistant workflow failed; see the workflow execution for details.';
+    if (e === 'bad_json' || e === 'bad_shape') return 'The assistant replied in an unexpected format.';
+    if (e === 'timeout') return 'The assistant is still working (longer than ' + Math.round(assistantTimeoutMs(route || 'ask') / 1000) + ' s). The reply may already exist in the workflow execution — try again.';
+    if (e === 'blocked') return 'Browser could not access the endpoint.';
+    if (e === 'not_signed_in') return 'Sign in with Google to use the assistant.';
+    if (e === 'not_configured') return 'No assistant endpoint is configured for this deployment.';
+    if (e === 'verify_unavailable') return 'The workflow could not verify your session just now — try again.';
+    if (e && String(e).indexOf('http_') === 0) return 'The assistant returned an unexpected HTTP status (' + String(e).slice(5) + ').';
+    return 'The assistant could not answer right now — try again.';
   }
   function askPlant(question, route) {
     return assistantFetch('ask', { method: 'POST', body: { plant_id: CFG.plantId || 'default', question: question, context: { route: route || 'overview', client_time_utc: new Date().toISOString() } } });
@@ -592,16 +624,38 @@
     host.innerHTML = askTemplate(hostId, placeholder);
     host.setAttribute('data-route-name', routeName);
   }
+  function askBusy(hostId) {
+    var host = $(hostId);
+    if (!host) return;
+    var btn = host.querySelector('.ask-go');
+    var input = $(hostId + '-input');
+    var busy = !!state.askInFlight;
+    if (btn) { btn.disabled = busy; btn.textContent = busy ? 'Asking…' : 'Ask'; }
+    if (input) input.disabled = busy;
+  }
+  function cooldownLeftMs() { return Math.max(0, (state.askCooldownUntil || 0) - Date.now()); }
   function askSubmit(hostId) {
     var host = $(hostId);
     if (!host) return;
+    if (state.askInFlight) return;                    // duplicate-click / parallel-request guard
     var input = $(hostId + '-input');
     var result = $(hostId + '-result');
+    var left = cooldownLeftMs();
+    if (left > 0) {
+      result.hidden = false;
+      result.innerHTML = '<p class="ask-state">Cooling down — try again in ' + Math.ceil(left / 1000) + ' s.</p>';
+      return;
+    }
     var q = (input.value || '').trim();
     if (q.length < 3) { result.hidden = false; result.innerHTML = '<p class="ask-state">Ask at least a few words so the assistant has something to work with.</p>'; return; }
+    state.askInFlight = true;
+    askBusy(hostId);
     result.hidden = false;
     result.innerHTML = '<p class="ask-state">Thinking…</p>';
     askPlant(q, host.getAttribute('data-route-name') || 'overview').then(function (r) {
+      state.askInFlight = false;
+      askBusy(hostId);
+      var denyKind = (r.status >= 200 && r.status < 300 && r.json && r.json.ok === false) ? classifyDeny(r.json) : null;
       if (r.ok && r.answer) {
         var conf = typeof r.confidence === 'number' ? Math.round(r.confidence * 100) + '%' : '—';
         var typeLabel = r.answer_type === 'ai_summary' ? 'AI summary (unverified)' : r.answer_type === 'deterministic' ? 'Direct from your data' : 'Unavailable';
@@ -613,13 +667,24 @@
           '<div class="ask-meta"><span>' + escapeHtml(typeLabel) + '</span><span>confidence ' + escapeHtml(conf) + '</span>' +
           '<span>data as of ' + escapeHtml(r.data_as_of_utc ? fmtWhen(parseDate(r.data_as_of_utc)) : '—') + '</span></div>' + warnings + evidence;
         result.querySelector('.ask-answer').textContent = String(r.answer);
-      } else if (r.json && r.json.answer) {
-        result.innerHTML = '<p class="ask-answer"></p><div class="ask-warnings"></div>';
-        result.querySelector('.ask-answer').textContent = String(r.json.answer);
-        result.querySelector('.ask-warnings').textContent = (r.json.warnings || []).join(', ') || 'The assistant could not answer reliably.';
-      } else {
-        result.innerHTML = '<p class="ask-state">' + escapeHtml(assErrorText(r)) + '</p>';
+        return;
       }
+      if (denyKind) {
+        // Documented 2xx denial (auth / rate limit) — classified, not generic.
+        var cooldown = denyKind === 'busy' ? (CFG.assistantCooldownMs || {}).busy : (CFG.assistantCooldownMs || {}).failure;
+        state.askCooldownUntil = Date.now() + Number(cooldown || 15000);
+        result.innerHTML = '<p class="ask-state">' + escapeHtml(assErrorText({ error: denyKind })) + '</p>' +
+          '<div class="ask-warnings">workflow note: ' + escapeHtml((r.json.warnings || []).join(', ')) + '</div>';
+        return;
+      }
+      var cooldownMs = r.error === 'busy' ? (CFG.assistantCooldownMs || {}).busy
+        : r.error === 'timeout' ? 0
+        : (CFG.assistantCooldownMs || {}).failure;
+      if (cooldownMs) state.askCooldownUntil = Date.now() + Number(cooldownMs);
+      result.innerHTML = '<p class="ask-state">' + escapeHtml(assErrorText(r, 'ask')) + '</p>' +
+        (r.json && r.json.answer ? '<div class="ask-warnings"></div>' : '') ;
+      var note = result.querySelector('.ask-warnings');
+      if (note) note.textContent = String(r.json.answer);
     });
   }
 
@@ -712,7 +777,7 @@
       var asOf = r.json.data_as_of_utc ? fmtWhen(parseDate(r.json.data_as_of_utc)) : '—';
       meta.textContent = (r.json.answer_type === 'ai_summary' ? 'AI summary (unverified)' : 'from your data') + ' · data ' + asOf;
     } else {
-      el.textContent = assErrorText(r || { error: 'network' });
+      el.textContent = assErrorText(r || { error: 'blocked' }, 'overview');
       meta.textContent = '';
     }
   }
@@ -904,7 +969,7 @@
     }
     if (!r || !r.ok) {
       status.textContent = 'assistant unavailable';
-      host.innerHTML = '<p class="ask-state">' + escapeHtml(assErrorText(r || { error: 'network' })) + '</p>' +
+      host.innerHTML = '<p class="ask-state">' + escapeHtml(assErrorText(r || { error: 'blocked' }, 'overview')) + '</p>' +
         '<p class="muted small">Detections come from persisted DiseaseScans rows through the workflow — nothing is faked while the endpoint is off.</p>';
       renderDetectionHistory([]);
       return;
@@ -1051,7 +1116,7 @@
       $('insights-changed').textContent = '—'; $('insights-check').textContent = '—'; $('insights-freshness').textContent = '';
       $('insights-evidence-wrap').hidden = true;
     } else if (!r || !r.ok || !r.json.summary) {
-      summary.innerHTML = '<span class="ask-state">' + escapeHtml(assErrorText(r || { error: 'network' })) + '</span>';
+      summary.innerHTML = '<span class="ask-state">' + escapeHtml(assErrorText(r || { error: 'blocked' }, 'overview')) + '</span>';
       $('insights-changed').innerHTML = '—'; $('insights-check').innerHTML = '—';
       $('insights-freshness').textContent = '';
       $('insights-evidence-wrap').hidden = true;
@@ -1084,7 +1149,7 @@
     var r = state.ai.overview;
     var rows = [
       ['Assistant endpoint', assistantUrl('ask') || 'not configured'],
-      ['Access check', (state.ai.loaded.overview ? (r && r.ok ? 'reachable' : assErrorText(r || { error: 'network' })) : 'checking…')],
+      ['Access check', (state.ai.loaded.overview ? (r && r.ok ? 'reachable' : assErrorText(r || { error: 'blocked' }, 'overview')) : 'checking…')],
       ['Auth model', 'your Google token, verified server-side (no keys in the browser)'],
       ['Workflow', 'phytoai — endpoints live only while the workflow is active']
     ];
