@@ -1,0 +1,4 @@
+timestamp,agent,note,context_ref,status
+2026-09-04T06:12:00Z,Decision Agent,"SAMPLE DATA - moisture trend suggested watering; history cites prior dry-down (test pack, not a real plant)",test-pack,active
+2026-09-08T06:12:00Z,History Analyst,"SAMPLE DATA - weight decline matches slow evaporation between cycles (test pack, not a real plant)",test-pack,active
+2026-09-12T06:25:00Z,Vision Analyst,"SAMPLE DATA - spot observed but confidence is low; recommend monitoring (test pack, not a real plant)",test-pack,active

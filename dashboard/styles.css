@@ -112,6 +112,13 @@ main { max-width: 1280px; margin: 0 auto; padding: 18px 22px 70px; display: grid
 .banner.error { border-color: var(--bad); color: #ffd9d6; background: var(--bad-soft); }
 .banner.warn { border-color: var(--warn); color: #ffedcc; background: var(--warn-soft); }
 
+.sheet-banner {
+  display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap;
+  border: 1px solid var(--warn); background: var(--warn-soft); color: var(--text);
+  border-radius: var(--radius); padding: 10px 14px; font-size: 14px;
+}
+.sheet-banner code { color: var(--warn); font-family: var(--mono); }
+
 .panel { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius);
   padding: 18px; box-shadow: var(--shadow); }
 .panel-head { display: flex; align-items: center; justify-content: space-between; gap: 12px; margin-bottom: 14px; flex-wrap: wrap; }

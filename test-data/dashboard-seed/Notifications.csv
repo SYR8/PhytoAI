@@ -1,0 +1,11 @@
+timestamp,type,title,message,response_options,status,response,resume_url,context_ref
+2026-09-04T06:12:00Z,watering_feedback,How did the watering go?,"SAMPLE DATA - grade the 12 s watering from this morning (test pack, not a real plant)","[""Good watering"",""Too much"",""Too little""]",pending,,,test-pack
+2026-09-05T05:30:00Z,scan_scheduled,Weekly scan photo will be taken soon,Weekly scan photo will be taken at 06:00 UTC (Monday) - make sure the camera is docked facing the plant. No action needed.,[],done,,,
+2026-09-06T09:01:00Z,alert_anomaly,Possible leaf issue,"SAMPLE DATA - slight leaf yellowing noted in the daily test image (test pack, not a real plant)",[],pending,,,test-pack
+2026-09-06T22:11:00Z,alert_tank_empty,Tank empty - watering blocked,"SAMPLE DATA - the tank sensor reports empty; refill before the next cycle (test pack, not a real plant)",[],pending,,,
+2026-09-07T12:31:00Z,alert_tank_empty,Tank still empty,"SAMPLE DATA - still empty after the cooldown window (test pack, not a real plant)",[],done,Refilled,,
+2026-09-10T06:12:00Z,alert_anomaly,Heater safety cutoff,"SAMPLE DATA - the 40.0 C hardware cutoff was reached during a preheat window (test pack, not a real plant)",[],pending,,,test-pack
+2026-09-12T06:12:00Z,watering_feedback,How did the watering go?,"SAMPLE DATA - grade the 11 s watering from this morning (test pack, not a real plant)","[""Good watering"",""Too much"",""Too little""]",done,Good watering,,test-pack
+2026-09-12T06:25:00Z,scan_verdict,Scan verdict: monitor,"SAMPLE DATA - leaf spot suspected with low confidence (test pack, not a real plant)","[""Confirmed"",""Wrong"",""Not sure""]",pending,,,test-pack
+2026-09-13T09:00:00Z,scan_followup,Did the issue resolve?,"SAMPLE DATA - follow-up on the monitor verdict from yesterday (test pack, not a real plant)","[""Resolved"",""Not resolved"",""Still watching""]",pending,,,test-pack
+2026-09-14T06:15:00Z,smoke_test,Dashboard smoke test,Test notification created by the one-time setup branch (sample row from the test pack).,[],done,,,

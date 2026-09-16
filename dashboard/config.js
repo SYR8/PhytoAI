@@ -17,6 +17,12 @@ window.PHYTOAI_CONFIG = {
   /* login suggestion only — Google account chooser still decides; users can select a different account.
      Empty/absent = the hint parameter is omitted entirely. */
   GOOGLE_LOGIN_HINT: 'zibrahimzaki7@gmail.com',
+  /* Spreadsheet of record (production). Owner-tooling override precedence:
+   *   1) ?sheet=<SPREADSHEET_ID> in the URL (ID shape validated, then remembered)
+   *   2) localStorage key 'phytoai_sheet_override' (set by the URL parameter)
+   *   3) this value (production sheet)
+   * Only a spreadsheet-ID shape is accepted — arbitrary URLs are never fetched.
+   * See docs/dashboard-test-data.md for the throwaway test-sheet workflow. */
   spreadsheetId: '10a3YXWBN4-hFJQQT4sLERmyu8D2TxYKNkXW-k3QRyLI',
   scopes: [
     'https://www.googleapis.com/auth/spreadsheets',

@@ -14,6 +14,7 @@
   var TOKEN_KEY = 'phytoai_token';
   var EXPIRY_KEY = 'phytoai_token_expiry';
   var SEEN_KEY = 'phytoai_seen_notification_ts';
+  var SHEET_OVERRIDE_KEY = 'phytoai_sheet_override';
 
   var SHEETS = 'https://sheets.googleapis.com/v4/spreadsheets/';
   var DRIVE = 'https://www.googleapis.com/drive/v3/files/';
@@ -70,6 +71,7 @@
     token: null,
     tokenExpiry: 0,
     tokenClient: null,
+    sheetId: null,          // resolved per precedence: URL ?sheet > localStorage > config.js
     cfg: {},
     events: [],
     notifications: [],
@@ -230,14 +232,14 @@
 
   /* ------------------------------------------------------------------ data access */
   function sheetsGet(range) {
-    var url = SHEETS + encodeURIComponent(CFG.spreadsheetId) + '/values/' + encodeURIComponent(range) + '?majorDimension=ROWS';
+    var url = SHEETS + encodeURIComponent(state.sheetId) + '/values/' + encodeURIComponent(range) + '?majorDimension=ROWS';
     return fetch(url, { headers: authHeaders() }).then(function (res) {
       if (!res.ok) return res.text().then(function (t) { throw new Error('Sheets ' + range + ' → ' + res.status + ' ' + short(t, 120)); });
       return res.json().then(function (d) { return d.values || []; });
     });
   }
   function sheetsUpdate(range, values) {
-    var url = SHEETS + encodeURIComponent(CFG.spreadsheetId) + '/values/' + encodeURIComponent(range) + '?valueInputOption=USER_ENTERED';
+    var url = SHEETS + encodeURIComponent(state.sheetId) + '/values/' + encodeURIComponent(range) + '?valueInputOption=USER_ENTERED';
     return fetch(url, {
       method: 'PUT',
       headers: Object.assign({ 'Content-Type': 'application/json' }, authHeaders()),
@@ -1026,6 +1028,7 @@
     $('connect-btn').addEventListener('click', requestSignIn);
     $('signin-btn').addEventListener('click', requestSignIn);
     $('refresh-btn').addEventListener('click', loadAll);
+    $('sheet-mode-exit').addEventListener('click', exitSheetMode);
     $('notification-list').addEventListener('click', function (ev) {
       var btn = ev.target.closest('.btn-answer');
       if (!btn) return;
@@ -1043,7 +1046,44 @@
     });
   }
 
+  /* ------------------------------------------------------- sheet override (owner tooling)
+   * Precedence: URL ?sheet=<id> > localStorage override > config.js default.
+   * Only a spreadsheet-ID shape is accepted; arbitrary URLs are never fetched. */
+  function validSheetId(id) {
+    return /^[A-Za-z0-9_-]{20,}$/.test(String(id || ''));
+  }
+  function resolveSheetId() {
+    var fromUrl = '';
+    try { fromUrl = (new URLSearchParams(location.search).get('sheet') || '').trim(); } catch (err) { fromUrl = ''; }
+    if (fromUrl && validSheetId(fromUrl)) {
+      try { localStorage.setItem(SHEET_OVERRIDE_KEY, fromUrl); } catch (err) { /* ignore */ }
+      return fromUrl;
+    }
+    var stored = '';
+    try { stored = localStorage.getItem(SHEET_OVERRIDE_KEY) || ''; } catch (err) { stored = ''; }
+    if (stored && validSheetId(stored)) return stored;
+    return String(CFG.spreadsheetId || '');
+  }
+  function sheetModeActive() {
+    return !!state.sheetId && state.sheetId !== String(CFG.spreadsheetId || '');
+  }
+  function renderSheetBanner() {
+    var el = $('sheet-mode-banner');
+    if (!el) return;
+    if (!sheetModeActive()) { el.hidden = true; return; }
+    el.hidden = false;
+    var label = $('sheet-mode-id');
+    if (label) label.textContent = state.sheetId.slice(0, 10) + '…';
+  }
+  function exitSheetMode() {
+    try { localStorage.removeItem(SHEET_OVERRIDE_KEY); } catch (err) { /* ignore */ }
+    try { history.replaceState(null, '', location.pathname); } catch (err) { /* ignore */ }
+    location.reload();
+  }
+
   function start() {
+    state.sheetId = resolveSheetId();
+    renderSheetBanner();
     if (!restoreToken()) $('signin-panel').hidden = false;   // auth is mandatory; never faked
     bind();
     initAuth();

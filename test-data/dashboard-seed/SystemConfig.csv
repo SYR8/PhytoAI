@@ -1,0 +1,27 @@
+Key,Value,LastUpdated
+pot_latitude,49.9886,2026-09-15T06:10:00Z
+pot_longitude,8.5958,2026-09-15T06:10:00Z
+last_watered_utc,2026-09-12T06:10:00Z,2026-09-15T06:10:00Z
+last_species_guess,Monstera deliciosa,2026-09-15T06:10:00Z
+species_confidence,0.86,2026-09-15T06:10:00Z
+current_temp_tolerance_c,2,2026-09-15T06:10:00Z
+next_sunrise_utc,2026-09-16T06:08:00Z,2026-09-15T06:10:00Z
+next_sunset_utc,2026-09-15T18:42:00Z,2026-09-15T06:10:00Z
+last_tank_empty_alert_sent,2026-09-07T12:31:00Z,2026-09-15T06:10:00Z
+dry_run_mode,TRUE,2026-09-15T06:10:00Z
+min_rewater_interval_hours,6,2026-09-15T06:10:00Z
+scan_session_active,FALSE,2026-09-15T06:10:00Z
+camera_battery_percent,80,2026-09-15T06:10:00Z
+camera_battery_min_percent,30,2026-09-15T06:10:00Z
+drive_daily_photos_folder_id,,2026-09-15T06:10:00Z
+drive_scan_photos_folder_id,,2026-09-15T06:10:00Z
+push_vapid_public_key,,2026-09-15T06:10:00Z
+max_pump_seconds,60,2026-09-15T06:10:00Z
+preheat_margin_c,2,2026-09-15T06:10:00Z
+preheat_lead_minutes,25,2026-09-15T06:10:00Z
+max_water_temp_c,28,2026-09-15T06:10:00Z
+heater_hysteresis_c,2,2026-09-15T06:10:00Z
+last_lightlevel,1,2026-09-15T06:10:00Z
+last_lightlevel_utc,2026-09-15T06:10:00Z,2026-09-15T06:10:00Z
+flash_dark_threshold,500,2026-09-15T06:10:00Z
+perenual_status,ok,2026-09-15T06:10:00Z
