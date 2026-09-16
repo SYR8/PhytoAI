@@ -5988,6 +5988,1047 @@
       "parameters": {
         "jsCode": "const item = $input.first().json;\nconst q = $('Build Pest Lookup Query').first().json.query || '';\nif (item && item.error) { return [{ json: { query: q, pest_text: '' } }]; }\nconst data = Array.isArray(item.data) ? item.data : [];\nif (!data.length) { return [{ json: { query: q, pest_text: '' } }]; }\nconst entries = data.slice(0, 3).map((e) => {\nconst name = String(e.common_name || e.name || (Array.isArray(e.scientific_name) ? e.scientific_name[0] : e.scientific_name) || '').trim();\nconst solution = String(e.solution || '').replace(/\\s+/g, ' ').trim().slice(0, 300);\nconst description = String(e.description || '').replace(/\\s+/g, ' ').trim().slice(0, 220);\nconst extra = solution ? ('solution: ' + solution) : (description ? ('info: ' + description) : '');\nreturn name ? (name + (extra ? ' - ' + extra : '')) : '';\n}).filter(Boolean);\nif (!entries.length) { return [{ json: { query: q, pest_text: '' } }]; }\nreturn [{ json: { query: q, pest_text: 'PERENUAL PEST/DISEASE LOOKUP (on-demand, generic library data, unverified): ' + entries.join(' | ') } }];"
       }
+    },
+    {
+      "id": "5b4ead4b-e149-4004-b9be-779b68a8c781",
+      "name": "Dash Ask Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        2600,
+        3600
+      ],
+      "parameters": {
+        "path": "dashboard/ask",
+        "httpMethod": "POST",
+        "responseMode": "responseNode",
+        "options": {
+          "allowedOrigins": "https://phytoai.edgeone.dev"
+        }
+      }
+    },
+    {
+      "id": "70cc2262-ddac-49ac-8e7a-ad08d1baacc6",
+      "name": "Dash Ask Extract",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2820,
+        3600
+      ],
+      "parameters": {
+        "jsCode": "const item = $input.first();\nconst w = item.json || {};\nconst h = w.headers || {};\nconst body = (w.body && typeof w.body === 'object') ? w.body : {};\nconst query = w.query || {};\nconst auth = String(h.authorization || h.Authorization || '');\nconst token = auth.replace(/^Bearer\\s+/i, '').trim();\nconst ip = String(h['cf-connecting-ip'] || h['x-forwarded-for'] || '').split(',')[0].trim();\nconst question = String(body.question || '').trim();\nconst plantId = String(body.plant_id || '').trim();\nconst ctx = (body.context && typeof body.context === 'object') ? body.context : {};\nconst route = String(ctx.route || '').trim();\nconst clientTime = String(ctx.client_time_utc || '').trim();\nconst aiFlag = String(query.ai || '').trim();\nconst detectionId = String(query.detection_id || '').trim();\nconst ok = token.length > 20;\nreturn [{ json: { endpoint: 'Ask', token, has_token: ok, ip, plant_id: plantId, question, route, client_time_utc: clientTime, ai: aiFlag, detection_id: detectionId } }];"
+      }
+    },
+    {
+      "id": "eb3795b1-a670-4660-925f-80551fb8e1ef",
+      "name": "Dash Ask Token Check",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        3040,
+        3600
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "https://www.googleapis.com/oauth2/v1/tokeninfo",
+        "sendQuery": true,
+        "specifyQuery": "keypair",
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "access_token",
+              "value": "={{ $json.token }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 8000
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "c7d52a31-1950-4b00-b5d2-4af293cf021c",
+      "name": "Dash Ask Authorize",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3260,
+        3600
+      ],
+      "parameters": {
+        "jsCode": "const req = $('Dash Ask Extract').first().json;\nconst item = $input.first().json;\nconst deny = (reason, extra) => ({ json: Object.assign({ ok: false, denied: true, answer: 'I cannot answer that reliably from the available data.', answer_type: 'unavailable', needs_more_data: true, warnings: [reason], generated_at_utc: new Date().toISOString() }, extra || {}) });\nif (!req.has_token) { return [deny('missing_authorization')]; }\nif (item && item.error) { return [deny('token_verification_unavailable')]; }\nconst aud = String(item.aud || item.audience || item.issued_to || '');\nconst exp = Number(item.expires_in || 0);\nif (aud !== '515418269010-ensbsq2skmsrsk3npg9quupqt76rboc2.apps.googleusercontent.com') { return [deny('wrong_audience')]; }\nif (!(exp > 0)) { return [deny('token_expired_or_invalid')]; }\nconst scope = String(item.scope || '');\nif (scope && scope.indexOf('spreadsheets') < 0) { return [deny('insufficient_scope')]; }\nconst store = $getWorkflowStaticData('global');\nstore.rl = store.rl || {};\nconst key = 'Ask:' + req.token.slice(-24);\nconst now = Date.now();\nconst windowMs = 60000;\nconst hits = (store.rl[key] || []).filter((t) => now - t < windowMs);\nif (hits.length >= 12) { return [deny('rate_limited')]; }\nhits.push(now);\nstore.rl[key] = hits;\nreturn [{ json: Object.assign({}, req, { denied: false, auth_aud: aud }) }];"
+      }
+    },
+    {
+      "id": "81761890-c559-4c14-adea-6a2b4600bd0b",
+      "name": "Dash Ask Gate",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        3480,
+        3600
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.denied }}",
+              "rightValue": false,
+              "operator": {
+                "type": "boolean",
+                "operation": "false"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "553e9b45-4b8e-49c5-9c27-8d6947b18201",
+      "name": "Dash Ask Classify",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3700,
+        3600
+      ],
+      "parameters": {
+        "jsCode": "const req = $('Dash Ask Extract').first().json;\nconst q = req.question;\nconst MAX = 500, MIN = 3;\nif (q.length < MIN || q.length > MAX) { return [{ json: { invalid: true, reason: q.length < MIN ? 'question_too_short' : 'question_too_long' } }]; }\nconst s = q.toLowerCase();\nlet intent = 'care_recommendation';\nif (/\\b(last|when).{0,20}water|water(ed|ing)?.{0,12}(last|when)|how often/.test(s)) intent = 'last_watering';\nelse if (/detect|disease|spots?|pest|yolo|infection|scan/.test(s)) intent = 'detection_lookup';\nelse if (/photo|picture|image|camera|look/.test(s)) intent = 'photo_lookup';\nelse if (/warning|alert|wrong|problem|issue|tank|empty/.test(s)) intent = 'warning_lookup';\nelse if (/status|how (is|are|s my)|doing|healthy|thriving|ok\\b|fine/.test(s)) intent = 'current_status';\nelse if (/change|differ|trend|since|compared|better|worse/.test(s)) intent = 'recent_change';\nelse if (/sensor|moisture|temperature|humidity|weight|light|reading|value|measure/.test(s)) intent = 'sensor_explanation';\nreturn [{ json: { invalid: false, intent, question: q, plant_id: req.plant_id } }];"
+      }
+    },
+    {
+      "id": "8a974d33-4c72-4c7d-ad37-06f0b0a4730f",
+      "name": "Dash Ask Valid?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        3920,
+        3600
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.invalid }}",
+              "rightValue": false,
+              "operator": {
+                "type": "boolean",
+                "operation": "false"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "c7b2b767-7e02-4502-9e1c-1bb2545216a2",
+      "name": "Dash Ask Invalid",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4140,
+        3900
+      ],
+      "parameters": {
+        "jsCode": "const c = $('Dash Ask Classify').first().json;\nreturn [{ json: { ok: false, answer: c.reason === 'question_too_long' ? 'That question is too long - please shorten it.' : 'Please ask a longer, clearer question.', answer_type: 'unavailable', needs_more_data: true, warnings: [c.reason], generated_at_utc: new Date().toISOString() } }];"
+      }
+    },
+    {
+      "id": "b865d9ff-04d8-4707-970c-9c80915af1bd",
+      "name": "Dash Ask Read Config",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        4140,
+        3600
+      ],
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "10a3YXWBN4-hFJQQT4sLERmyu8D2TxYKNkXW-k3QRyLI"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "SystemConfig"
+        },
+        "options": {}
+      },
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "BtlC7i6yZtrvbClV",
+          "name": "Google Sheets Zaki"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "80fb3952-3e8c-4998-8762-094f909dce76",
+      "name": "Dash Ask Read Events",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        4360,
+        3600
+      ],
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "10a3YXWBN4-hFJQQT4sLERmyu8D2TxYKNkXW-k3QRyLI"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Events"
+        },
+        "options": {}
+      },
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "BtlC7i6yZtrvbClV",
+          "name": "Google Sheets Zaki"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "cafaab13-2eb6-486f-8c8d-ec4d1231f980",
+      "name": "Dash Ask Read Notifications",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        4580,
+        3600
+      ],
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "10a3YXWBN4-hFJQQT4sLERmyu8D2TxYKNkXW-k3QRyLI"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Notifications"
+        },
+        "options": {}
+      },
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "BtlC7i6yZtrvbClV",
+          "name": "Google Sheets Zaki"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "3702e96b-81be-432d-be95-4b90452ecd7e",
+      "name": "Dash Ask Read Scans",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        4800,
+        3600
+      ],
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "10a3YXWBN4-hFJQQT4sLERmyu8D2TxYKNkXW-k3QRyLI"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "DiseaseScans"
+        },
+        "options": {}
+      },
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "BtlC7i6yZtrvbClV",
+          "name": "Google Sheets Zaki"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "184c417d-3f4d-41b5-8495-75a47774a581",
+      "name": "Dash Ask Read Notes",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        5020,
+        3600
+      ],
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "10a3YXWBN4-hFJQQT4sLERmyu8D2TxYKNkXW-k3QRyLI"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "AgentNotes"
+        },
+        "options": {}
+      },
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "BtlC7i6yZtrvbClV",
+          "name": "Google Sheets Zaki"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "9d91b6a6-6e32-4fdb-b2f8-999cd9b71969",
+      "name": "Dash Ask Compose",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        5240,
+        3600
+      ],
+      "parameters": {
+        "jsCode": "const c = $('Dash Ask Classify').first().json;\nconst cfgRows = $('Dash Ask Read Config').all().map((i) => i.json);\nconst cfg = {};\nfor (const row of cfgRows) if (row.Key) cfg[String(row.Key).trim()] = row.Value;\nconst evs = $('Dash Ask Read Events').all().map((i) => i.json).filter((r) => r.Timestamp);\nevs.sort((a, b) => Date.parse(a.Timestamp) - Date.parse(b.Timestamp));\nconst notes = $('Dash Ask Read Notifications').all().map((i) => i.json).filter((r) => r.timestamp);\nnotes.sort((a, b) => Date.parse(a.timestamp) - Date.parse(b.timestamp));\nconst scans = $('Dash Ask Read Scans').all().map((i) => i.json).filter((r) => r.timestamp);\nscans.sort((a, b) => Date.parse(a.timestamp) - Date.parse(b.timestamp));\nconst agentNotes = $('Dash Ask Read Notes').all().map((i) => i.json).filter((r) => r.timestamp);\nconst last = evs.length ? evs[evs.length - 1] : null;\nconst prev = evs.length > 1 ? evs[evs.length - 2] : null;\nconst species = cfg['last_species_guess'] || 'unknown plant';\nconst nowIso = new Date().toISOString();\nconst dataAsOf = last ? new Date(last.Timestamp).toISOString() : null;\nconst ageH = dataAsOf ? Math.round((Date.now() - Date.parse(dataAsOf)) / 3600000 * 10) / 10 : null;\nconst pending = notes.filter((n) => String(n.status).toLowerCase() === 'pending');\nconst num = (v) => { const n = Number(v); return isFinite(n) ? n : null; };\nconst ev = (label, id) => ({ source: 'Events', id: id || null, label });\nconst mk = (answer, confidence, evidence, warnings) => ({ ok: true, answer, answer_type: 'deterministic', generated_at_utc: nowIso, data_as_of_utc: dataAsOf, confidence, evidence, warnings: warnings || [], needs_more_data: false });\nlet response = null; let prompt = null;\nconst i = c.intent;\nif (i === 'last_watering') {\nlet w = null;\nfor (let k = evs.length - 1; k >= 0; k--) { if (String(evs[k].WateringTriggered).toLowerCase() === 'true') { w = evs[k]; break; } }\nif (!w && cfg['last_watered_utc']) response = mk('The records show the last watering at ' + cfg['last_watered_utc'] + ' (provisional).', 0.9, [{ source: 'SystemConfig', id: 'last_watered_utc', label: 'last_watered_utc=' + cfg['last_watered_utc'] }]);\nelse if (!w) response = mk('No watering has been recorded yet.', 0.9, [], ['no_watering_events']);\nelse { const sec = num(w.WaterDurationSeconds) || 0; const ml = Math.round(sec * 9.706); response = mk('The plant was last watered on ' + w.Timestamp + ' for ' + sec + ' s - roughly ' + ml + ' ml estimated from pump runtime (the scale logs locally only, so the measured amount is not saved).', 0.95, [ev('watering ' + w.Timestamp, w.EventID)], []); }\n} else if (i === 'current_status') {\nconst tank = last && String(last.TankEmpty).toLowerCase() === 'true';\nconst stale = ageH !== null && ageH > 14;\nconst word = tank ? 'needs attention right now (the tank is empty)' : stale ? 'has not reported in recently' : 'is being cared for on its normal rhythm';\nresponse = mk('Your ' + species + ' ' + word + (last ? '. Latest reading: moisture ' + (last.MoisturePercent || 'n/a') + '%, water ' + (last.WaterTempC || 'n/a') + ' C, recorded ' + last.Timestamp + '.' : '.'), 0.9, last ? [ev('latest event', last.EventID)] : [], stale ? ['data_stale'] : []);\n} else if (i === 'recent_change') {\nif (!last || !prev) response = mk('There are not enough readings yet to describe a change.', 0.7, [], ['insufficient_history']);\nelse { const dm = num(last.MoisturePercent) !== null && num(prev.MoisturePercent) !== null ? Math.round((num(last.MoisturePercent) - num(prev.MoisturePercent)) * 10) / 10 : null; const dw = num(last.WeightGrams) !== null && num(prev.WeightGrams) !== null ? Math.round(num(last.WeightGrams) - num(prev.WeightGrams)) : null; response = mk('Between the last two readings (' + prev.Timestamp + ' and ' + last.Timestamp + '), soil moisture ' + (dm === null ? 'was not comparable' : (dm >= 0 ? 'rose ' : 'fell ') + Math.abs(dm) + ' points') + (dw === null ? '' : ' and the pot weight changed by ' + dw + ' g') + '.', 0.9, [ev('previous reading', prev.EventID), ev('latest reading', last.EventID)], []); }\n} else if (i === 'sensor_explanation') {\nif (!last) response = mk('No sensor readings have been recorded yet.', 0.9, [], ['no_events']);\nelse response = mk('Latest readings (' + last.Timestamp + '): soil moisture ' + (last.MoisturePercent || 'missing') + '%, soil ' + (last.SoilTempC || 'missing') + ' C, water ' + (last.WaterTempC || 'missing') + ' C, air ' + (last.AirTempC || 'missing') + ' C at ' + (last.AirHumidityPercent || 'missing') + '% humidity, weight ' + (last.WeightGrams || 'missing') + ' g, light ' + (last.LightLevel || 'missing') + ' (raw digital).', 0.95, [ev('latest reading', last.EventID)], (String(last.MoisturePercent) === '' || String(last.WeightGrams) === '') ? ['some_readings_missing'] : []);\n} else if (i === 'warning_lookup') {\nif (!pending.length) response = mk('Nothing is waiting for you right now - no pending alerts or questions.', 0.95, [], []);\nelse response = mk('There are ' + pending.length + ' pending item(s): ' + pending.map((n) => n.title || n.type).join('; ') + '. The newest one is from ' + pending[pending.length - 1].timestamp + '.', 0.95, pending.slice(-3).map((n) => ({ source: 'Notifications', id: n.context_ref || null, label: String(n.title || n.type) + ' @ ' + n.timestamp })), []);\n} else if (i === 'photo_lookup') {\nlet photo = null; let photoSource = null;\nfor (let k = evs.length - 1; k >= 0; k--) { if (evs[k].PhotoFileID) { photo = evs[k].PhotoFileID; photoSource = 'Events ' + evs[k].Timestamp; break; } }\nif (!photo && scans.length && scans[scans.length - 1].drive_links) { photo = scans[scans.length - 1].drive_links; photoSource = 'DiseaseScans ' + scans[scans.length - 1].timestamp; }\nif (!photo) response = mk('No photos have been saved yet.', 0.9, [], ['no_images']);\nelse response = mk('The most recent photo is linked from ' + photoSource + '. Open the Photos screen to view it.', 0.9, [{ source: photoSource.indexOf('Events') === 0 ? 'Events' : 'DiseaseScans', id: photo, label: 'image ' + String(photo).slice(0, 24) }], []);\n} else if (i === 'detection_lookup') {\nif (!scans.length) response = mk('No health scans have been recorded yet, so there is no detection to show.', 0.9, [], ['no_detections']);\nelse { const s = scans[scans.length - 1]; response = mk('The latest health scan (' + s.timestamp + ') returned the verdict \"' + (s.judge_verdict || 'unknown') + '\". This is an unverified visual hypothesis, not a diagnosis - see the Plant Doctor screen for evidence.', 0.8, [{ source: 'DiseaseScans', id: s.timestamp, label: 'verdict ' + (s.judge_verdict || 'unknown') }], ['ai_unverified']); }\n} else {\nprompt = JSON.stringify({ species: species, species_confidence: cfg['species_confidence'] || '', dry_run: cfg['dry_run_mode'] || '', data_as_of_utc: dataAsOf, latest_event: last, previous_event: prev, pending_notifications: pending.slice(-5).map((n) => ({ type: n.type, title: n.title, status: n.status, ts: n.timestamp })), recent_scans: scans.slice(-3).map((s) => ({ ts: s.timestamp, verdict: s.judge_verdict, reasoning: String(s.judge_reasoning || '').slice(0, 240) })), care_notes: agentNotes.slice(-3).map((n) => ({ agent: n.agent, note: String(n.note || '').slice(0, 200) })) });\n}\nreturn [{ json: { mode: prompt ? 'ai' : 'deterministic', response, prompt, intent: i, question: c.question } }];"
+      }
+    },
+    {
+      "id": "758b7893-b72e-4051-a2d9-85447ac5c55b",
+      "name": "Dash Ask Needs AI?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        5460,
+        3600
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.mode }}",
+              "rightValue": "ai",
+              "operator": {
+                "type": "string",
+                "operation": "equals"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "9787675f-7a00-4d92-acf3-0d71618fa7c6",
+      "name": "Dash Ask Build",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        5680,
+        3900
+      ],
+      "parameters": {
+        "jsCode": "const c = $('Dash Ask Compose').first().json;\nreturn [{ json: c.response }];"
+      }
+    },
+    {
+      "id": "16e10d22-5071-47dd-b0f7-ed9b3da178b5",
+      "name": "Dash Assistant Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        5680,
+        3600
+      ],
+      "parameters": {
+        "jsCode": "const c = $('Dash Ask Compose').first().json;\nconst ctx = c.prompt;\nconst text = ['Question: ' + c.question, 'Bounded context (persisted data only):', ctx, 'Answer in at most 120 words using ONLY this context.', 'If the context is insufficient, say so and set confidence 0.', 'Never invent measurements, diagnoses or dates. The plant data is from an unverified smart-pot system; AI statements are advisory only.'].join('\\n');\nreturn [{ json: { assistant_text: text } }];"
+      }
+    },
+    {
+      "id": "a5967f65-ec25-45c0-bd8b-758f84f5c045",
+      "name": "Plant Assistant",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        5900,
+        3600
+      ],
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.assistant_text }}",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "You are the plant-care assistant of an autonomous smart pot. Answer only from the bounded context provided. Keep answers short, plain and calm. Never give safety-critical device commands; the pot manages watering and heating itself. Treat all image/detection notes as unverified hypotheses."
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "id": "7140d2dc-dcbe-4bff-875d-0365d9835775",
+      "name": "Assistant Parser",
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        6120,
+        3600
+      ],
+      "parameters": {
+        "jsonSchemaExample": "{\"answer\":\"short plain-language answer\",\"confidence\":0.7}",
+        "autoFix": true
+      }
+    },
+    {
+      "id": "530b2826-edb9-4bef-bc66-551c9d240b8b",
+      "name": "Dash Assistant Parse",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        6340,
+        3600
+      ],
+      "parameters": {
+        "jsCode": "const item = $input.first().json;\nconst out = item && item.output ? item.output : null;\nconst ok = !!(out && typeof out.answer === 'string' && out.answer.trim().length > 0);\nreturn [{ json: { ok: ok, answer: ok ? String(out.answer).slice(0, 700) : '', confidence: ok ? Math.max(0, Math.min(1, Number(out.confidence) || 0)) : 0, failure: ok ? null : (item && item.error ? String(item.error.message || 'model_error').slice(0, 120) : 'invalid_model_output') } }];"
+      }
+    },
+    {
+      "id": "655fbf79-d1ba-479e-bc22-f4381d62cd46",
+      "name": "Dash Ask Merge AI",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        6560,
+        3600
+      ],
+      "parameters": {
+        "jsCode": "const p = $('Dash Assistant Parse').first().json;\nconst c = $('Dash Ask Compose').first().json;\nconst nowIso = new Date().toISOString();\nif (!p.ok) { return [{ json: { ok: false, answer: 'I cannot answer that reliably from the available data.', answer_type: 'unavailable', needs_more_data: true, warnings: [p.failure || 'ai_unavailable'], generated_at_utc: nowIso } }]; }\nreturn [{ json: { ok: true, answer: p.answer, answer_type: 'ai_summary', generated_at_utc: nowIso, data_as_of_utc: null, confidence: p.confidence, evidence: [{ source: 'SystemConfig', id: c.intent, label: 'bounded context for intent ' + c.intent }], warnings: ['ai_generated_unverified'], needs_more_data: false } }];"
+      }
+    },
+    {
+      "id": "e99c39c2-dead-4de8-8d03-b10ff793f334",
+      "name": "Dash Ask Respond",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        6780,
+        3600
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "e608ecc9-7660-404c-8859-3f43403098ee",
+      "name": "Dash Overview Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        2600,
+        4300
+      ],
+      "parameters": {
+        "path": "dashboard/overview",
+        "httpMethod": "GET",
+        "responseMode": "responseNode",
+        "options": {
+          "allowedOrigins": "https://phytoai.edgeone.dev"
+        }
+      }
+    },
+    {
+      "id": "34281c7b-8ef6-4224-9085-32fcc9d92b9e",
+      "name": "Dash Overview Extract",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2820,
+        4300
+      ],
+      "parameters": {
+        "jsCode": "const item = $input.first();\nconst w = item.json || {};\nconst h = w.headers || {};\nconst body = (w.body && typeof w.body === 'object') ? w.body : {};\nconst query = w.query || {};\nconst auth = String(h.authorization || h.Authorization || '');\nconst token = auth.replace(/^Bearer\\s+/i, '').trim();\nconst ip = String(h['cf-connecting-ip'] || h['x-forwarded-for'] || '').split(',')[0].trim();\nconst question = '';\nconst plantId = String(query.plant_id || '').trim();\nconst ctx = {};\nconst route = '';\nconst clientTime = '';\nconst aiFlag = String(query.ai || '').trim();\nconst detectionId = String(query.detection_id || '').trim();\nconst ok = token.length > 20;\nreturn [{ json: { endpoint: 'Overview', token, has_token: ok, ip, plant_id: plantId, question, route, client_time_utc: clientTime, ai: aiFlag, detection_id: detectionId } }];"
+      }
+    },
+    {
+      "id": "2f0dcd8a-67aa-46e9-bef3-663c1431c2ac",
+      "name": "Dash Overview Token Check",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        3040,
+        4300
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "https://www.googleapis.com/oauth2/v1/tokeninfo",
+        "sendQuery": true,
+        "specifyQuery": "keypair",
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "access_token",
+              "value": "={{ $json.token }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 8000
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "5f2839cc-3d02-48f4-b751-1b81ed6e10eb",
+      "name": "Dash Overview Authorize",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3260,
+        4300
+      ],
+      "parameters": {
+        "jsCode": "const req = $('Dash Overview Extract').first().json;\nconst item = $input.first().json;\nconst deny = (reason, extra) => ({ json: Object.assign({ ok: false, denied: true, answer: 'I cannot answer that reliably from the available data.', answer_type: 'unavailable', needs_more_data: true, warnings: [reason], generated_at_utc: new Date().toISOString() }, extra || {}) });\nif (!req.has_token) { return [deny('missing_authorization')]; }\nif (item && item.error) { return [deny('token_verification_unavailable')]; }\nconst aud = String(item.aud || item.audience || item.issued_to || '');\nconst exp = Number(item.expires_in || 0);\nif (aud !== '515418269010-ensbsq2skmsrsk3npg9quupqt76rboc2.apps.googleusercontent.com') { return [deny('wrong_audience')]; }\nif (!(exp > 0)) { return [deny('token_expired_or_invalid')]; }\nconst scope = String(item.scope || '');\nif (scope && scope.indexOf('spreadsheets') < 0) { return [deny('insufficient_scope')]; }\nconst store = $getWorkflowStaticData('global');\nstore.rl = store.rl || {};\nconst key = 'Overview:' + req.token.slice(-24);\nconst now = Date.now();\nconst windowMs = 60000;\nconst hits = (store.rl[key] || []).filter((t) => now - t < windowMs);\nif (hits.length >= 30) { return [deny('rate_limited')]; }\nhits.push(now);\nstore.rl[key] = hits;\nreturn [{ json: Object.assign({}, req, { denied: false, auth_aud: aud }) }];"
+      }
+    },
+    {
+      "id": "bec51bf5-7167-4855-bdf7-bc56a48910a7",
+      "name": "Dash Overview Gate",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        3480,
+        4300
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.denied }}",
+              "rightValue": false,
+              "operator": {
+                "type": "boolean",
+                "operation": "false"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "ae4f9cbb-9a6d-4562-a3e3-897297e0153d",
+      "name": "Dash Overview Read Config",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        3700,
+        4300
+      ],
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "10a3YXWBN4-hFJQQT4sLERmyu8D2TxYKNkXW-k3QRyLI"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "SystemConfig"
+        },
+        "options": {}
+      },
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "BtlC7i6yZtrvbClV",
+          "name": "Google Sheets Zaki"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "c3835b69-8fc3-41f8-88b0-c9b0b0397a12",
+      "name": "Dash Overview Read Events",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        3920,
+        4300
+      ],
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "10a3YXWBN4-hFJQQT4sLERmyu8D2TxYKNkXW-k3QRyLI"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Events"
+        },
+        "options": {}
+      },
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "BtlC7i6yZtrvbClV",
+          "name": "Google Sheets Zaki"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "d490ba32-88e3-48ef-a5f0-ac6a496ab7d2",
+      "name": "Dash Overview Read Notifications",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        4140,
+        4300
+      ],
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "10a3YXWBN4-hFJQQT4sLERmyu8D2TxYKNkXW-k3QRyLI"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Notifications"
+        },
+        "options": {}
+      },
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "BtlC7i6yZtrvbClV",
+          "name": "Google Sheets Zaki"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "7f5063d8-c780-4cc3-91f0-bb3ef167a462",
+      "name": "Dash Overview Derive",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4360,
+        4300
+      ],
+      "parameters": {
+        "jsCode": "const req = $('Dash Overview Extract').first().json;\nconst cfgRows = $('Dash Overview Read Config').all().map((i) => i.json);\nconst cfg = {};\nfor (const row of cfgRows) if (row.Key) cfg[String(row.Key).trim()] = row.Value;\nif (cfg['plant_id'] && req.plant_id && req.plant_id !== String(cfg['plant_id']).trim()) {\nreturn [{ json: { ok: false, status: 'unknown', summary: 'Unknown plant id.', what_changed: [], what_to_check: [], generated_at_utc: new Date().toISOString(), data_as_of_utc: null, answer_type: 'unavailable', confidence: 0, evidence: [], warnings: ['unknown_plant_id'] } }];\n}\nconst evs = $('Dash Overview Read Events').all().map((i) => i.json).filter((r) => r.Timestamp);\nevs.sort((a, b) => Date.parse(a.Timestamp) - Date.parse(b.Timestamp));\nconst notes = $('Dash Overview Read Notifications').all().map((i) => i.json).filter((r) => r.timestamp);\nnotes.sort((a, b) => Date.parse(a.timestamp) - Date.parse(b.timestamp));\nconst last = evs.length ? evs[evs.length - 1] : null;\nconst prev = evs.length > 1 ? evs[evs.length - 2] : null;\nconst nowIso = new Date().toISOString();\nconst dataAsOf = last ? new Date(last.Timestamp).toISOString() : null;\nconst ageH = dataAsOf ? (Date.now() - Date.parse(dataAsOf)) / 3600000 : null;\nconst pending = notes.filter((n) => String(n.status).toLowerCase() === 'pending');\nconst species = cfg['last_species_guess'] || 'Your plant';\nconst evidence = []; const warnings = []; const changed = []; const check = [];\nif (last) evidence.push({ source: 'Events', id: last.EventID || null, label: 'latest reading ' + last.Timestamp });\nconst tank = last && String(last.TankEmpty).toLowerCase() === 'true';\nconst invalid = last ? (String(last.MoisturePercent) === '' || String(last.WeightGrams) === '') : false;\nconst anomaly = last && String(last.AnomalyDetected).toLowerCase() === 'true';\nconst stale = ageH !== null && ageH > 14;\nconst pendingCritical = pending.filter((n) => /tank_empty|critical/.test(String(n.type || ''))).length > 0;\nconst pendingWarning = pending.filter((n) => !/tank_empty|critical/.test(String(n.type || ''))).length > 0;\nlet status = 'ok';\nif (tank || pendingCritical) status = 'critical';\nelse if (stale || invalid || anomaly || pendingWarning) status = 'needs_attention';\nelse {\nlet watered = null;\nfor (let k = evs.length - 1; k >= 0; k--) { if (String(evs[k].WateringTriggered).toLowerCase() === 'true') { watered = evs[k]; break; } }\nconst wateredRecently = watered && (Date.now() - Date.parse(watered.Timestamp)) < 7 * 86400000;\nstatus = wateredRecently ? 'thriving' : 'ok';\n}\nif (tank) check.push('Refill the water tank - watering is paused while it is empty.');\nif (stale) check.push('The pot has not reported for ' + Math.round(ageH) + ' h - check its power and connection.');\nif (invalid) check.push('A sensor reading is missing in the latest event.');\nif (anomaly) check.push('The latest check flagged a possible issue: ' + String(last.AnomalyDescription || '').slice(0, 140));\npending.slice(-3).forEach((n) => check.push('Pending: ' + (n.title || n.type)));\nif (!check.length) check.push('Nothing urgent - keep an eye on the next scheduled check.');\nif (last && prev) {\nconst dm = Number(last.MoisturePercent) - Number(prev.MoisturePercent);\nconst dw = Number(last.WeightGrams) - Number(prev.WeightGrams);\nif (isFinite(dm) && Math.abs(dm) >= 0.5) changed.push('Soil moisture ' + (dm > 0 ? 'rose ' : 'fell ') + Math.abs(Math.round(dm * 10) / 10) + ' points since the previous reading.');\nif (isFinite(dw) && Math.abs(dw) >= 5) changed.push('Pot weight ' + (dw > 0 ? 'increased ' : 'decreased ') + Math.abs(Math.round(dw)) + ' g.');\n}\nconst summary = status === 'critical' ? 'Your ' + species + ' needs attention right now.' : status === 'needs_attention' ? 'Your ' + species + ' needs a look.' : status === 'thriving' ? 'Your ' + species + ' is doing well.' : 'Your ' + species + ' looks fine.';\nif (!last) warnings.push('no_events');\nreturn [{ json: { ok: true, status, summary, what_changed: changed, what_to_check: check, generated_at_utc: nowIso, data_as_of_utc: dataAsOf, answer_type: 'deterministic', confidence: 0.9, evidence, warnings, _facts: { species, ageH, last_ts: last ? last.Timestamp : null, tank, stale, pending: pending.length } } }];"
+      }
+    },
+    {
+      "id": "7b9060b1-8348-4192-bf4d-8e2205e2ecd1",
+      "name": "Dash Overview AI Gate",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4800,
+        4600
+      ],
+      "parameters": {
+        "jsCode": "const req = $('Dash Overview Extract').first().json;\nconst d = $('Dash Overview Derive').first().json;\nconst want = req.ai === '1' && d.ok === true;\nreturn [{ json: Object.assign({}, d, { _want_ai: want }) }];"
+      }
+    },
+    {
+      "id": "fdb15fb0-26ad-4fb2-be8f-2727c46101c5",
+      "name": "Dash Overview Want AI?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        5020,
+        4600
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json._want_ai }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "5156d328-8c9d-44f5-a0a9-eb608c830d4d",
+      "name": "Dash Overview Prompt",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        5240,
+        4600
+      ],
+      "parameters": {
+        "jsCode": "const d = $('Dash Overview Derive').first().json;\nconst text = ['Facts (persisted data only):', JSON.stringify({ status: d.status, summary: d.summary, what_changed: d.what_changed, what_to_check: d.what_to_check, facts: d._facts, data_as_of_utc: d.data_as_of_utc }), 'Write a 2-sentence calm overview for the owner. Use only these facts. If something is uncertain, say so. No commands to the device.'].join('\\n');\nreturn [{ json: { overview_text: text } }];"
+      }
+    },
+    {
+      "id": "a3edb500-c8bc-49c7-929b-3e9a63b85716",
+      "name": "Overview Analyst",
+      "type": "@n8n/n8n-nodes-langchain.agent",
+      "typeVersion": 3.1,
+      "position": [
+        5460,
+        4600
+      ],
+      "parameters": {
+        "promptType": "define",
+        "text": "={{ $json.overview_text }}",
+        "hasOutputParser": true,
+        "options": {
+          "systemMessage": "You summarise persisted plant data for a dashboard overview. Two sentences maximum, plain language, no invented facts, no device commands. AI statements are advisory and unverified."
+        }
+      },
+      "onError": "continueErrorOutput"
+    },
+    {
+      "id": "f38136e2-fb31-4e83-97a8-176660a72569",
+      "name": "Overview Parser",
+      "type": "@n8n/n8n-nodes-langchain.outputParserStructured",
+      "typeVersion": 1.3,
+      "position": [
+        5680,
+        4600
+      ],
+      "parameters": {
+        "jsonSchemaExample": "{\"summary\":\"two-sentence overview\",\"confidence\":0.7}",
+        "autoFix": true
+      }
+    },
+    {
+      "id": "68adbd23-1431-4948-bc2a-5ccccc953ec2",
+      "name": "Dash Overview Merge AI",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        5240,
+        4900
+      ],
+      "parameters": {
+        "jsCode": "const d = $('Dash Overview Derive').first().json;\nconst item = $input.first().json;\nconst out = item && item.output ? item.output : null;\nif (out && typeof out.summary === 'string' && out.summary.trim()) {\nreturn [{ json: Object.assign({}, d, { summary: String(out.summary).slice(0, 400), answer_type: 'ai_summary', confidence: Math.max(0, Math.min(1, Number(out.confidence) || 0.6)), warnings: (d.warnings || []).concat(['ai_generated_unverified']) }) }];\n}\nreturn [{ json: Object.assign({}, d, { warnings: (d.warnings || []).concat(['ai_unavailable']) }) }];"
+      }
+    },
+    {
+      "id": "b9dc7e4e-c8ba-4cf1-a2f2-e22d59f2e4d3",
+      "name": "Dash Overview Respond",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        6120,
+        4300
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {}
+      }
+    },
+    {
+      "id": "d214a64f-8e39-4791-9ab9-07680fa27795",
+      "name": "Dash Detection Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2.1,
+      "position": [
+        2600,
+        5300
+      ],
+      "parameters": {
+        "path": "dashboard/detection",
+        "httpMethod": "GET",
+        "responseMode": "responseNode",
+        "options": {
+          "allowedOrigins": "https://phytoai.edgeone.dev"
+        }
+      }
+    },
+    {
+      "id": "fe9c84bf-af78-4e89-9655-937d894af993",
+      "name": "Dash Detection Extract",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        2820,
+        5300
+      ],
+      "parameters": {
+        "jsCode": "const item = $input.first();\nconst w = item.json || {};\nconst h = w.headers || {};\nconst body = (w.body && typeof w.body === 'object') ? w.body : {};\nconst query = w.query || {};\nconst auth = String(h.authorization || h.Authorization || '');\nconst token = auth.replace(/^Bearer\\s+/i, '').trim();\nconst ip = String(h['cf-connecting-ip'] || h['x-forwarded-for'] || '').split(',')[0].trim();\nconst question = '';\nconst plantId = String(query.plant_id || '').trim();\nconst ctx = {};\nconst route = '';\nconst clientTime = '';\nconst aiFlag = String(query.ai || '').trim();\nconst detectionId = String(query.detection_id || '').trim();\nconst ok = token.length > 20;\nreturn [{ json: { endpoint: 'Detection', token, has_token: ok, ip, plant_id: plantId, question, route, client_time_utc: clientTime, ai: aiFlag, detection_id: detectionId } }];"
+      }
+    },
+    {
+      "id": "1756e8c6-26b9-444d-83c2-ea56b7543719",
+      "name": "Dash Detection Token Check",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.4,
+      "position": [
+        3040,
+        5300
+      ],
+      "parameters": {
+        "method": "GET",
+        "url": "https://www.googleapis.com/oauth2/v1/tokeninfo",
+        "sendQuery": true,
+        "specifyQuery": "keypair",
+        "queryParameters": {
+          "parameters": [
+            {
+              "name": "access_token",
+              "value": "={{ $json.token }}"
+            }
+          ]
+        },
+        "options": {
+          "timeout": 8000
+        }
+      },
+      "onError": "continueRegularOutput"
+    },
+    {
+      "id": "18a4dccf-0575-4a12-83d8-498da50f9f84",
+      "name": "Dash Detection Authorize",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        3260,
+        5300
+      ],
+      "parameters": {
+        "jsCode": "const req = $('Dash Detection Extract').first().json;\nconst item = $input.first().json;\nconst deny = (reason, extra) => ({ json: Object.assign({ ok: false, denied: true, answer: 'I cannot answer that reliably from the available data.', answer_type: 'unavailable', needs_more_data: true, warnings: [reason], generated_at_utc: new Date().toISOString() }, extra || {}) });\nif (!req.has_token) { return [deny('missing_authorization')]; }\nif (item && item.error) { return [deny('token_verification_unavailable')]; }\nconst aud = String(item.aud || item.audience || item.issued_to || '');\nconst exp = Number(item.expires_in || 0);\nif (aud !== '515418269010-ensbsq2skmsrsk3npg9quupqt76rboc2.apps.googleusercontent.com') { return [deny('wrong_audience')]; }\nif (!(exp > 0)) { return [deny('token_expired_or_invalid')]; }\nconst scope = String(item.scope || '');\nif (scope && scope.indexOf('spreadsheets') < 0) { return [deny('insufficient_scope')]; }\nconst store = $getWorkflowStaticData('global');\nstore.rl = store.rl || {};\nconst key = 'Detection:' + req.token.slice(-24);\nconst now = Date.now();\nconst windowMs = 60000;\nconst hits = (store.rl[key] || []).filter((t) => now - t < windowMs);\nif (hits.length >= 30) { return [deny('rate_limited')]; }\nhits.push(now);\nstore.rl[key] = hits;\nreturn [{ json: Object.assign({}, req, { denied: false, auth_aud: aud }) }];"
+      }
+    },
+    {
+      "id": "0ab81b9b-42fc-4166-b525-c892e37e023f",
+      "name": "Dash Detection Gate",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        3480,
+        5300
+      ],
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "loose",
+            "version": 2
+          },
+          "conditions": [
+            {
+              "id": "c1",
+              "leftValue": "={{ $json.denied }}",
+              "rightValue": false,
+              "operator": {
+                "type": "boolean",
+                "operation": "false"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      }
+    },
+    {
+      "id": "b41b7891-432f-43be-862c-f0a6fcc38dba",
+      "name": "Dash Detection Read Scans",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        3700,
+        5300
+      ],
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "10a3YXWBN4-hFJQQT4sLERmyu8D2TxYKNkXW-k3QRyLI"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "DiseaseScans"
+        },
+        "options": {}
+      },
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "BtlC7i6yZtrvbClV",
+          "name": "Google Sheets Zaki"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "e00eb5ab-584e-4112-9d59-66f426195157",
+      "name": "Dash Detection Read Config",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        3920,
+        5300
+      ],
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "10a3YXWBN4-hFJQQT4sLERmyu8D2TxYKNkXW-k3QRyLI"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "SystemConfig"
+        },
+        "options": {}
+      },
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "BtlC7i6yZtrvbClV",
+          "name": "Google Sheets Zaki"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "09a7b5f5-5320-48f5-8127-4fab50387638",
+      "name": "Dash Detection Read Events",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        4140,
+        5300
+      ],
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "10a3YXWBN4-hFJQQT4sLERmyu8D2TxYKNkXW-k3QRyLI"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Events"
+        },
+        "options": {}
+      },
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "BtlC7i6yZtrvbClV",
+          "name": "Google Sheets Zaki"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "8065c4d5-a7e5-4b0f-b887-0bd2742899a2",
+      "name": "Dash Detection Read Notifications",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.7,
+      "position": [
+        4360,
+        5300
+      ],
+      "parameters": {
+        "documentId": {
+          "__rl": true,
+          "mode": "id",
+          "value": "10a3YXWBN4-hFJQQT4sLERmyu8D2TxYKNkXW-k3QRyLI"
+        },
+        "sheetName": {
+          "__rl": true,
+          "mode": "name",
+          "value": "Notifications"
+        },
+        "options": {}
+      },
+      "credentials": {
+        "googleSheetsOAuth2Api": {
+          "id": "BtlC7i6yZtrvbClV",
+          "name": "Google Sheets Zaki"
+        }
+      },
+      "alwaysOutputData": true
+    },
+    {
+      "id": "8b99442c-7f49-4726-a3df-6170abc643a2",
+      "name": "Dash Detection Build",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        4580,
+        5300
+      ],
+      "parameters": {
+        "jsCode": "const req = $('Dash Detection Extract').first().json;\nconst scans = $('Dash Detection Read Scans').all().map((i) => i.json).filter((r) => r.timestamp);\nscans.sort((a, b) => Date.parse(a.timestamp) - Date.parse(b.timestamp));\nconst cfgRows = $('Dash Detection Read Config').all().map((i) => i.json);\nconst cfg = {};\nfor (const row of cfgRows) if (row.Key) cfg[String(row.Key).trim()] = row.Value;\nconst evs = $('Dash Detection Read Events').all().map((i) => i.json).filter((r) => r.Timestamp);\nevs.sort((a, b) => Date.parse(a.Timestamp) - Date.parse(b.Timestamp));\nconst last = evs.length ? evs[evs.length - 1] : null;\nconst nowIso = new Date().toISOString();\nconst driveId = (link) => { const m = String(link || '').match(/\\/d\\/([A-Za-z0-9_-]{10,})/); return m ? m[1] : ''; };\nconst idOf = (s) => 'ds-' + String(s.timestamp).replace(/[^0-9A-Za-z]/g, '');\nlet scan = null;\nif (req.detection_id) { scan = scans.filter((s) => idOf(s) === req.detection_id)[0] || null; }\nif (!scan) scan = scans.length ? scans[scans.length - 1] : null;\nif (!scan) return [{ json: { ok: true, detection: null, history: [], generated_at_utc: nowIso, warnings: ['no_detections'] } }];\nconst parseJson = (v) => { try { return JSON.parse(v); } catch (e) { return null; } };\nconst yolo = parseJson(scan.yolo_opinion) || {};\nconst vision = parseJson(scan.vision_opinion) || {};\nconst plan = parseJson(scan.treatment_plan);\nconst label = yolo.label_simple || yolo.label || scan.judge_verdict || 'unknown';\nconst confidence = Number(yolo.confidence);\nconst verdict = String(scan.judge_verdict || '').toLowerCase();\nconst status = /issue|problem|disease|pest/.test(verdict) ? 'possible_issue' : /monitor/.test(verdict) ? 'monitor' : /healthy|clean|none|ok/.test(verdict) ? 'clear' : 'unknown';\nconst symptoms = Array.isArray(vision.suspected_issues) && vision.suspected_issues.length ? vision.suspected_issues.join('; ') : (Array.isArray(vision.symptoms_observed) ? vision.symptoms_observed.join('; ') : '');\nconst detail = String(scan.judge_reasoning || '').trim() || symptoms || 'no detail recorded';\nconst observation = (status === 'clear' ? 'The latest check found no issues: ' : 'Unverified visual hypothesis (possible issue detected): ') + detail;\nlet actions = [];\nif (plan) {\nif (Array.isArray(plan.treatment_steps)) actions = plan.treatment_steps.map(String).slice(0, 6);\nelse if (plan.treatment_plan) actions = Array.isArray(plan.treatment_plan) ? plan.treatment_plan.slice(0, 6) : [String(plan.treatment_plan)];\n}\nif (!actions.length && typeof scan.treatment_plan === 'string' && scan.treatment_plan.trim()) actions = [String(scan.treatment_plan).trim().slice(0, 300)];\nconst imageUrl = scan.drive_links && driveId(scan.drive_links) ? String(scan.drive_links) : null;\nconst imageId = driveId(scan.drive_links) || null;\nconst basis = ['species ' + (cfg['last_species_guess'] || 'unknown')];\nif (last) basis.push('latest moisture ' + (last.MoisturePercent || 'n/a') + '%, water ' + (last.WaterTempC || 'n/a') + ' C @ ' + last.Timestamp);\nconst warnings = ['ai_unverified'];\nif (!imageId) warnings.push('no_linked_image');\nif (String(scan.treatment_plan || '').indexOf('treatment_steps') < 0) warnings.push('treatment_text_unstructured');\nconst detection = {\ndetection_id: idOf(scan),\nplant_id: req.plant_id || cfg['plant_id'] || 'default',\nimage_id: imageId,\nimage_url: imageUrl,\ndetected_at_utc: new Date(scan.timestamp).toISOString(),\nlabel: String(label).slice(0, 80),\nconfidence: isFinite(confidence) ? confidence : 0,\nobservation: String(observation).slice(0, 500),\nstatus: status,\nis_ai_generated: true,\nis_verified: !!(scan.user_verdict && String(scan.user_verdict).trim()),\nsupporting_evidence: [{ source: 'DiseaseScans', id: idOf(scan), label: 'verdict ' + (scan.judge_verdict || 'unknown') + ' @ ' + scan.timestamp }],\nrecommended_actions: actions,\nrecommendation_basis: basis,\ndata_warnings: warnings,\nresolved: /resolved|recovered|better/i.test(String(scan.treatment_outcome || ''))\n};\nconst history = scans.slice(-5).map((s) => { const y = parseJson(s.yolo_opinion) || {}; return { detection_id: idOf(s), detected_at_utc: new Date(s.timestamp).toISOString(), label: String(y.label_simple || y.label || s.judge_verdict || 'unknown').slice(0, 60), status: /issue|problem|disease|pest/.test(String(s.judge_verdict || '').toLowerCase()) ? 'possible_issue' : /monitor/.test(String(s.judge_verdict || '').toLowerCase()) ? 'monitor' : 'clear', has_image: !!driveId(s.drive_links) }; });\nreturn [{ json: { ok: true, detection, history, generated_at_utc: nowIso, warnings: warnings } }];"
+      }
+    },
+    {
+      "id": "74dfa387-bb44-447f-bd32-2ce6b12eb997",
+      "name": "Dash Detection Respond",
+      "type": "n8n-nodes-base.respondToWebhook",
+      "typeVersion": 1.5,
+      "position": [
+        4800,
+        5300
+      ],
+      "parameters": {
+        "respondWith": "json",
+        "responseBody": "={{ $json }}",
+        "options": {}
+      }
     }
   ],
   "connections": {
@@ -6731,6 +7772,26 @@
           },
           {
             "node": "Judge Parser",
+            "type": "ai_languageModel",
+            "index": 0
+          },
+          {
+            "node": "Plant Assistant",
+            "type": "ai_languageModel",
+            "index": 0
+          },
+          {
+            "node": "Assistant Parser",
+            "type": "ai_languageModel",
+            "index": 0
+          },
+          {
+            "node": "Overview Analyst",
+            "type": "ai_languageModel",
+            "index": 0
+          },
+          {
+            "node": "Overview Parser",
             "type": "ai_languageModel",
             "index": 0
           }
@@ -7805,6 +8866,554 @@
         [
           {
             "node": "Build Treatment Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dash Ask Webhook": {
+      "main": [
+        [
+          {
+            "node": "Dash Ask Extract",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dash Ask Extract": {
+      "main": [
+        [
+          {
+            "node": "Dash Ask Token Check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dash Ask Token Check": {
+      "main": [
+        [
+          {
+            "node": "Dash Ask Authorize",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dash Ask Authorize": {
+      "main": [
+        [
+          {
+            "node": "Dash Ask Gate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dash Ask Gate": {
+      "main": [
+        [
+          {
+            "node": "Dash Ask Classify",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Dash Ask Respond",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dash Ask Classify": {
+      "main": [
+        [
+          {
+            "node": "Dash Ask Valid?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dash Ask Valid?": {
+      "main": [
+        [
+          {
+            "node": "Dash Ask Read Config",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Dash Ask Invalid",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dash Ask Invalid": {
+      "main": [
+        [
+          {
+            "node": "Dash Ask Respond",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dash Ask Read Config": {
+      "main": [
+        [
+          {
+            "node": "Dash Ask Read Events",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dash Ask Read Events": {
+      "main": [
+        [
+          {
+            "node": "Dash Ask Read Notifications",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dash Ask Read Notifications": {
+      "main": [
+        [
+          {
+            "node": "Dash Ask Read Scans",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dash Ask Read Scans": {
+      "main": [
+        [
+          {
+            "node": "Dash Ask Read Notes",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dash Ask Read Notes": {
+      "main": [
+        [
+          {
+            "node": "Dash Ask Compose",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dash Ask Compose": {
+      "main": [
+        [
+          {
+            "node": "Dash Ask Needs AI?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dash Ask Needs AI?": {
+      "main": [
+        [
+          {
+            "node": "Dash Assistant Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Dash Ask Build",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dash Ask Build": {
+      "main": [
+        [
+          {
+            "node": "Dash Ask Respond",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dash Assistant Prompt": {
+      "main": [
+        [
+          {
+            "node": "Plant Assistant",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Plant Assistant": {
+      "main": [
+        [
+          {
+            "node": "Dash Assistant Parse",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dash Assistant Parse": {
+      "main": [
+        [
+          {
+            "node": "Dash Ask Merge AI",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dash Ask Merge AI": {
+      "main": [
+        [
+          {
+            "node": "Dash Ask Respond",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Assistant Parser": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Plant Assistant",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dash Overview Webhook": {
+      "main": [
+        [
+          {
+            "node": "Dash Overview Extract",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dash Overview Extract": {
+      "main": [
+        [
+          {
+            "node": "Dash Overview Token Check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dash Overview Token Check": {
+      "main": [
+        [
+          {
+            "node": "Dash Overview Authorize",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dash Overview Authorize": {
+      "main": [
+        [
+          {
+            "node": "Dash Overview Gate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dash Overview Gate": {
+      "main": [
+        [
+          {
+            "node": "Dash Overview Read Config",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Dash Overview Respond",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dash Overview Read Config": {
+      "main": [
+        [
+          {
+            "node": "Dash Overview Read Events",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dash Overview Read Events": {
+      "main": [
+        [
+          {
+            "node": "Dash Overview Read Notifications",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dash Overview Read Notifications": {
+      "main": [
+        [
+          {
+            "node": "Dash Overview Derive",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dash Overview Derive": {
+      "main": [
+        [
+          {
+            "node": "Dash Overview AI Gate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dash Overview AI Gate": {
+      "main": [
+        [
+          {
+            "node": "Dash Overview Want AI?",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dash Overview Want AI?": {
+      "main": [
+        [
+          {
+            "node": "Dash Overview Prompt",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Dash Overview Respond",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dash Overview Prompt": {
+      "main": [
+        [
+          {
+            "node": "Overview Analyst",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Overview Analyst": {
+      "main": [
+        [
+          {
+            "node": "Dash Overview Merge AI",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dash Overview Merge AI": {
+      "main": [
+        [
+          {
+            "node": "Dash Overview Respond",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Overview Parser": {
+      "ai_outputParser": [
+        [
+          {
+            "node": "Overview Analyst",
+            "type": "ai_outputParser",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dash Detection Webhook": {
+      "main": [
+        [
+          {
+            "node": "Dash Detection Extract",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dash Detection Extract": {
+      "main": [
+        [
+          {
+            "node": "Dash Detection Token Check",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dash Detection Token Check": {
+      "main": [
+        [
+          {
+            "node": "Dash Detection Authorize",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dash Detection Authorize": {
+      "main": [
+        [
+          {
+            "node": "Dash Detection Gate",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dash Detection Gate": {
+      "main": [
+        [
+          {
+            "node": "Dash Detection Read Scans",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Dash Detection Respond",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dash Detection Read Scans": {
+      "main": [
+        [
+          {
+            "node": "Dash Detection Read Config",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dash Detection Read Config": {
+      "main": [
+        [
+          {
+            "node": "Dash Detection Read Events",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dash Detection Read Events": {
+      "main": [
+        [
+          {
+            "node": "Dash Detection Read Notifications",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dash Detection Read Notifications": {
+      "main": [
+        [
+          {
+            "node": "Dash Detection Build",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Dash Detection Build": {
+      "main": [
+        [
+          {
+            "node": "Dash Detection Respond",
             "type": "main",
             "index": 0
           }
