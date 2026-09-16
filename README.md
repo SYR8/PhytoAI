@@ -31,9 +31,11 @@ Dashboard   ── resume-URL callbacks ──▶ n8n (human-in-the-loop answers
 5. **Show:** the dashboard reads Sheets/Drive directly with the user's own Google login and renders status, history, charts, the Plant Doctor and the assistant. Optional in-page browser alerts mirror critical notifications while the tab is open.
 6. **Ask the human:** open questions (e.g. “was this watering right?”) are `Notifications` rows with a resume URL; dashboard buttons resume the paused workflow.
 
+Engineering details and schemas live in `docs/Plan.md`; the current state is tracked in `STATUS.md`; hardware and wiring are in `docs/SmartPot-Full-Engineering-Spec-PRD.md`.
+
 ## 3. Why it matters
 
-Houseplants usually die from irregular or thoughtless watering, not from the room itself. PhytoAI is meant as a cheap retrofit that watches a plant continuously, reacts in time, and reports problems from anywhere — so plants are not lost silently. The project aims at an affordable end-to-end build rather than a lab setup. (Motivation and use cases in the owner's own words are in [docs/bwki-answers-draft.md](docs/bwki-answers-draft.md).)
+Houseplants usually die from irregular or thoughtless watering, not from the room itself. PhytoAI is meant as a cheap retrofit that watches a plant continuously, reacts in time, and reports problems from anywhere — so plants are not lost silently. The project aims at an affordable end-to-end build rather than a lab setup.
 
 ## 4. Current status
 
@@ -254,19 +256,13 @@ Known limitations (owner-assessed): Wi-Fi and a server are required; one camera 
 
 Planned/ideas (owner-selected, not implemented): peristaltic dosing pump for AI-controlled nutrient/treatment dosing · water-cooling module (fan + Peltier) for hot summers · rechargeable battery pack built from discarded vape cells · standalone Wi-Fi variant for locations without internet · multiple ESP32-CAMs for large plants · garden and multi-plant scaling.
 
-## 22. Project documentation (BWKI)
-
-- German BWKI answers (owner-approved draft with exact character counts): [docs/bwki-answers-draft.md](docs/bwki-answers-draft.md).
-- Video-pitch outline: [docs/video-pitch-outline.md](docs/video-pitch-outline.md).
-- Engineering plan and schemas: `docs/Plan.md`; current state: `STATUS.md`; hardware: `docs/SmartPot-Full-Engineering-Spec-PRD.md`.
-
-## 23. License and attribution
+## 22. License and attribution
 
 - **License:** MIT — see [LICENSE](LICENSE). © 2026 Mohammad Abdin.
 - **Dataset:** PlantVillage color images by spMohanty (`spMohanty/PlantVillage-Dataset`). Check the dataset's own terms before redistribution.
 - **Model/library:** Ultralytics YOLOv8 (check Ultralytics' license terms for your use case), FastAPI, n8n, Google APIs — each under its own license.
 - **Illustrations:** unDraw SVGs in `dashboard/assets/` (unDraw license).
 
-## 24. Contributing / build your own
+## 23. Contributing / build your own
 
 This is a solo learning/competition project; it is shared so others can build their own version. Practical ways to help: report reproducible bugs, improve documentation, or adapt the workflow for different plants. Please keep credentials and personal data out of issues and pull requests, and describe which build level (section 6) you used. No support guarantees are given, and nothing here is production-certified.

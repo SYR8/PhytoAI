@@ -30,9 +30,11 @@ Dashboard   ── Resume-URL-Aufrufe ──▶ n8n (Antworten von Menschen)
 5. **Anzeigen:** Das Dashboard liest Sheets/Drive direkt mit dem eigenen Google-Login und zeigt Status, Verlauf, Diagramme, Plant Doctor und den Assistenten. Optionale Browser-Hinweise spiegeln kritische Meldungen, solange der Tab offen ist.
 6. **Menschen fragen:** Offene Fragen (z. B. „War dieses Gießen richtig?“) sind `Notifications`-Zeilen mit Resume-URL; Dashboard-Buttons setzen den pausierten Workflow fort.
 
+Technische Details und Schemas liegen in `docs/Plan.md`; den aktuellen Stand führt `STATUS.md`; Hardware und Verkabelung stehen in `docs/SmartPot-Full-Engineering-Spec-PRD.md`.
+
 ## 3. Warum das wichtig ist
 
-Zimmerpflanzen sterben meist an unregelmäßiger oder gedankenloser Pflege, nicht am Raum selbst. PhytoAI ist als günstige Nachrüstlösung gedacht, die eine Pflanze kontinuierlich beobachtet, rechtzeitig reagiert und Probleme von überall meldet — damit Pflanzen nicht still verloren gehen. Das Ziel ist ein bezahlbarer End-to-End-Aufbau statt eines Laboraufbaus. (Motivation und Anwendungsfälle in den Worten des Besitzers: [docs/bwki-answers-draft.md](docs/bwki-answers-draft.md).)
+Zimmerpflanzen sterben meist an unregelmäßiger oder gedankenloser Pflege, nicht am Raum selbst. PhytoAI ist als günstige Nachrüstlösung gedacht, die eine Pflanze kontinuierlich beobachtet, rechtzeitig reagiert und Probleme von überall meldet — damit Pflanzen nicht still verloren gehen. Das Ziel ist ein bezahlbarer End-to-End-Aufbau statt eines Laboraufbaus.
 
 ## 4. Aktueller Status
 
@@ -253,19 +255,13 @@ Bekannte Grenzen (vom Besitzer eingeschätzt): WLAN und ein Server sind nötig; 
 
 Geplant/Ideen (vom Besitzer ausgewählt, nicht implementiert): peristaltische Dosierpumpe für KI-gesteuerte Nährstoff-/Behandlungszugabe · Wasserkühlmodul (Lüfter + Peltier) für heiße Sommer · Akku-Paket aus gebrauchten Vape-Zellen · Standalone-WLAN-Variante für Orte ohne Internet · mehrere ESP32-CAMs für große Pflanzen · Garten- und Mehrpflanzen-Skalierung.
 
-## 22. Projektdokumentation (BWKI)
-
-- Die deutschen BWKI-Antworten (vom Besitzer freigegebener Entwurf mit exakten Zeichenzahlen): [docs/bwki-answers-draft.md](docs/bwki-answers-draft.md).
-- Video-Pitch-Skizze: [docs/video-pitch-outline.md](docs/video-pitch-outline.md).
-- Engineering-Plan und Schemas: `docs/Plan.md`; aktueller Stand: `STATUS.md`; Hardware: `docs/SmartPot-Full-Engineering-Spec-PRD.md`.
-
-## 23. Lizenz und Attribution
+## 22. Lizenz und Attribution
 
 - **Lizenz:** MIT — siehe [LICENSE](LICENSE). © 2026 Mohammad Abdin.
 - **Datensatz:** PlantVillage-Farbbilder von spMohanty (`spMohanty/PlantVillage-Dataset`). Vor Weitergabe die eigenen Bedingungen des Datensatzes prüfen.
 - **Modell/Bibliotheken:** Ultralytics YOLOv8 (Lizenzbedingungen für den eigenen Fall prüfen), FastAPI, n8n, Google APIs — jeweils unter eigener Lizenz.
 - **Illustrationen:** unDraw-SVGs in `dashboard/assets/` (unDraw-Lizenz).
 
-## 24. Mitmachen / selbst bauen
+## 23. Mitmachen / selbst bauen
 
 Dies ist ein Solo-Lern-/Wettbewerbsprojekt; es ist geteilt, damit andere ihre eigene Version bauen können. Sinnvolle Beiträge: reproduzierbare Bugs melden, Dokumentation verbessern oder den Workflow für andere Pflanzen anpassen. Bitte keine Zugangsdaten oder persönlichen Daten in Issues/Pull-Requests, und die genutzte Baustufe (Abschnitt 6) nennen. Es gibt keine Support-Garantie; nichts hiervon ist produktionszertifiziert.
