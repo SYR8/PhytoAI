@@ -29,6 +29,8 @@
     camera: PH + '<path fill="currentColor" d="M208 56h-27.72l-13.63-20.44A8 8 0 0 0 160 32H96a8 8 0 0 0-6.65 3.56L75.71 56H48a24 24 0 0 0-24 24v112a24 24 0 0 0 24 24h160a24 24 0 0 0 24-24V80a24 24 0 0 0-24-24m8 136a8 8 0 0 1-8 8H48a8 8 0 0 1-8-8V80a8 8 0 0 1 8-8h32a8 8 0 0 0 6.66-3.56L100.28 48h55.43l13.63 20.44A8 8 0 0 0 176 72h32a8 8 0 0 1 8 8ZM128 88a44 44 0 1 0 44 44a44.05 44.05 0 0 0-44-44m0 72a28 28 0 1 1 28-28a28 28 0 0 1-28 28"/></svg>',
     plug: PH + '<path fill="currentColor" d="M237.66 66.34a8 8 0 0 0-11.32 0L192 100.69L155.31 64l34.35-34.34a8 8 0 1 0-11.32-11.32L144 52.69l-26.34-26.35a8 8 0 0 0-11.32 11.32l6.35 6.34l-53 53a40 40 0 0 0 0 56.57l15.71 15.71l-49.06 49.06a8 8 0 0 0 11.32 11.32l49.09-49.09l15.71 15.71a40 40 0 0 0 56.57 0l53-53l6.34 6.35a8 8 0 0 0 11.32-11.32L203.31 112l34.35-34.34a8 8 0 0 0 0-11.32M147.72 185a24 24 0 0 1-33.95 0L71 142.23a24 24 0 0 1 0-33.95l53-53L200.69 132Z"/></svg>',
     list: PH + '<path fill="currentColor" d="M224 128a8 8 0 0 1-8 8H40a8 8 0 0 1 0-16h176a8 8 0 0 1 8 8M40 72h176a8 8 0 0 0 0-16H40a8 8 0 0 0 0 16m176 112H40a8 8 0 0 0 0 16h176a8 8 0 0 0 0-16"/></svg>',
+    chat: PH + '<path fill="currentColor" d="M140 128a12 12 0 1 1-12-12a12 12 0 0 1 12 12m-56-12a12 12 0 1 0 12 12a12 12 0 0 0-12-12m88 0a12 12 0 1 0 12 12a12 12 0 0 0-12-12m60 12a104 104 0 0 1-152.88 91.82l-34.05 11.35a16 16 0 0 1-20.24-20.24l11.35-34.05A104 104 0 1 1 232 128m-16 0a88 88 0 1 0-164.19 44.06a8 8 0 0 1 .66 6.54L40 216l37.4-12.47a7.9 7.9 0 0 1 2.53-.42a8 8 0 0 1 4 1.08A88 88 0 0 0 216 128"/></svg>',
+    send: PH + '<path fill="currentColor" d="M227.32 28.68a16 16 0 0 0-15.66-4.08h-.15L19.57 82.84a16 16 0 0 0-2.49 29.8L102 154l41.3 84.87a15.86 15.86 0 0 0 14.44 9.13q.69 0 1.38-.06a15.88 15.88 0 0 0 14-11.51l58.2-191.94v-.15a16 16 0 0 0-4-15.66m-69.49 203.17l-.05.14v-.07l-40.06-82.3l48-48a8 8 0 0 0-11.31-11.31l-48 48l-82.33-40.06h-.07h.14L216 40Z"/></svg>',
     caret: PH + '<path fill="currentColor" d="m213.66 101.66l-80 80a8 8 0 0 1-11.32 0l-80-80a8 8 0 0 1 11.32-11.32L128 164.69l74.34-74.35a8 8 0 0 1 11.32 11.32"/></svg>'
   };
 
@@ -47,13 +49,14 @@
   var ROUTES = [
     { id: 'overview', label: 'Overview', icon: 'leaf' },
     { id: 'timeline', label: 'Timeline', icon: 'list' },
+    { id: 'assistant', label: 'Assistant', icon: 'chat' },
     { id: 'doctor', label: 'Doctor', icon: 'warning' },
     { id: 'photos', label: 'Photos', icon: 'camera' },
     { id: 'insights', label: 'Insights', icon: 'chart' },
     { id: 'settings', label: 'Settings', icon: 'sliders' }
   ];
-  var PRIMARY = ['overview', 'timeline', 'doctor', 'photos'];
-  var MORE = ['insights', 'settings'];
+  var PRIMARY = ['overview', 'assistant', 'doctor', 'photos'];
+  var MORE = ['timeline', 'insights', 'settings'];
   var METRICS = [
     { id: 'weight', field: 'weight', label: 'Pot weight', unit: 'g', decimals: 1, chart: true },
     { id: 'moisture', field: 'moisture', label: 'Soil moisture', unit: '%', decimals: 0, chart: true },
@@ -71,7 +74,8 @@
     token: null, tokenExpiry: 0, tokenClient: null, sheetId: null,
     cfg: {}, events: [], notifications: [], scans: [], notes: [], images: [], media: {}, meta: {},
     theme: 'botanical', route: 'overview', range: null, imageFilter: 'all', severityFilter: 'all', statusFilter: 'all',
-    chartsExpanded: false, timelineExpanded: false, viewerReturnFocus: null, loadErrors: [], askInFlight: false, askCooldownUntil: 0,
+    chartsExpanded: false, timelineExpanded: false, viewerReturnFocus: null, loadErrors: [], chatSending: false, askCooldownUntil: 0,
+    chat: [], chatSeq: 0, pendingAsk: null,
     ai: { overview: null, overviewAi: null, detection: null, loading: {}, loaded: {} }
   };
 
@@ -115,6 +119,90 @@
   function median(arr) { if (!arr.length) return null; var s = arr.slice().sort(function (a, b) { return a - b; }); var m = Math.floor(s.length / 2); return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; }
   function humanList(arr) { return arr.length ? arr.map(function (x) { return escapeHtml(x); }).join('<br>') : '—'; }
 
+  /* ------------------------------------------------------------- scheduler
+   * One serialized request pipeline for every dashboard data call (Sheets,
+   * Drive, assistant, artwork). at most CFG.scheduler.maxConcurrent requests
+   * run at once; identical pending requests share one promise; TTL caches keep
+   * route changes from refetching; a quota (429) response opens a cooldown gate
+   * so nothing auto-retries. Assistant calls get priority over background work
+   * but never cancel an in-flight request. Only safe labels are ever logged. */
+  var SCHED = CFG.scheduler || {};
+  var sched = {
+    hi: [], lo: [], activeCount: 0,
+    pending: {}, cache: {}, busyUntil: {},
+    stats: { started: 0, cacheHits: 0, coalesced: 0, peakConcurrent: 0, byLabel: {} }
+  };
+  window.PHYTOAI_STATS = sched.stats;
+  function dlog(label) {
+    try { if (/[?&]debug=1/.test(location.search) && window.console) console.debug('[phytoai] ' + label); } catch (err) { }
+  }
+  function busyUntilFor(key) {
+    var t = Number(sched.busyUntil[key] || 0);
+    var prefix = String(key).split(':')[0];
+    if (prefix === 'assistant' || prefix === 'sheets') t = Math.max(t, Number(sched.busyUntil[prefix] || 0));
+    return t;
+  }
+  function markBusy(key, ms) {
+    var until = Date.now() + Number(ms || SCHED.quotaCooldownMs || 60000);
+    sched.busyUntil[key] = until;
+    var prefix = String(key).split(':')[0];
+    if (prefix === 'assistant' || prefix === 'sheets') sched.busyUntil[prefix] = until;
+    dlog('quota-gate ' + prefix);
+  }
+  function quotaError(label) {
+    var e = new Error('Plant data is temporarily busy. Please try again in about a minute.');
+    e.quota = true; e.label = label;
+    return e;
+  }
+  function schedPump() {
+    var max = Number(SCHED.maxConcurrent || 1);
+    while (sched.activeCount < max && (sched.hi.length || sched.lo.length)) {
+      var task = sched.hi.length ? sched.hi.shift() : sched.lo.shift();
+      sched.activeCount++;
+      if (sched.activeCount > sched.stats.peakConcurrent) sched.stats.peakConcurrent = sched.activeCount;
+      (function (t) {
+        sched.stats.started++;
+        sched.stats.byLabel[t.label] = (sched.stats.byLabel[t.label] || 0) + 1;
+        dlog('start ' + t.label + ' (active ' + sched.activeCount + ')');
+        Promise.resolve().then(t.run).then(function (v) {
+          if (t.ttlMs) sched.cache[t.key] = { at: Date.now(), value: v };
+          sched.activeCount--;
+          dlog('done ' + t.label);
+          t.resolve(v); schedPump();
+        }, function (e) {
+          if (e && e.quota) markBusy(t.key, t.cooldown);
+          sched.activeCount--;
+          dlog('fail ' + t.label);
+          t.reject(e); schedPump();
+        });
+      })(task);
+    }
+  }
+  function schedRun(key, opts, run) {
+    opts = opts || {};
+    var ttl = Number(opts.ttlMs || 0);
+    if (ttl && !opts.fresh) {
+      var c = sched.cache[key];
+      if (c && Date.now() - c.at < ttl) { sched.stats.cacheHits++; dlog('cache ' + (opts.label || key)); return Promise.resolve(c.value); }
+    }
+    var blocked = busyUntilFor(key);
+    if (blocked > Date.now() && opts.userGesture !== true) {
+      var be = new Error('Plant data is temporarily busy. Please try again in about a minute.');
+      be.busy = true; be.retryAfterMs = blocked - Date.now();
+      return Promise.reject(be);
+    }
+    if (sched.pending[key]) { sched.stats.coalesced++; dlog('coalesce ' + (opts.label || key)); return sched.pending[key]; }
+    var p = new Promise(function (resolve, reject) {
+      var task = { key: key, label: opts.label || key, ttlMs: ttl, cooldown: opts.busyCooldownMs, run: run, resolve: resolve, reject: reject };
+      (opts.priority ? sched.hi : sched.lo).push(task);
+    });
+    sched.pending[key] = p;
+    p.then(function () { if (sched.pending[key] === p) delete sched.pending[key]; },
+      function () { if (sched.pending[key] === p) delete sched.pending[key]; });
+    schedPump();
+    return p;
+  }
+
   /* ------------------------------------------------------- animation helpers */
   var revealObserver = null;
   function observeReveals(root) {
@@ -150,7 +238,9 @@
       if (el.getAttribute('data-art-done')) return;
       var key = el.getAttribute('data-art');
       if (!ART[key]) return;
-      fetch(ART[key]).then(function (r) { if (!r.ok) throw new Error('art ' + r.status); return r.text(); }).then(function (svg) {
+      schedRun('art:' + key, { label: 'art:' + key, ttlMs: Number(SCHED.artTtlMs || 86400000) }, function () {
+        return fetch(ART[key]).then(function (r) { if (!r.ok) throw new Error('art ' + r.status); return r.text(); });
+      }).then(function (svg) {
         el.innerHTML = svg.replace(/<\?xml[^>]*\?>/, '')
           .replace(/<svg([^>]*)>/, function (m, a) { return '<svg' + a.replace(/\s(width|height)="[^"]*"/g, '') + '>'; })
           .replace(/var\(--primary-svg-color,\s*[^)]+\)/g, 'currentColor');
@@ -251,31 +341,54 @@
 
   /* ------------------------------------------------------------- data access */
   function authHeaders() { return { Authorization: 'Bearer ' + state.token }; }
-  function sheetsGet(range) {
+  function sheetKind(range) {
+    if (/SystemConfig/i.test(range)) return 'config';
+    if (/Notifications/i.test(range)) return 'notifications';
+    if (/DiseaseScans/i.test(range)) return 'scans';
+    if (/AgentNotes/i.test(range)) return 'notes';
+    return 'events';
+  }
+  function sheetsGet(range, fresh) {
+    var kind = sheetKind(range);
+    var ttl = kind === 'config' ? Number(SCHED.configTtlMs || 300000) : Number(SCHED.sheetsTtlMs || 45000);
     var url = SHEETS + encodeURIComponent(state.sheetId) + '/values/' + encodeURIComponent(range) + '?majorDimension=ROWS';
-    return fetch(url, { headers: authHeaders() }).then(function (res) {
-      if (!res.ok) return res.text().then(function (t) { throw new Error('Sheets ' + range + ' → ' + res.status + ' ' + String(t).slice(0, 120)); });
-      return res.json().then(function (d) { return d.values || []; });
+    return schedRun('sheets:' + String(state.sheetId || '') + ':' + kind, { label: 'sheets:' + kind, ttlMs: ttl, fresh: !!fresh, busyCooldownMs: Number(SCHED.quotaCooldownMs || 60000) }, function () {
+      return fetch(url, { headers: authHeaders() }).then(function (res) {
+        if (res.status === 429 || res.status === 403) {
+          return res.text().then(function (t) {
+            if (res.status === 429 || /quota|RESOURCE_EXHAUSTED/i.test(t)) throw quotaError('sheets:' + kind);
+            throw new Error('Sheets ' + range + ' → ' + res.status + ' ' + String(t).slice(0, 120));
+          });
+        }
+        if (!res.ok) return res.text().then(function (t) { throw new Error('Sheets ' + range + ' → ' + res.status + ' ' + String(t).slice(0, 120)); });
+        return res.json().then(function (d) { return d.values || []; });
+      });
     });
   }
   function sheetsUpdate(range, values) {
     var url = SHEETS + encodeURIComponent(state.sheetId) + '/values/' + encodeURIComponent(range) + '?valueInputOption=USER_ENTERED';
-    return fetch(url, { method: 'PUT', headers: Object.assign({ 'Content-Type': 'application/json' }, authHeaders()), body: JSON.stringify({ range: range, majorDimension: 'ROWS', values: values }) })
-      .then(function (res) { if (!res.ok) return res.text().then(function (t) { throw new Error('Sheets write → ' + res.status + ': ' + String(t).slice(0, 120)); }); return res.json(); });
+    return schedRun('sheets:write:' + String(state.sheetId || '') + ':' + range, { label: 'sheets:write', userGesture: true }, function () {
+      return fetch(url, { method: 'PUT', headers: Object.assign({ 'Content-Type': 'application/json' }, authHeaders()), body: JSON.stringify({ range: range, majorDimension: 'ROWS', values: values }) })
+        .then(function (res) { if (!res.ok) return res.text().then(function (t) { throw new Error('Sheets write → ' + res.status + ': ' + String(t).slice(0, 120)); }); return res.json(); });
+    });
   }
   function driveMeta(id) {
     if (state.meta[id] !== undefined) return Promise.resolve(state.meta[id]);
     var fields = 'id,name,createdTime,imageMediaMetadata(width,height)';
-    return fetch(DRIVE + encodeURIComponent(id) + '?fields=' + encodeURIComponent(fields), { headers: authHeaders() })
-      .then(function (res) { if (!res.ok) throw new Error('drive meta ' + res.status); return res.json(); })
-      .then(function (d) { state.meta[id] = d; return d; })
-      .catch(function () { state.meta[id] = null; return null; });
+    return schedRun('drive:meta:' + id, { label: 'drive:meta' }, function () {
+      return fetch(DRIVE + encodeURIComponent(id) + '?fields=' + encodeURIComponent(fields), { headers: authHeaders() })
+        .then(function (res) { if (!res.ok) throw new Error('drive meta ' + res.status); return res.json(); })
+        .then(function (d) { state.meta[id] = d; return d; })
+        .catch(function () { state.meta[id] = null; return null; });
+    });
   }
   function driveMedia(id) {
     if (state.media[id]) return Promise.resolve(state.media[id]);
-    return fetch(DRIVE + encodeURIComponent(id) + '?alt=media', { headers: authHeaders() })
-      .then(function (res) { if (!res.ok) throw new Error('drive media ' + res.status); return res.blob(); })
-      .then(function (blob) { var url = URL.createObjectURL(blob); state.media[id] = url; return url; });
+    return schedRun('drive:media:' + id, { label: 'drive:media', ttlMs: Number(SCHED.driveTtlMs || 86400000) }, function () {
+      return fetch(DRIVE + encodeURIComponent(id) + '?alt=media', { headers: authHeaders() })
+        .then(function (res) { if (!res.ok) throw new Error('drive media ' + res.status); return res.blob(); })
+        .then(function (blob) { var url = URL.createObjectURL(blob); state.media[id] = url; return url; });
+    });
   }
   function toRecords(values) {
     if (!values || !values.length) return [];
@@ -285,14 +398,14 @@
   function flowMlPerSec() { var v = num(state.cfg['pump_flow_ml_per_sec']); return v !== null && v > 0 ? v : Number(CFG.pumpFlowMlPerSec || 0); }
   function cfgValue(key, fallback) { var v = state.cfg[key]; return v === undefined || v === null || String(v).trim() === '' ? fallback : v; }
 
-  function loadAll() {
+  function loadAll(force) {
     if (!state.token) return;
     showBanner('Loading…');
     state.loadErrors = [];
     var jobs = [
       ['cfg', 'SystemConfig!A1:C'], ['events', 'Events!A1:Y'], ['notifications', 'Notifications!A1:I'], ['scans', 'DiseaseScans!A1:J'], ['notes', 'AgentNotes!A1:E']
     ].map(function (j) {
-      return sheetsGet(j[1]).then(function (values) {
+      return sheetsGet(j[1], !!force).then(function (values) {
         if (j[0] === 'events') state.events = toRecords(values).map(normalizeEvent);
         else if (j[0] === 'notifications') state.notifications = toRecords(values).map(normalizeNotification);
         else if (j[0] === 'scans') state.scans = toRecords(values);
@@ -301,10 +414,14 @@
           state.cfg = {};
           toRecords(values).forEach(function (row) { var k = String(row.Key === undefined ? '' : row.Key).trim(); if (k) state.cfg[k] = row.Value; });
         }
-      }).catch(function (err) { state.loadErrors.push(err.message); });
+      }).catch(function (err) { state.loadErrors.push(err); });
     });
     Promise.all(jobs).then(function () {
-      if (state.loadErrors.length) showBanner('Some data failed to load: ' + state.loadErrors.join(' · '), 'warn'); else showBanner('');
+      var failed = state.loadErrors.filter(function (e) { return !e.busy; });
+      var busy = state.loadErrors.some(function (e) { return e.busy || e.quota; });
+      if (busy) showBanner('Plant data is temporarily busy. Please try again in about a minute.', 'warn');
+      else if (failed.length) showBanner('Some data failed to load: ' + failed.map(function (e) { return e.message; }).join(' · '), 'warn');
+      else showBanner('');
       state.ai = { overview: null, overviewAi: null, detection: null, loading: {}, loaded: {} };
       if (!state.range) state.range = window.matchMedia('(max-width: 719px)').matches ? '24h' : '7d';
       var species = cfgValue('last_species_guess', latestEvent() ? latestEvent().species : '') || 'unknown';
@@ -314,13 +431,13 @@
       renderAll();
       hydrateArt();
       paintIcons();
-      loadAssistantPanels();
+      loadAssistantPanels(force);
     });
   }
-  function loadAssistantPanels() {
-    fetchOverviewData(false);
-    fetchOverviewData(true);
-    fetchDetectionData();
+  function loadAssistantPanels(force) {
+    fetchOverviewData(false, force);
+    fetchOverviewData(true, force);
+    fetchDetectionData(force);
   }
 
   /* --------------------------------------------------------- normalization */
@@ -501,6 +618,7 @@
   function renderScreen(id) {
     if (id === 'overview') renderOverview();
     else if (id === 'timeline') renderTimeline();
+    else if (id === 'assistant') renderAssistant();
     else if (id === 'doctor') renderDoctor();
     else if (id === 'photos') renderPhotos();
     else if (id === 'insights') renderInsights();
@@ -518,10 +636,38 @@
     var per = (CFG.assistantTimeouts || {})[route];
     return Number(per || CFG.assistantTimeoutMs || 60000);
   }
+  function assistantCacheKey(route, opts) {
+    return 'assistant:' + route + ':' + String(state.sheetId || '') + ':' + (opts.qs || '') +
+      (opts.body && opts.body.question ? ':' + String(opts.body.question) : '');
+  }
+  function assistantTtlMs(route) {
+    if (route === 'overview') return Number(SCHED.overviewTtlMs || 45000);
+    if (route === 'detection') return Number(SCHED.detectionTtlMs || 45000);
+    return 0; // ask: never cached — each question is its own request
+  }
+  function assistantBusyResult(r) {
+    if (!r) return false;
+    if (r.error === 'busy') return true;
+    var w = (r.json && Array.isArray(r.json.warnings)) ? r.json.warnings : [];
+    return w.indexOf('rate_limited') >= 0 || w.indexOf('sheets_rate_limited') >= 0;
+  }
   function assistantFetch(route, opts) {
     var url = assistantUrl(route);
     if (!url) return Promise.resolve({ ok: false, error: 'not_configured' });
     if (!state.token) return Promise.resolve({ ok: false, error: 'not_signed_in' });
+    var key = assistantCacheKey(route, opts);
+    return schedRun(key, { label: 'assistant:' + route, priority: true, ttlMs: assistantTtlMs(route), fresh: !!opts.fresh, busyCooldownMs: Number(SCHED.quotaCooldownMs || 60000) }, function () {
+      return assistantFetchNet(route, url, opts).then(function (r) {
+        if (assistantBusyResult(r)) { r.quota = true; markBusy(key, Number(SCHED.quotaCooldownMs || 60000)); }
+        return r;
+      });
+    }).catch(function (e) {
+      // Scheduler busy gate (quota cooldown): classified, never retried here.
+      if (e && e.busy) return { ok: false, error: 'busy', status: 0, quota: true };
+      return { ok: false, error: 'blocked', status: 0 };
+    });
+  }
+  function assistantFetchNet(route, url, opts) {
     var ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
     var timer = setTimeout(function () { if (ctrl) ctrl.abort(); }, assistantTimeoutMs(route));
     var init = {
@@ -564,7 +710,7 @@
   function classifyDeny(json) {
     var w = (json && Array.isArray(json.warnings)) ? json.warnings : [];
     if (w.indexOf('missing_authorization') >= 0 || w.indexOf('wrong_audience') >= 0 || w.indexOf('token_expired_or_invalid') >= 0 || w.indexOf('insufficient_scope') >= 0) return 'auth';
-    if (w.indexOf('rate_limited') >= 0) return 'busy';
+    if (w.indexOf('rate_limited') >= 0 || w.indexOf('sheets_rate_limited') >= 0) return 'busy';
     if (w.indexOf('token_verification_unavailable') >= 0) return 'verify_unavailable';
     return null;
   }
@@ -572,7 +718,7 @@
     var e = r && r.error;
     if (e === 'inactive') return 'The assistant workflow is not published at this endpoint.';
     if (e === 'auth') return 'Your Google session expired — reconnect to continue.';
-    if (e === 'busy') return 'Plant data is temporarily busy; try again in a minute.';
+    if (e === 'busy') return 'Plant data is temporarily busy. Please try again in about a minute.';
     if (e === 'server') return 'The assistant workflow failed; see the workflow execution for details.';
     if (e === 'bad_json' || e === 'bad_shape') return 'The assistant replied in an unexpected format.';
     if (e === 'timeout') return 'The assistant is still working (longer than ' + Math.round(assistantTimeoutMs(route || 'ask') / 1000) + ' s). The reply may already exist in the workflow execution — try again.';
@@ -586,11 +732,11 @@
   function askPlant(question, route) {
     return assistantFetch('ask', { method: 'POST', body: { plant_id: CFG.plantId || 'default', question: question, context: { route: route || 'overview', client_time_utc: new Date().toISOString() } } });
   }
-  function fetchOverviewData(ai) {
+  function fetchOverviewData(ai, force) {
     var key = ai ? 'overviewAi' : 'overview';
     if (state.ai.loading[key]) return;
     state.ai.loading[key] = true;
-    var r = assistantFetch('overview', { method: 'GET', qs: '?plant_id=' + encodeURIComponent(CFG.plantId || 'default') + (ai ? '&ai=1' : '') });
+    var r = assistantFetch('overview', { method: 'GET', fresh: !!force, qs: '?plant_id=' + encodeURIComponent(CFG.plantId || 'default') + (ai ? '&ai=1' : '') });
     r.then(function (res) {
       state.ai.loading[key] = false;
       state.ai.loaded[key] = true;
@@ -600,10 +746,10 @@
       if (state.route === 'overview') renderActionLine();
     });
   }
-  function fetchDetectionData() {
+  function fetchDetectionData(force) {
     if (state.ai.loading.detection) return;
     state.ai.loading.detection = true;
-    assistantFetch('detection', { method: 'GET', qs: '?plant_id=' + encodeURIComponent(CFG.plantId || 'default') }).then(function (res) {
+    assistantFetch('detection', { method: 'GET', fresh: !!force, qs: '?plant_id=' + encodeURIComponent(CFG.plantId || 'default') }).then(function (res) {
       state.ai.loading.detection = false;
       state.ai.loaded.detection = true;
       state.ai.detection = res;
@@ -611,81 +757,172 @@
     });
   }
 
-  /* --------------------------------------------------------------- ask bar */
+  /* --------------------------------------------------------------- ask bar
+   * Ask bars on Overview / Insights / Doctor are shortcuts: they hand the
+   * question to the Assistant screen, which owns the only chat implementation
+   * and sends it exactly once. */
   function askTemplate(hostId, placeholder) {
     return '<label class="visually-hidden" for="' + hostId + '-input">Ask about your plant</label>' +
       '<input id="' + hostId + '-input" class="ask-input" type="text" maxlength="500" placeholder="' + escapeHtml(placeholder) + '">' +
       '<button class="btn btn-primary ask-go" type="button" data-ask="' + hostId + '">Ask</button>' +
-      '<div class="ask-result" id="' + hostId + '-result" hidden></div>';
+      '<p class="ask-hint muted small">Opens the Assistant and sends your question once.</p>';
   }
   function askRender(hostId, placeholder, routeName) {
     var host = $(hostId);
     if (!host) return;
     host.innerHTML = askTemplate(hostId, placeholder);
     host.setAttribute('data-route-name', routeName);
+    askBusy(hostId);
   }
   function askBusy(hostId) {
     var host = $(hostId);
     if (!host) return;
     var btn = host.querySelector('.ask-go');
     var input = $(hostId + '-input');
-    var busy = !!state.askInFlight;
+    var busy = !!state.chatSending;
     if (btn) { btn.disabled = busy; btn.textContent = busy ? 'Asking…' : 'Ask'; }
     if (input) input.disabled = busy;
   }
   function cooldownLeftMs() { return Math.max(0, (state.askCooldownUntil || 0) - Date.now()); }
   function askSubmit(hostId) {
     var host = $(hostId);
-    if (!host) return;
-    if (state.askInFlight) return;                    // duplicate-click / parallel-request guard
+    if (!host || state.chatSending) return;
     var input = $(hostId + '-input');
-    var result = $(hostId + '-result');
-    var left = cooldownLeftMs();
-    if (left > 0) {
-      result.hidden = false;
-      result.innerHTML = '<p class="ask-state">Cooling down — try again in ' + Math.ceil(left / 1000) + ' s.</p>';
+    state.pendingAsk = { question: input ? String(input.value || '').trim() : '', route: host.getAttribute('data-route-name') || 'overview' };
+    if (input) input.value = '';
+    if (currentRoute() === 'assistant') renderAssistant(); else location.hash = '#/assistant';
+  }
+
+  /* -------------------------------------------------------------- assistant
+   * Session-only chat. One question at a time; failures are classified and
+   * shown, never hidden; quota responses are never auto-retried. */
+  var CHAT_SUGGESTS = [
+    'When was the last watering?',
+    'What changed since the last reading?',
+    'What do the latest sensor numbers mean?',
+    'Any warnings I should know about?',
+    'What did the last health scan show?',
+    'Show me the most recent photo'
+  ];
+  function chatNote(text) {
+    var el = $('chat-note');
+    if (!el) return;
+    el.hidden = !text;
+    el.textContent = text || '';
+  }
+  function renderChatSuggest() {
+    var host = $('chat-suggest');
+    if (!host || host.children.length) return;
+    host.innerHTML = CHAT_SUGGESTS.map(function (q) {
+      return '<button type="button" class="chat-chip" data-chat-suggest="' + escapeHtml(q) + '">' + escapeHtml(q) + '</button>';
+    }).join('');
+  }
+  function updateChatControls() {
+    var busy = !!state.chatSending;
+    var send = $('chat-send');
+    var input = $('chat-input');
+    var clear = $('chat-clear');
+    if (send) { send.disabled = busy; send.textContent = busy ? 'Sending…' : 'Send'; }
+    if (input) input.disabled = busy;
+    if (clear) clear.disabled = busy;
+    Array.prototype.forEach.call(document.querySelectorAll('[data-ask]'), function (b) { b.disabled = busy; });
+    Array.prototype.forEach.call(document.querySelectorAll('.ask-input'), function (i) { i.disabled = busy; });
+  }
+  function chatMsgHtml(msg) {
+    var when = escapeHtml(fmtWhen(new Date(msg.ts)));
+    if (msg.role === 'user') {
+      return '<div class="msg msg-user"><div class="msg-body">' + escapeHtml(msg.text) + '</div>' +
+        '<div class="msg-meta"><span>You</span><span>' + when + '</span></div></div>';
+    }
+    if (msg.pending) {
+      return '<div class="msg msg-assistant pending"><div class="msg-body"><span class="typing" aria-hidden="true"><i></i><i></i><i></i></span> Thinking…</div>' +
+        '<div class="msg-meta"><span>Assistant</span><span>' + when + '</span></div></div>';
+    }
+    if (msg.ok) {
+      var j = msg.json || {};
+      var meta = (j.answer_type === 'ai_summary' ? 'AI summary (unverified)' : j.answer_type === 'deterministic' ? 'Direct from your data' : 'Unavailable') +
+        ' · confidence ' + (typeof j.confidence === 'number' ? Math.round(j.confidence * 100) + '%' : '—') +
+        ' · data as of ' + (j.data_as_of_utc ? escapeHtml(fmtWhen(parseDate(j.data_as_of_utc))) : '—');
+      var warnings = Array.isArray(j.warnings) && j.warnings.length ? '<div class="ask-warnings">Notes: ' + j.warnings.map(escapeHtml).join(', ') + '</div>' : '';
+      var evidence = Array.isArray(j.evidence) && j.evidence.length
+        ? '<details class="evidence"><summary>Evidence (' + j.evidence.length + ')</summary><ul>' + j.evidence.map(function (e) { return '<li>' + escapeHtml(e.source) + ' — ' + escapeHtml(e.label || e.id || '') + '</li>'; }).join('') + '</ul></details>' : '';
+      return '<div class="msg msg-assistant"><div class="msg-body msg-answer">' + escapeHtml(String(j.answer)) + '</div>' +
+        '<div class="msg-meta"><span>' + escapeHtml(meta) + '</span><span>' + when + '</span></div>' + warnings + evidence + '</div>';
+    }
+    var retry = msg.retrySafe ? '<button type="button" class="btn msg-retry" data-retry="' + msg.id + '">Try again</button>' : '';
+    var wnote = Array.isArray(msg.warnings) && msg.warnings.length ? '<div class="ask-warnings">workflow note: ' + msg.warnings.map(escapeHtml).join(', ') + '</div>' : '';
+    return '<div class="msg msg-assistant msg-failed"><div class="msg-body">' + escapeHtml(assErrorText({ error: msg.error }, 'ask')) + '</div>' + wnote + retry +
+      '<div class="msg-meta"><span>Assistant</span><span>' + when + '</span></div></div>';
+  }
+  function renderChatLog() {
+    var log = $('chat-log');
+    if (!log) return;
+    if (!state.chat.length) {
+      log.innerHTML = '<div class="chat-empty media-state"><span class="art" data-art="gardening" aria-hidden="true"></span>' +
+        '<span>Ask anything about your plant\'s data — watering, sensors, warnings, scans or photos. This conversation lives in this browser session only.</span></div>';
+      hydrateArt(log);
+      paintIcons(log);
       return;
     }
-    var q = (input.value || '').trim();
-    if (q.length < 3) { result.hidden = false; result.innerHTML = '<p class="ask-state">Ask at least a few words so the assistant has something to work with.</p>'; return; }
-    state.askInFlight = true;
-    askBusy(hostId);
-    result.hidden = false;
-    result.innerHTML = '<p class="ask-state">Thinking…</p>';
-    askPlant(q, host.getAttribute('data-route-name') || 'overview').then(function (r) {
-      state.askInFlight = false;
-      askBusy(hostId);
+    log.innerHTML = state.chat.map(chatMsgHtml).join('');
+    log.scrollTop = log.scrollHeight;
+  }
+  function renderAssistant() {
+    renderChatSuggest();
+    renderChatLog();
+    updateChatControls();
+    if (state.pendingAsk) {
+      var p = state.pendingAsk;
+      state.pendingAsk = null;
+      if (String(p.question || '').trim().length >= 3) chatSend(p.question, p.route);
+      else {
+        var input = $('chat-input');
+        if (input) { input.value = String(p.question || ''); growChatInput(); }
+        chatNote('Ask at least a few words so the assistant has something to work with.');
+      }
+    }
+  }
+  function chatSend(question, contextRoute) {
+    var q = String(question || '').trim();
+    if (state.chatSending) return;
+    if (q.length < 3) { chatNote('Ask at least a few words so the assistant has something to work with.'); return; }
+    var left = cooldownLeftMs();
+    if (left > 0) { chatNote('Cooling down — try again in ' + Math.ceil(left / 1000) + ' s.'); return; }
+    chatNote('');
+    var botMsg = { id: ++state.chatSeq, role: 'assistant', pending: true, ts: Date.now(), q: q, context: contextRoute || 'assistant' };
+    state.chat.push({ id: ++state.chatSeq, role: 'user', text: q, ts: Date.now() }, botMsg);
+    state.chatSending = true;
+    renderChatLog();
+    updateChatControls();
+    askPlant(q, botMsg.context).then(function (r) {
+      state.chatSending = false;
+      botMsg.pending = false;
       var denyKind = (r.status >= 200 && r.status < 300 && r.json && r.json.ok === false) ? classifyDeny(r.json) : null;
-      if (r.ok && r.answer) {
-        var conf = typeof r.confidence === 'number' ? Math.round(r.confidence * 100) + '%' : '—';
-        var typeLabel = r.answer_type === 'ai_summary' ? 'AI summary (unverified)' : r.answer_type === 'deterministic' ? 'Direct from your data' : 'Unavailable';
-        var evidence = Array.isArray(r.evidence) && r.evidence.length
-          ? '<details class="evidence"><summary>Evidence (' + r.evidence.length + ')</summary><ul>' + r.evidence.map(function (e) { return '<li>' + escapeHtml(e.source) + ' — ' + escapeHtml(e.label || e.id || '') + '</li>'; }).join('') + '</ul></details>'
-          : '';
-        var warnings = Array.isArray(r.warnings) && r.warnings.length ? '<div class="ask-warnings">Notes: ' + r.warnings.map(escapeHtml).join(', ') + '</div>' : '';
-        result.innerHTML = '<p class="ask-answer"></p>' +
-          '<div class="ask-meta"><span>' + escapeHtml(typeLabel) + '</span><span>confidence ' + escapeHtml(conf) + '</span>' +
-          '<span>data as of ' + escapeHtml(r.data_as_of_utc ? fmtWhen(parseDate(r.data_as_of_utc)) : '—') + '</span></div>' + warnings + evidence;
-        result.querySelector('.ask-answer').textContent = String(r.answer);
-        return;
+      if (r.ok && typeof r.answer === 'string') { botMsg.ok = true; botMsg.json = r; }
+      else if (denyKind) {
+        var denyCooldown = denyKind === 'busy' ? (CFG.assistantCooldownMs || {}).busy : (CFG.assistantCooldownMs || {}).failure;
+        state.askCooldownUntil = Date.now() + Number(denyCooldown || 15000);
+        botMsg.ok = false; botMsg.error = denyKind; botMsg.retrySafe = false;
+        botMsg.warnings = (r.json && Array.isArray(r.json.warnings)) ? r.json.warnings : [];
+        if (denyKind === 'busy') chatNote('Plant data is temporarily busy. Please try again in about a minute.');
+      } else {
+        var cooldownMs = r.error === 'busy' ? (CFG.assistantCooldownMs || {}).busy
+          : r.error === 'timeout' ? 0
+          : (CFG.assistantCooldownMs || {}).failure;
+        if (cooldownMs) state.askCooldownUntil = Date.now() + Number(cooldownMs);
+        botMsg.ok = false; botMsg.error = r.error || 'unknown';
+        botMsg.retrySafe = ['timeout', 'server', 'blocked', 'bad_json', 'bad_shape', 'verify_unavailable'].indexOf(botMsg.error) >= 0 ||
+          String(botMsg.error).indexOf('http_') === 0;
       }
-      if (denyKind) {
-        // Documented 2xx denial (auth / rate limit) — classified, not generic.
-        var cooldown = denyKind === 'busy' ? (CFG.assistantCooldownMs || {}).busy : (CFG.assistantCooldownMs || {}).failure;
-        state.askCooldownUntil = Date.now() + Number(cooldown || 15000);
-        result.innerHTML = '<p class="ask-state">' + escapeHtml(assErrorText({ error: denyKind })) + '</p>' +
-          '<div class="ask-warnings">workflow note: ' + escapeHtml((r.json.warnings || []).join(', ')) + '</div>';
-        return;
-      }
-      var cooldownMs = r.error === 'busy' ? (CFG.assistantCooldownMs || {}).busy
-        : r.error === 'timeout' ? 0
-        : (CFG.assistantCooldownMs || {}).failure;
-      if (cooldownMs) state.askCooldownUntil = Date.now() + Number(cooldownMs);
-      result.innerHTML = '<p class="ask-state">' + escapeHtml(assErrorText(r, 'ask')) + '</p>' +
-        (r.json && r.json.answer ? '<div class="ask-warnings"></div>' : '') ;
-      var note = result.querySelector('.ask-warnings');
-      if (note) note.textContent = String(r.json.answer);
+      renderChatLog();
+      updateChatControls();
     });
+  }
+  function growChatInput() {
+    var input = $('chat-input');
+    if (!input) return;
+    input.style.height = 'auto';
+    input.style.height = Math.min(input.scrollHeight, 132) + 'px';
   }
 
   /* --------------------------------------------------------------- overview */
@@ -962,6 +1199,7 @@
     var host = $('detection-card');
     var status = $('doctor-status');
     var r = state.ai.detection;
+    askRender('ask-doctor', 'Ask about this detection…', 'doctor');
     if (!state.ai.loaded.detection || state.ai.loading.detection) {
       status.textContent = '';
       host.innerHTML = '<p class="ask-state">Loading the latest detection…</p>';
@@ -1179,8 +1417,10 @@
     if (!url || !/^https?:\/\//i.test(url)) return Promise.resolve(false);
     var target;
     try { target = new URL(url); target.searchParams.set('response', label); if (comment) target.searchParams.set('comment', comment); } catch (err) { return Promise.resolve(false); }
-    return fetch(target.toString(), { mode: 'cors' }).then(function () { return true; })
-      .catch(function () { return fetch(target.toString(), { mode: 'no-cors' }).then(function () { return true; }).catch(function () { return false; }); });
+    return schedRun('resume:' + target.toString(), { label: 'resume', userGesture: true }, function () {
+      return fetch(target.toString(), { mode: 'cors' }).then(function () { return true; })
+        .catch(function () { return fetch(target.toString(), { mode: 'no-cors' }).then(function () { return true; }).catch(function () { return false; }); });
+    });
   }
   function respondToNotification(article, label) {
     var row = Number(article.getAttribute('data-row'));
@@ -1242,18 +1482,58 @@
   function bind() {
     $('connect-btn').addEventListener('click', requestSignIn);
     $('signin-btn').addEventListener('click', requestSignIn);
-    $('refresh-btn').addEventListener('click', loadAll);
+    $('refresh-btn').addEventListener('click', function () { loadAll(true); });
     $('sheet-mode-exit').addEventListener('click', exitSheetMode);
     $('mode-btn').addEventListener('click', cycleMode);
     $('timeline-more').addEventListener('click', function () { state.timelineExpanded = true; renderTimeline(); });
     $('charts-more').addEventListener('click', function () { state.chartsExpanded = true; renderChartsBlock(); });
     $('more-close').addEventListener('click', function () { $('more-sheet').hidden = true; });
+    var chatForm = $('chat-form');
+    function submitChat() {
+      if (state.chatSending) return;
+      var input = $('chat-input');
+      var q = input ? input.value : '';
+      if (input) { input.value = ''; growChatInput(); }
+      chatSend(q, 'assistant');
+    }
+    if (chatForm) chatForm.addEventListener('submit', function (ev) { ev.preventDefault(); submitChat(); });
+    var chatInput = $('chat-input');
+    if (chatInput) {
+      chatInput.addEventListener('keydown', function (ev) {
+        if (ev.key === 'Enter' && !ev.shiftKey) { ev.preventDefault(); submitChat(); }
+      });
+      chatInput.addEventListener('input', growChatInput);
+    }
+    var chatClear = $('chat-clear');
+    if (chatClear) chatClear.addEventListener('click', function () {
+      if (state.chatSending) return;
+      state.chat = [];
+      chatNote('');
+      renderChatLog();
+      updateChatControls();
+      var input = $('chat-input');
+      if (input) input.focus();
+    });
     document.addEventListener('click', function (ev) {
       var routeBtn = ev.target.closest ? ev.target.closest('[data-route]') : null;
       if (routeBtn) { $('more-sheet').hidden = true; goto(routeBtn.getAttribute('data-route')); return; }
       if (ev.target.closest && ev.target.closest('[data-more]')) { $('more-sheet').hidden = false; return; }
       var askBtn = ev.target.closest ? ev.target.closest('[data-ask]') : null;
       if (askBtn) { askSubmit(askBtn.getAttribute('data-ask')); return; }
+      var chip = ev.target.closest ? ev.target.closest('[data-chat-suggest]') : null;
+      if (chip) { chatSend(chip.getAttribute('data-chat-suggest'), 'assistant'); return; }
+      var retryBtn = ev.target.closest ? ev.target.closest('[data-retry]') : null;
+      if (retryBtn) {
+        var rid = Number(retryBtn.getAttribute('data-retry'));
+        var idx = -1;
+        state.chat.forEach(function (m, i) { if (m.id === rid) idx = i; });
+        if (idx >= 0 && state.chat[idx].q && !state.chatSending) {
+          var failed = state.chat[idx];
+          state.chat.splice(idx, 1);
+          chatSend(failed.q, failed.context);
+        }
+        return;
+      }
       var closer = ev.target.closest ? ev.target.closest('[data-action="close-viewer"]') : null;
       if (closer) { closeViewer(); return; }
       if (ev.target === $('viewer')) closeViewer();

@@ -77,5 +77,21 @@ window.PHYTOAI_CONFIG = {
   /* Failures throttle retries so a refresh storm cannot hammer Sheets reads.
    * `busy` applies to rate-limit/'temporarily busy' responses. */
   assistantCooldownMs: { failure: 15000, busy: 60000 },
-  plantId: 'default'
+  plantId: 'default',
+
+  /* Request scheduler: the dashboard serializes every data request (Sheets,
+   * Drive, assistant, artwork) through one pipeline. maxConcurrent stays 1 so
+   * concurrent screens can never exhaust the Sheets per-minute quota; TTL
+   * caches keep route changes from refetching, and a quota response opens a
+   * cooldown gate (quotaCooldownMs) that nothing retries automatically. */
+  scheduler: {
+    maxConcurrent: 1,
+    configTtlMs: 300000,
+    sheetsTtlMs: 45000,
+    overviewTtlMs: 45000,
+    detectionTtlMs: 45000,
+    driveTtlMs: 86400000,
+    artTtlMs: 86400000,
+    quotaCooldownMs: 60000
+  }
 };

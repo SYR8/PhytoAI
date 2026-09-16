@@ -113,6 +113,30 @@
     </div>
   </section>
 
+  <!-- ============================ ASSISTANT ============================ -->
+  <section class="screen" id="screen-assistant" hidden aria-labelledby="assistant-title">
+    <div class="card pad chat-card">
+      <div class="panel-head">
+        <h2 id="assistant-title">Assistant</h2>
+        <span class="muted small">This session only — nothing is stored on the server</span>
+      </div>
+      <p class="muted small" id="chat-hint">Answers come from your plant's data through the workflow. One question at a time;
+      AI summaries are marked and unverified, and failures are shown, never hidden.</p>
+      <div class="chat-log" id="chat-log" aria-live="polite" aria-relevant="additions text"></div>
+      <div class="chat-suggest" id="chat-suggest" aria-label="Suggested questions"></div>
+      <div class="chat-note" id="chat-note" role="status" hidden></div>
+      <form class="chat-form" id="chat-form">
+        <label class="visually-hidden" for="chat-input">Ask the assistant</label>
+        <textarea id="chat-input" class="chat-input" rows="1" maxlength="500" placeholder="Ask about watering, sensors, warnings, scans or photos…"></textarea>
+        <button class="btn btn-primary chat-send" id="chat-send" type="submit">Send</button>
+      </form>
+      <div class="chat-tools">
+        <span class="muted small">Enter sends · Shift+Enter adds a line</span>
+        <button class="btn btn-ghost" id="chat-clear" type="button">Clear conversation</button>
+      </div>
+    </div>
+  </section>
+
   <!-- ============================ PLANT DOCTOR ============================ -->
   <section class="screen" id="screen-doctor" hidden aria-labelledby="doctor-title">
     <div class="card pad">
@@ -120,6 +144,7 @@
       <div id="detection-card"></div>
       <h3 class="sub-head">Detection history</h3>
       <div id="detection-history"></div>
+      <div class="ask" id="ask-doctor"></div>
     </div>
   </section>
 

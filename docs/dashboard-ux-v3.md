@@ -194,11 +194,71 @@ errors. Full v3 layout probe re-run: PASS (all routes, 5 widths, themes, reduced
 
 ## Still missing / not yet real
 
-- **The endpoints are not reachable over HTTP until the workflow is activated** — the dashboard currently
-  shows the honest “workflow is inactive” state. Owner steps: publish the workflow, then
-  `curl -H "Authorization: Bearer <token>" "https://n8n.mnsof.me/webhook/dashboard/overview?plant_id=default"`
-  to confirm CORS/HTTP end-to-end from the deployed origin.
+- **Endpoints are live:** the workflow was activated by the owner on 2026-09-16 and the deployed
+  `POST /webhook/dashboard/ask` answered from the EdgeOne origin (CORS + HTTP verified; deny path costs no
+  quota). Suggested confirmation for a signed-in user:
+  `curl -H "Authorization: Bearer <token>" "https://n8n.mnsof.me/webhook/dashboard/overview?plant_id=default"`.
 - Real-token verification (a live Google access token through `tokeninfo`) was not exercised in tests; the
   guard logic was tested with pinned tokeninfo responses (valid + wrong audience + error).
 - Capture reason / per-photo light remain unpersisted; measured `wt_delta_g` stays device-log only; LDR
   scale semantics remain Q22.
+
+## 2026-09-16 — request serialization + Assistant chat route (`7c7434d` workflow + this commit)
+
+**Why:** the initial load fired 5 Sheets reads in parallel and then 3 assistant calls in parallel (measured peak
+concurrency **5**), every ask execution read all 5 Sheets tabs regardless of intent, and route changes re-ran
+loads — a few refreshes exhausted the Sheets per-minute quota. 429s were also retried by the next render.
+
+**Dashboard — one serialized request pipeline (Part 1):**
+- Every data request (Sheets, Drive, assistant, artwork, notification resume pings) runs through a FIFO
+  scheduler (`CFG.scheduler`, `maxConcurrent: 1`). Identical pending requests share one promise (coalescing);
+  assistant calls use a priority lane but never cancel an in-flight request.
+- TTL caches keyed by sheet id: `SystemConfig` 300 s, other tabs 45 s, overview/detection 45 s, ask **never**
+  cached (each question is its own request); explicit Refresh bypasses caches (still one at a time).
+- A 429/quota response opens a cooldown gate (`quotaCooldownMs: 60000`) for that family — nothing auto-retries;
+  UI shows exactly “Plant data is temporarily busy. Please try again in about a minute.”
+- Observability: `window.PHYTOAI_STATS` (started / byLabel / cacheHits / coalesced / peakConcurrent); debug logs
+  (enabled with `?debug=1`) contain safe labels only — never tokens, headers, sheet rows or response bodies.
+
+**Assistant chat (Part 2):** new `#/assistant` route (order Overview / Timeline / Assistant / Doctor / Photos /
+Insights / Settings; mobile primary nav = Overview, Assistant, Doctor, Photos + More, which holds Timeline,
+Insights, Settings). Session-only chat (labelled “This session”): user/assistant bubbles with timestamps,
+pending “Thinking…” state, classified failures, retry only where safe (never for auth/busy/inactive), clear
+conversation, six suggested questions, Enter sends / Shift+Enter newline, one question at a time (send + input
+disabled in flight), auto-scroll, evidence + warnings preserved from the documented contract.
+
+**Handoffs (Part 3):** Overview / Insights / Doctor ask bars are now shortcuts — they pass the typed question
+plus the origin route to the chat, which sends it exactly once with
+`context: { route, client_time_utc }` preserved.
+
+**Workflow read routing + quota handling (Part 4, `7c7434d`):** `Dash Ask Read Router` (Switch, `route_key`)
+routes asks to intent-scoped read groups: status/last-watering → Config+Events (2 reads); change/sensor →
+Events (1); warnings → Notifications (1); detection → Scans (1); photo → Events+Scans (2); AI care → all five
+(5). Detection’s unused Notifications read was removed (4→3). All dashboard Sheets reads carry
+`onError: continueRegularOutput`; Compose/Derive/Build detect error items and return
+`{ok:false, warnings:["sheets_rate_limited"], retry_after_seconds:60}` (overview/detection include their busy
+text), so quota never surfaces as fake data and is never retried automatically.
+
+**Validation:**
+
+| # | Item | Evidence |
+|---|---|---|
+| 1 | Peak concurrency before → after | HEAD baseline probe (same stub): peak **5** (5 Sheets parallel, then 3 assistant); new build: peak **1** (fetch-level + `PHYTOAI_STATS`) |
+| 2 | Initial load = 5 Sheets + 2 overview + 1 detection, no ask | probe `byLabel` snapshot |
+| 3 | Double refresh: 8 executions total, 8 coalesced | probe: started +8, coalesced 8 |
+| 4 | Route storm (6 routes): 0 new data requests | probe `dataStartedDelta: 0` |
+| 5 | One assistant question = exactly 1 request | chip, Enter, both handoffs: `askDelta === 1`, one user bubble each |
+| 6 | Handoff preserves question + origin route + time | probe: last body `question` exact, `context.route` overview/doctor, `client_time_utc` set |
+| 7 | One question at a time | slow question: send+input disabled, 2 extra click attempts = 0 extra requests; timeout classified with safe retry offered |
+| 8 | Busy handling | 2xx `rate_limited` → exact busy message; follow-up blocked with cooldown note and **0** requests |
+| 9 | Sheets quota | 429 stub: exact busy banner, 1 config attempt, gate blocks route-change retries (0 further reads) |
+| 10 | Nav + chat layout | bottom nav = Overview/Assistant/Doctor/Photos/More; tabs 7 routes; no horizontal overflow and bubbles inside the log at 320/390/768/1280/1920 |
+| 11 | Zero page errors | probe `__errCount === 0` |
+| 12 | Workflow read routing | MCP `test_workflow` exec **780–799**: per-intent read counts 2/1/1/2/5 exactly, one execution per read, quota (429 stub) → `sheets_rate_limited` + `retry_after_seconds:60` with no AI call, overview/detection busy shapes — **42/42 checks** |
+| 13 | Live workflow | `validate_workflow` valid (224 nodes); MCP `update_workflow` applied (`autoAssignedCredentials: []`) |
+| 14 | Static/lint | `node --check` app.js + config.js pass; static forbidden-term scan clean |
+
+**Still not real:** serialization is per browser tab — it does not make the n8n workflow globally single-threaded
+across devices/users (that would need queueing inside n8n); the quota gate is client-side; a real-token live
+end-to-end ask against the deployed origin was not exercised in this pass (MCP pinned-token tests cover the
+workflow side; live CORS/HTTP was verified earlier from the EdgeOne origin).
