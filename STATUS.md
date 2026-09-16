@@ -202,6 +202,32 @@ Implemented in the dashboard (commit pending at time of writing; no workflow cha
 - Verified: headless suite **30/30 normal + 30/30 reduced-motion**; charts nonzero at 320/390/768/1280/1920;
   zero overflow; zero console errors; `node --check` + static smoke 8/8.
 
+### 3.8 Notification audit + explicit browser-alert controls (2026-09-16)
+
+Audited (no workflow/schema changes) and documented in `docs/dashboard-notifications.md`:
+- **Path:** ten `append` writers in the workflow create all `Notifications` rows (tank/anomaly/watering
+  feedback/verdict/follow-up/scan scheduled+postponed/legacy camera battery/smoke test/session timeout); four
+  `appendOrUpdate` nodes update/expire them when the user answers. Persisted fields:
+  `timestamp,type,title,message,response_options,status,response,resume_url,context_ref` — **no read/unread
+  field exists**, and the dashboard does not invent one.
+- **Channels:** zero Telegram/email/Slack/SMS/push nodes anywhere in the workflow. **No service worker, no Web
+  Push subscription storage, no `Notification.requestPermission()`** existed before this change; closed-site
+  alerts are impossible today and are documented as a separate future phase (architecture, storage, security and
+  n8n sender options, with a review gate before any SW/VAPID code).
+- **Implemented now (dashboard only):** (A) notification centre keeps working, now with severity chip, source
+  label, plant context and an honest "no separate read state" line; (B) Settings → "Enable browser alerts" —
+  permission requested **only on click** (never on load), explicit unsupported/not-requested/granted/denied
+  states, system alerts only for newly observed `pending` critical rows plus explicitly selected warnings
+  (`alert_anomaly`, `scan_verdict`, max 24 h old), stable dedupe key in a bounded localStorage list + browser
+  `tag` so a row alerts once ever (survives reload), click focuses the tab and routes to the relevant screen,
+  denied permission leaves the centre fully functional, permission is never treated as backend authorization;
+  (C) one serialized Notifications-tab poll per minute, visible-tab only, pause during quota countdowns, one
+  catch-up poll on re-focus, no fetch on route changes (≤1 read/min, <2 % of the Sheets read budget).
+- **Verified:** UX7 headless suite **17/17** (no permission at boot; one click → one request; one alert for a new
+  critical row; no repeat on refresh or after reload; hidden = 0 polls, re-focus = exactly 1; denied/unsupported
+  keep the centre; zero console errors) plus UX6 regression **30/30** (startup 2-request set, charts, override),
+  `node --check`, static smoke 8/8, secret scan clean.
+
 ## 4. WHAT'S LEFT (priority order)
 
 1. **M1 — Persistent named Cloudflare tunnel** (top priority; production webhook base URL; quick-tunnel URLs change and would invalidate stored resume URLs).

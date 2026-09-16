@@ -93,5 +93,23 @@ window.PHYTOAI_CONFIG = {
     driveTtlMs: 86400000,
     artTtlMs: 86400000,
     quotaCooldownMs: 60000
+  },
+
+  /* Browser alerts (while the page is open) + notification polling.
+   * Permission is NEVER requested on page load - only from the explicit
+   * "Enable browser alerts" control in Settings. Browser permission is a
+   * display affordance, not backend authorization: every row still comes from
+   * Sheets reads authenticated with the user's Google token. */
+  notifications: {
+    /* One Notifications-tab read per minute while the page is visible. The read
+     * is serialized by the scheduler like every other request, so it adds at
+     * most ~1 request/minute (under 2 % of the Sheets 60-reads/min per-user
+     * budget). Hidden tabs poll nothing. */
+    pollMs: 60000,
+    /* A row older than this is shown in-app but never raises a system alert. */
+    alertFreshHours: 24,
+    /* System alerts fire for critical severities plus ONLY these warning types;
+     * everything else stays in the in-app notification centre. */
+    alertWarningTypes: ['alert_anomaly', 'scan_verdict']
   }
 };

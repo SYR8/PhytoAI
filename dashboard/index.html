@@ -109,6 +109,7 @@
   <section class="screen" id="screen-timeline" hidden aria-labelledby="timeline-title">
     <div class="card pad">
       <div class="panel-head"><h2 id="timeline-title">What happened lately</h2><span class="muted" id="timeline-hint"></span></div>
+      <p class="muted small" id="notif-context"></p>
       <ol class="timeline" id="timeline"></ol>
       <button class="btn btn-ghost" id="timeline-more" type="button" hidden>Show older moments</button>
       <h3 class="sub-head">Waiting on you</h3>
@@ -208,6 +209,17 @@
       </div>
       <h3 class="sub-head">Assistant</h3>
       <div id="assistant-status" class="kv-grid"></div>
+      <h3 class="sub-head">Browser alerts</h3>
+      <div class="setting-row alert-row">
+        <div class="alert-copy">
+          <span>Enable browser alerts</span>
+          <p class="muted small">While this page is open, a system notification appears for <b>critical alerts and selected warnings</b> (visual anomaly, scan verdict) — everything else stays in the Timeline centre. Permission is requested only when you press the button, and it never replaces your Google sign-in. Alerts while the site is <em>closed</em> are not built yet.</p>
+        </div>
+        <div class="alert-control">
+          <span id="alert-state" class="alert-state">not requested</span>
+          <button class="btn" id="alert-btn" type="button">Enable browser alerts</button>
+        </div>
+      </div>
       <details class="settings-more">
         <summary>Safety thresholds &amp; configuration <span class="muted">(backend-driven — themes never change these)</span></summary>
         <div id="system-grid" class="kv-grid"></div>

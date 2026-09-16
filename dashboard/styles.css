@@ -491,6 +491,16 @@ html[data-mode="light"] .quota-state.warn { color: #7a5208; }
 .links-row { display: flex; flex-wrap: wrap; gap: 8px; }
 .insights-summary { font-size: 15px; margin-bottom: 10px; overflow-wrap: anywhere; }
 .setting-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; padding: 8px 0; border-bottom: 1px dashed var(--border); }
+.alert-row { align-items: flex-start; border-bottom: 0; }
+.alert-copy { flex: 1 1 320px; min-width: 0; display: grid; gap: 4px; }
+.alert-copy b { font-weight: 700; }
+.alert-control { display: grid; gap: 8px; justify-items: end; align-content: start; }
+.alert-state { font-size: 12px; color: var(--muted); max-width: 34ch; text-align: right; overflow-wrap: anywhere; }
+.alert-state.ok { color: var(--ok); }
+.alert-state.warn { color: var(--warn); }
+.alert-state.bad { color: var(--bad); }
+.notif-source { margin-top: 2px; overflow-wrap: anywhere; }
+.notif-hint { margin-top: 10px; }
 .settings-more { margin-top: 12px; border: 1px solid var(--border-soft); border-radius: var(--radius-sm); background: var(--panel-2); }
 .settings-more > summary { display: flex; flex-wrap: wrap; align-items: baseline; gap: 6px 10px; padding: 12px 14px; font-weight: 700; font-size: 13.5px; cursor: pointer; list-style: none; }
 .settings-more > summary::-webkit-details-marker { display: none; }

@@ -12,6 +12,8 @@
   var SEEN_KEY = 'phytoai_seen_notification_ts';
   var SHEET_OVERRIDE_KEY = 'phytoai_sheet_override';
   var MODE_KEY = 'phytoai_mode';
+  var ALERTS_KEY = 'phytoai_browser_alerts';       // 'on' | 'off' (explicit opt-in)
+  var NOTIFIED_KEY = 'phytoai_notified_keys';      // bounded dedupe list
 
   var SHEETS = 'https://sheets.googleapis.com/v4/spreadsheets/';
   var DRIVE = 'https://www.googleapis.com/drive/v3/files/';
@@ -69,6 +71,19 @@
   var SEVERITY = [ { id: 'critical', label: 'Critical' }, { id: 'warning', label: 'Warnings' }, { id: 'info', label: 'Info' } ];
   var SEVERITY_BY_TYPE = { alert_tank_empty: 'critical', alert_anomaly: 'warning', scan_verdict: 'warning', alert_battery_low: 'warning', scan_scheduled: 'info', scan_postponed: 'info', scan_followup: 'info', watering_feedback: 'info', smoke_test: 'info' };
   var LEGACY_TYPES = { alert_battery_low: true, scan_position: true };
+  /* Presentation-only labels: which workflow flow authored this notification
+   * type. Nothing here changes data or behaviour. */
+  var SOURCE_BY_TYPE = {
+    alert_tank_empty: 'Tank safety check',
+    alert_anomaly: 'Daily photo check',
+    alert_battery_low: 'Camera check (legacy)',
+    scan_verdict: 'Weekly scan verdict',
+    scan_followup: 'Scan follow-up',
+    scan_scheduled: 'Weekly scan schedule',
+    scan_postponed: 'Weekly scan',
+    watering_feedback: 'Watering decision',
+    smoke_test: 'Notifications smoke test'
+  };
 
   var state = {
     token: null, tokenExpiry: 0, tokenClient: null, sheetId: null,
@@ -76,6 +91,7 @@
     theme: 'botanical', route: 'overview', range: null, imageFilter: 'all', severityFilter: 'all', statusFilter: 'all',
     chartsExpanded: false, timelineExpanded: false, viewerReturnFocus: null, loadErrors: [], chatSending: false, askCooldownUntil: 0,
     chat: [], chatSeq: 0, pendingAsk: null, quotaUntil: 0, quotaTimer: null,
+    pollTimer: null, pollInFlight: false, lastPollAt: 0, notifSig: '', alertRequesting: false,
     ai: { overview: null, overviewAi: null, detection: null, loading: {}, loaded: {} }
   };
 
@@ -439,6 +455,7 @@
   }
   function flowMlPerSec() { var v = num(state.cfg['pump_flow_ml_per_sec']); return v !== null && v > 0 ? v : Number(CFG.pumpFlowMlPerSec || 0); }
   function cfgValue(key, fallback) { var v = state.cfg[key]; return v === undefined || v === null || String(v).trim() === '' ? fallback : v; }
+  function plantName() { return (CFG.profile && CFG.profile.name) || cfgValue('plant_name', '') || 'This plant'; }
 
   /* ---------------------------------------------------------- data bootstrap
    * One hard refresh performs exactly one Sheets bootstrap request
@@ -511,6 +528,7 @@
     state.theme = pickTheme(species);
     document.documentElement.setAttribute('data-theme', state.theme);
     deriveImages();
+    maybeBrowserAlerts();
   }
   /* Route-scoped panel loading: only the screen in front of the user may ask
    * the workflow for data — Overview, Insights, Doctor are never prefetched. */
@@ -821,6 +839,157 @@
   function askPlant(question, route) {
     return assistantFetch('ask', { method: 'POST', body: { plant_id: CFG.plantId || 'default', question: question, context: { route: route || 'overview', client_time_utc: new Date().toISOString() } } });
   }
+
+  /* -------------------------------------------------------- browser alerts
+   * Opt-in only: Notification.requestPermission() runs exclusively from the
+   * Settings control below - never on load. Permission is a display
+   * affordance, never backend authorization: each alert mirrors a row that was
+   * already read with the user's Google token. */
+  function alertSupported() { try { return typeof window.Notification === 'function'; } catch (err) { return false; } }
+  function alertPermission() {
+    try { return alertSupported() ? String(window.Notification.permission || 'default') : 'unsupported'; } catch (err) { return 'unsupported'; }
+  }
+  function alertsOptedIn() { try { return localStorage.getItem(ALERTS_KEY) === 'on'; } catch (err) { return false; } }
+  function setAlertsOptedIn(on) { try { localStorage.setItem(ALERTS_KEY, on ? 'on' : 'off'); } catch (err) { } }
+  function alertsActive() { return alertSupported() && alertPermission() === 'granted' && alertsOptedIn(); }
+  function renderAlertControl() {
+    var btn = $('alert-btn');
+    var stateEl = $('alert-state');
+    if (!btn || !stateEl) return;
+    var perm = alertPermission();
+    if (perm === 'unsupported') {
+      stateEl.textContent = 'unsupported in this browser';
+      stateEl.className = 'alert-state warn';
+      btn.disabled = true;
+      btn.textContent = 'Enable browser alerts';
+      return;
+    }
+    if (perm === 'denied') {
+      stateEl.textContent = 'denied — allow notifications for this site in your browser settings, then reload';
+      stateEl.className = 'alert-state bad';
+      btn.disabled = true;
+      btn.textContent = 'Enable browser alerts';
+      return;
+    }
+    var on = perm === 'granted' && alertsOptedIn();
+    stateEl.textContent = on
+      ? 'on — critical alerts and selected warnings, while this page is open'
+      : (perm === 'granted' ? 'allowed in the browser — not enabled here yet' : (state.alertRequesting ? 'asking the browser…' : 'not requested'));
+    stateEl.className = 'alert-state ' + (on ? 'ok' : (perm === 'default' ? '' : 'warn'));
+    btn.disabled = false;
+    btn.textContent = on ? 'Turn off alerts here' : 'Enable browser alerts';
+  }
+  function requestAlerts() {
+    if (!alertSupported() || state.alertRequesting) return;
+    var perm = alertPermission();
+    if (perm === 'denied') { renderAlertControl(); return; }
+    if (perm === 'default') {
+      state.alertRequesting = true;
+      renderAlertControl();
+      var req = window.Notification.requestPermission();
+      Promise.resolve(req).then(function (result) {
+        state.alertRequesting = false;
+        if (result === 'granted') setAlertsOptedIn(true);
+        renderAlertControl();
+        if (result === 'granted') maybeBrowserAlerts();
+      }, function () { state.alertRequesting = false; renderAlertControl(); });
+      return;
+    }
+    setAlertsOptedIn(!alertsOptedIn());
+    renderAlertControl();
+    if (alertsActive()) maybeBrowserAlerts();
+  }
+  function notificationKey(n) {
+    var ts = n.ts ? n.ts.toISOString() : String((n.raw && n.raw.timestamp) || '');
+    return [String(n.contextRef || ''), ts, String(n.type || ''), String(n.title || '')].join('|');
+  }
+  function notifiedKeySet() {
+    try {
+      var arr = JSON.parse(localStorage.getItem(NOTIFIED_KEY) || '[]');
+      return Array.isArray(arr) ? arr : [];
+    } catch (err) { return []; }
+  }
+  function pushNotifiedKey(key) {
+    var arr = notifiedKeySet();
+    if (arr.indexOf(key) < 0) arr.push(key);
+    while (arr.length > 200) arr.shift();
+    try { localStorage.setItem(NOTIFIED_KEY, JSON.stringify(arr)); } catch (err) { }
+  }
+  function alertRouteFor(type) { return (type === 'scan_verdict' || type === 'scan_followup') ? '#/doctor' : '#/timeline'; }
+  function browserAlertCandidates() {
+    var cfg = CFG.notifications || {};
+    var warnTypes = cfg.alertWarningTypes || [];
+    var cutoff = Date.now() - Number(cfg.alertFreshHours || 24) * 3600e3;
+    return state.notifications.filter(function (n) {
+      if (n.status !== 'pending') return false;
+      if (n.severity !== 'critical' && !(n.severity === 'warning' && warnTypes.indexOf(n.type) >= 0)) return false;
+      if (!n.ts || n.ts.getTime() < cutoff) return false;
+      return true;
+    });
+  }
+  function maybeBrowserAlerts() {
+    if (!alertsActive()) return 0;
+    var seen = notifiedKeySet();
+    var sent = 0;
+    browserAlertCandidates().forEach(function (n) {
+      var key = notificationKey(n);
+      if (seen.indexOf(key) >= 0) return;
+      pushNotifiedKey(key); // mark first: one system notification per row, ever
+      try {
+        var note = new window.Notification(n.title || n.type, {
+          body: String(n.message || '').slice(0, 180),
+          tag: key
+        });
+        note.onclick = function () {
+          try { window.focus(); } catch (err) { }
+          try { location.hash = alertRouteFor(n.type); } catch (err2) { }
+          try { note.close(); } catch (err3) { }
+        };
+        sent++;
+      } catch (err) { /* constructor may fail (revoked permission); it is already marked */ }
+    });
+    return sent;
+  }
+
+  /* ------------------------------------------------- notification polling
+   * One serialized Notifications-tab read per minute, only while the page is
+   * visible, only after boot, and never while a quota countdown runs. Route
+   * changes never trigger notification fetches. */
+  function startNotificationPolling() {
+    if (state.pollTimer || !state.token) return;
+    var every = Number((CFG.notifications || {}).pollMs || 60000);
+    state.pollTimer = setInterval(function () { pollNotifications(false); }, every);
+  }
+  function pollNotifications() {
+    if (!state.token || state.pollInFlight) return;
+    if (typeof document.visibilityState === 'string' && document.visibilityState !== 'visible') return;
+    if (Number(state.quotaUntil || 0) > Date.now()) return;
+    state.pollInFlight = true;
+    state.lastPollAt = Date.now();
+    sheetsGet('Notifications!A1:I', true, 'poll').then(function (values) {
+      state.pollInFlight = false;
+      applySheet('notifications', values);
+      noteDataOk();
+      maybeBrowserAlerts();
+      renderNotificationBits();
+    }, function () {
+      state.pollInFlight = false;
+    });
+  }
+  function renderNotificationBits() {
+    var badge = $('pending-count');
+    var pending = pendingNotifications();
+    if (badge) { badge.hidden = pending.length === 0; badge.textContent = pending.length + ' waiting on you'; }
+    var sig = pending.map(function (n) { return n._row + ':' + n.status; }).join(',');
+    if (sig === state.notifSig) return;
+    state.notifSig = sig;
+    if (state.route === 'timeline') {
+      var list = $('notification-list');
+      var typing = document.activeElement && list && list.contains(document.activeElement) &&
+        (document.activeElement.tagName === 'INPUT' || document.activeElement.tagName === 'SELECT');
+      if (!typing) renderTimeline();
+    }
+  }
   function fetchOverviewData(ai, force, routeTag) {
     var key = ai ? 'overviewAi' : 'overview';
     if (!force && (state.ai.loaded[key] || state.ai.loading[key])) return Promise.resolve(null);
@@ -1043,6 +1212,7 @@
     bootSetPhase('ready');
     boot.counting = false;
     setAuthUi();
+    startNotificationPolling();
   }
   function normalizeInitialHash() {
     var h = String(location.hash || '');
@@ -1079,7 +1249,7 @@
       return '<div class="warning-chip ' + f.severity + '"><span class="chip-icon">' + (ICONS[f.icon] || ICONS.warning) + '</span><div><span class="w-title">' + escapeHtml(f.title) + '</span> — ' + escapeHtml(f.text) + '</div></div>';
     }).join('');
     var species = cfgValue('last_species_guess', ev ? ev.species : '') || 'unknown';
-    var name = (CFG.profile && CFG.profile.name) || cfgValue('plant_name', '') || 'This plant';
+    var name = plantName();
     $('plant-identity').textContent = name + (species !== 'unknown' ? ' · ' + species : '');
     $('hero-age').textContent = ev ? 'Last reading ' + fmtWhen(ev.ts) + ' · next check follows the sun schedule' : 'No readings yet';
 
@@ -1175,6 +1345,11 @@
     });
     return out.sort(function (a, b) { return b.ts - a.ts; });
   }
+  function notifSeverityChip(n) {
+    var cls = n.severity === 'critical' ? 'sev-possible_issue' : n.severity === 'warning' ? 'sev-monitor' : 'sev-unknown';
+    var label = n.severity === 'critical' ? 'Critical' : n.severity === 'warning' ? 'Warning' : n.severity === 'legacy' ? 'Legacy' : 'Info';
+    return '<span class="sev-chip ' + cls + '">' + label + '</span>';
+  }
   function renderNotifications() {
     var host = $('notification-list');
     if (!host) return;
@@ -1182,11 +1357,18 @@
     var pending = pendingNotifications();
     var badge = $('pending-count');
     if (badge) { badge.hidden = pending.length === 0; badge.textContent = pending.length + ' waiting on you'; }
+    var ctx = $('notif-context');
+    if (ctx) {
+      var ev = latestEvent();
+      var species = cfgValue('last_species_guess', ev ? ev.species : '') || 'unknown';
+      ctx.textContent = 'About ' + plantName() + (species !== 'unknown' ? ' (' + species + ')' : '') +
+        ' · ' + state.notifications.length + ' record' + (state.notifications.length === 1 ? '' : 's') +
+        ' · status (pending / done / expired) is written by the workflow — this app keeps no separate read state.';
+    }
     if (sev && !sev.children.length) {
       sev.innerHTML = '<button type="button" data-sev="all" aria-pressed="true">All</button>' + SEVERITY.map(function (s) { return '<button type="button" data-sev="' + s.id + '" aria-pressed="false">' + s.label + '</button>'; }).join('');
     }
     if (sev) Array.prototype.forEach.call(sev.children, function (b) { b.setAttribute('aria-pressed', String(b.getAttribute('data-sev') === state.severityFilter)); });
-    if (!host) return;
     var items = state.notifications.filter(function (n) {
       if (state.severityFilter === 'critical' && n.severity !== 'critical') return false;
       if (state.severityFilter === 'warning' && n.severity !== 'warning') return false;
@@ -1201,7 +1383,8 @@
     if (!items.length) {
       host.innerHTML = state.notifications.length
         ? '<p class="empty">No notes match this filter.</p>'
-        : '<div class="media-state"><span class="art" data-art="notifications" aria-hidden="true"></span><span>Nothing needs you right now — alerts and questions will land here.</span></div>';
+        : '<div class="media-state"><span class="art" data-art="notifications" aria-hidden="true"></span><span>Nothing needs you right now — alerts and questions will land here.</span></div>' +
+          '<p class="muted small notif-hint">Want a system notification while this page is open? Enable browser alerts in Settings — critical alerts and selected warnings only.</p>';
       hydrateArt(host);
       return;
     }
@@ -1212,10 +1395,14 @@
       var feedback = n.status === 'pending'
         ? '<input class="notif-comment" type="text" placeholder="optional comment / correction"><div class="notif-feedback" hidden></div>'
         : (n.response ? '<div class="notif-meta"><span>your answer: ' + escapeHtml(n.response) + '</span></div>' : '');
+      var source = SOURCE_BY_TYPE[n.type] || 'Workflow notification';
       return '<article class="notif sev-' + n.severity + '" data-row="' + n._row + '">' +
-        '<div class="notif-head"><span class="notif-type">' + escapeHtml(n.type || 'note') + '</span>' +
+        '<div class="notif-head"><span class="notif-type">' + escapeHtml(n.type || 'note') + '</span>' + notifSeverityChip(n) +
         '<span class="notif-meta"><span>' + escapeHtml(fmtWhen(n.ts)) + '</span><span>' + escapeHtml(n.status || '—') + '</span></span></div>' +
         '<div class="notif-title">' + escapeHtml(n.title) + '</div><div class="notif-msg">' + escapeHtml(n.message) + '</div>' +
+        '<div class="notif-source muted small">Source: ' + escapeHtml(source) +
+        (n.contextRef ? ' · ref ' + escapeHtml(String(n.contextRef).slice(0, 40)) : '') +
+        ' · plant ' + escapeHtml(plantName()) + '</div>' +
         (actions ? '<div class="notif-actions">' + actions + '</div>' : '') + feedback +
         '<details><summary>Raw row (debug)</summary><pre>' + escapeHtml(JSON.stringify(n.raw, null, 1)) + '</pre></details></article>';
     }).join('');
@@ -1565,6 +1752,7 @@
       seg.innerHTML = modes.map(function (m) { return '<button type="button" data-mode="' + m[0] + '" aria-pressed="' + (currentMode() === m[0]) + '">' + m[1] + '</button>'; }).join('');
     }
     applyMode();
+    renderAlertControl();
     var t = THEMES[state.theme] || THEMES.botanical;
     $('theme-label').textContent = t.label + ' — ' + t.tagline + ' (presentation only)';
     var r = state.ai.overview;
@@ -1718,6 +1906,13 @@
     });
     $('sheet-mode-exit').addEventListener('click', exitSheetMode);
     $('mode-btn').addEventListener('click', cycleMode);
+    var alertBtn = $('alert-btn');
+    if (alertBtn) alertBtn.addEventListener('click', requestAlerts);
+    document.addEventListener('visibilitychange', function () {
+      if (typeof document.visibilityState === 'string' && document.visibilityState !== 'visible') return;
+      var due = Number((CFG.notifications || {}).pollMs || 60000);
+      if (Date.now() - Number(state.lastPollAt || 0) >= due) pollNotifications();
+    });
     $('timeline-more').addEventListener('click', function () { state.timelineExpanded = true; renderTimeline(); });
     $('charts-more').addEventListener('click', function () { state.chartsExpanded = true; renderChartsBlock(); });
     var trendFull = $('trend-full');
