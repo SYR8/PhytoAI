@@ -12,7 +12,11 @@
  * below must belong to that same Google Cloud OAuth client.
  */
 window.PHYTOAI_CONFIG = {
-  clientId: 'REPLACE_WITH_GOOGLE_OAUTH_CLIENT_ID.apps.googleusercontent.com',
+  /* Public by design (OAuth Web client ID); client secrets never belong here. */
+  clientId: '515418269010-ensbsq2skmsrsk3npg9quupqt76rboc2.apps.googleusercontent.com',
+  /* login suggestion only — Google account chooser still decides; users can select a different account.
+     Empty/absent = the hint parameter is omitted entirely. */
+  GOOGLE_LOGIN_HINT: 'zibrahimzaki7@gmail.com',
   spreadsheetId: '10a3YXWBN4-hFJQQT4sLERmyu8D2TxYKNkXW-k3QRyLI',
   scopes: [
     'https://www.googleapis.com/auth/spreadsheets',

@@ -172,9 +172,15 @@
     el.textContent = connected ? 'Google connected' : 'Not connected';
     el.className = 'auth-status ' + (connected ? 'ok' : 'warn');
   }
+  function loginHint() {
+    return String(CFG.GOOGLE_LOGIN_HINT || '').trim();
+  }
   function requestSignIn() {
     if (!state.tokenClient) { initAuth(); return; }
-    state.tokenClient.requestAccessToken({ prompt: '' });
+    var req = { prompt: '' };                 // prompt:'' keeps the normal chooser flow — no forced account
+    var hint = loginHint();
+    if (hint) req.hint = hint;                // GIS merges request overrides with the init config (verified)
+    state.tokenClient.requestAccessToken(req);
   }
   function authHeaders() { return { Authorization: 'Bearer ' + state.token }; }
 
@@ -197,7 +203,7 @@
       $('auth-status').textContent = 'Google sign-in unavailable (offline?)';
       return;
     }
-    state.tokenClient = google.accounts.oauth2.initTokenClient({
+    var tokenClientCfg = {
       client_id: CFG.clientId,
       scope: CFG.scopes,
       callback: function (resp) {
@@ -210,8 +216,15 @@
         } else {
           showBanner('Google sign-in failed. Check the OAuth client ID and the authorized JavaScript origins (EdgeOne domain, HTTPS).', 'error');
         }
+      },
+      error_callback: function (err) {
+        // Authentication errors are never hidden.
+        showBanner('Google sign-in error (' + ((err && (err.type || err.message)) || 'unknown') + '). Check the OAuth client ID, the authorized JavaScript origin https://phytoai.edgeone.dev, and that access was granted.', 'error');
       }
-    });
+    };
+    var hint = loginHint();
+    if (hint) tokenClientCfg.hint = hint;    // login suggestion only; the account chooser still decides
+    state.tokenClient = google.accounts.oauth2.initTokenClient(tokenClientCfg);
     if (restoreToken()) { setAuthUi(); loadAll(); } else { $('connect-btn').hidden = false; }
   }
 

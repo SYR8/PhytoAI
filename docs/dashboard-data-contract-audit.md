@@ -202,6 +202,17 @@ view (debug), per the brief's adapter requirement.
   (scheme + host, no trailing slash, no path) to the OAuth client's *Authorized JavaScript origins*, and make
   sure the client ID configured in `dashboard/config.js` belongs to that same Google Cloud OAuth client.
   HTTPS is required by GIS. (Deployed site: https://phytoai.edgeone.dev/ — verified 2026-09-15.)
+- **Configured OAuth client (2026-09-15):** `515418269010-ensbsq2skmsrsk3npg9quupqt76rboc2.apps.googleusercontent.com`
+  (public Web client ID; safe to commit) — the authorized JavaScript origin above must be configured **in the
+  same Google Cloud project that owns this client ID**.
+- **Data sharing is the access boundary:** the spreadsheet and both Drive folders must be shared with the
+  signed-in Google account (owner intends `zibrahimzaki7@gmail.com`). Without that sharing the dashboard
+  loads but every data call fails — by design, nothing is faked.
+- **Secrets:** the client ID is public; **client secrets never belong in this repo or in dashboard files**.
+  The dashboard performs user-OAuth only; no server-side secret exists.
+- **Login hint:** `GOOGLE_LOGIN_HINT` in `dashboard/config.js` is a **cosmetic suggestion only** (GIS `hint`
+  field, verified against the loaded library: `login_hint: b.login_hint || b.hint`). It never forces an
+  account, never hides the chooser, and grants nothing — Sheet/Drive sharing remains the real boundary.
 - **CORS:** Google Sheets/Drive REST APIs send permissive CORS headers and accept `Authorization: Bearer`;
   Drive media fetch (`?alt=media`) also works with the token. n8n `resume_url` calls are best-effort:
   the dashboard POSTs/GETs with `no-cors` fallback when CORS headers are absent and **always persists the
