@@ -57,5 +57,18 @@ window.PHYTOAI_CONFIG = {
    * presentation thresholds for the "data age" indicator only — they are not
    * safety limits and do not change workflow behaviour. */
   staleAfterMinutes: 14 * 60,     // ~ one sun-event cycle + margin
-  cameraQuietAfterMinutes: 36 * 60
+  cameraQuietAfterMinutes: 36 * 60,
+
+  /* Public assistant endpoints (n8n via the named tunnel). No tokens live here:
+   * the dashboard sends the signed-in user's Google access token and the workflow
+   * verifies it server-side (audience + expiry) before answering. The endpoints
+   * only exist while the workflow is ACTIVE. */
+  assistantBase: 'https://n8n.mnsof.me',
+  assistantRoutes: {
+    ask: '/webhook/dashboard/ask',
+    overview: '/webhook/dashboard/overview',
+    detection: '/webhook/dashboard/detection'
+  },
+  assistantTimeoutMs: 15000,
+  plantId: 'default'
 };

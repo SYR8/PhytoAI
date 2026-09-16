@@ -1,14 +1,14 @@
 <!DOCTYPE html>
-<html lang="en" data-theme="botanical" data-state="ok">
+<html lang="en" data-theme="botanical" data-mode="dark" data-state="ok">
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1">
-<meta name="color-scheme" content="dark">
+<meta name="color-scheme" content="dark light">
 <title>PhytoAI — Plant Care</title>
 <link rel="stylesheet" href="styles.css">
 </head>
 <body>
-<a class="skip-link" href="#hero">Skip to plant status</a>
+<a class="skip-link" href="#screen-overview">Skip to plant status</a>
 
 <header class="topbar">
   <div class="brand">
@@ -18,12 +18,14 @@
       <span class="brand-sub" id="plant-identity">Plant care</span>
     </span>
   </div>
+  <nav class="tabs" id="tabs" aria-label="Screens"></nav>
   <div class="topbar-actions">
-    <span id="dryrun-pill" class="pill pill-warn" hidden>Dry-run mode — nothing is switched on</span>
+    <span id="dryrun-pill" class="pill pill-warn" hidden>Dry-run — nothing switches on</span>
     <span id="stale-pill" class="pill pill-bad" hidden>No new data</span>
     <span id="auth-status" class="auth-status" role="status"></span>
     <button id="connect-btn" class="btn btn-primary" type="button" hidden>Connect Google</button>
     <button id="refresh-btn" class="btn" type="button" hidden>Refresh</button>
+    <button id="mode-btn" class="btn btn-icon" type="button" aria-label="Switch light or dark appearance"><span data-icon="sun" aria-hidden="true"></span></button>
   </div>
 </header>
 
@@ -41,79 +43,62 @@
     <div>
       <h2 id="signin-title">Sign in to see your plant</h2>
       <p>This console reads your plant's Google Sheets and Drive with <em>your own</em> access. Nothing loads until you
-      grant it — no demo data is shown.</p>
+      grant it — no demo data is shown. The assistant also uses your sign-in, verified by the workflow.</p>
       <p><button class="btn btn-primary" id="signin-btn" type="button">Sign in with Google</button></p>
       <p class="muted small">Sign-in problems appear in the banner above — never hidden.</p>
     </div>
   </section>
 
-  <!-- ============================ HERO (above the fold) ============================ -->
-  <section class="hero" id="hero" aria-labelledby="hero-line">
-    <div class="hero-copy">
-      <div class="hero-state" id="hero-state">
-        <span class="hero-state-icon" id="hero-state-icon" aria-hidden="true"></span>
-        <span class="hero-state-word" id="hero-word">Loading…</span>
+  <!-- ============================ OVERVIEW ============================ -->
+  <section class="screen" id="screen-overview" aria-labelledby="hero-line">
+    <div class="hero" id="hero">
+      <div class="hero-copy">
+        <div class="hero-state" id="hero-state">
+          <span class="hero-state-icon" id="hero-state-icon" aria-hidden="true"></span>
+          <span class="hero-state-word" id="hero-word">Loading…</span>
+        </div>
+        <h1 id="hero-line">Connecting to your plant…</h1>
+        <p class="hero-explain" id="hero-explain"></p>
+        <div class="hero-flags" id="hero-flags" aria-live="polite"></div>
+        <p class="hero-age muted" id="hero-age"></p>
       </div>
-      <h1 id="hero-line">Connecting to your plant…</h1>
-      <p class="hero-explain" id="hero-explain"></p>
-      <div class="hero-flags" id="hero-flags" aria-live="polite"></div>
-      <p class="hero-age muted" id="hero-age"></p>
+      <div class="hero-art" aria-hidden="true">
+        <span class="hero-halo"></span>
+        <span class="art hero-plant" data-art="gardening"></span>
+        <span class="hero-leaf" data-icon="leaf"></span>
+      </div>
     </div>
-    <div class="hero-art" aria-hidden="true" data-state-art="hero">
-      <span class="hero-halo"></span>
-      <span class="art hero-plant" data-art="gardening"></span>
-      <span class="hero-leaf" data-icon="leaf"></span>
+
+    <div class="card action-card" id="action-card">
+      <span class="sum-icon" aria-hidden="true" data-icon="warning"></span>
+      <div id="action-line" class="action-line">Checking what needs doing…</div>
     </div>
+
+    <div class="chip-row" id="quick-vitals" aria-label="Essential readings"></div>
+
+    <div class="mini-grid">
+      <div class="card mini"><span class="mini-k">Latest event</span><span class="mini-v" id="latest-event">—</span></div>
+      <div class="card mini"><span class="mini-k">Latest alert</span><span class="mini-v" id="latest-alert">—</span></div>
+      <div class="card mini mini-img"><span class="mini-k">Latest photo</span><div id="latest-thumb" class="latest-thumb"></div></div>
+    </div>
+
+    <div class="card ai-card" id="overview-ai">
+      <div class="ai-head"><span class="ai-badge">AI OVERVIEW</span><span class="muted small" id="overview-ai-meta"></span></div>
+      <p class="ai-text" id="overview-ai-text">Assistant not loaded yet.</p>
+    </div>
+
+    <div class="ask" id="ask-overview"></div>
+
+    <div class="links-row" id="overview-links"></div>
   </section>
 
-  <!-- ======================== PROGRESSIVE DISCLOSURE (closed by default) ======================== -->
-  <details class="card" id="sec-vitals">
-    <summary><span class="sum-icon" data-icon="drop"></span><span class="sum-title">Today's vitals</span><span class="sum-hint" id="vitals-hint"></span></summary>
-    <div class="card-body">
-      <div class="metrics" id="vitals-grid"></div>
-    </div>
-  </details>
-
-  <details class="card" id="sec-timeline">
-    <summary><span class="sum-icon" data-icon="list"></span><span class="sum-title">What happened lately</span><span class="sum-hint" id="timeline-hint"></span></summary>
-    <div class="card-body">
+  <!-- ============================ TIMELINE ============================ -->
+  <section class="screen" id="screen-timeline" hidden aria-labelledby="timeline-title">
+    <div class="card pad">
+      <div class="panel-head"><h2 id="timeline-title">What happened lately</h2><span class="muted" id="timeline-hint"></span></div>
       <ol class="timeline" id="timeline"></ol>
       <button class="btn btn-ghost" id="timeline-more" type="button" hidden>Show older moments</button>
-    </div>
-  </details>
-
-  <details class="card" id="sec-history">
-    <summary><span class="sum-icon" data-icon="chart-line"></span><span class="sum-title">History</span><span class="sum-hint" id="history-hint"></span></summary>
-    <div class="card-body">
-      <div class="history-tools">
-        <div class="segmented" id="range-select" role="group" aria-label="Time range"></div>
-      </div>
-      <div id="charts" class="charts"></div>
-      <button class="btn btn-ghost" id="charts-more" type="button" hidden>Show more charts</button>
-      <div class="chart-legend">
-        <span class="legend-item"><i class="dot dot-water"></i> watering</span>
-        <span class="legend-item"><i class="dot dot-heat"></i> heating</span>
-        <span class="legend-item"><i class="dot dot-tank"></i> tank empty</span>
-        <span class="legend-item"><i class="dash"></i> data gap</span>
-      </div>
-      <div id="watering-summary" class="watering-summary"></div>
-    </div>
-  </details>
-
-  <details class="card" id="sec-photos">
-    <summary><span class="sum-icon" data-icon="camera"></span><span class="sum-title">Photos</span><span class="sum-hint" id="photos-hint"></span></summary>
-    <div class="card-body">
-      <div class="photos-tools">
-        <div class="segmented" id="image-filter" role="group" aria-label="Photo filter"></div>
-      </div>
-      <div id="latest-image" class="latest-image"></div>
-      <div id="image-gallery" class="gallery"></div>
-    </div>
-  </details>
-
-  <details class="card" id="sec-notes">
-    <summary><span class="sum-icon" data-icon="bell"></span><span class="sum-title">Notes &amp; alerts</span><span class="sum-hint" id="notes-hint"></span></summary>
-    <div class="card-body">
+      <h3 class="sub-head">Waiting on you</h3>
       <div class="notes-tools">
         <span id="pending-count" class="badge" hidden></span>
         <div class="segmented" id="severity-filter" role="group" aria-label="Severity filter"></div>
@@ -125,26 +110,85 @@
         </select>
       </div>
       <div id="notification-list" class="notification-list"></div>
-      <h3 class="sub-head">Latest decision</h3>
-      <div id="latest-decision" class="latest-decision"></div>
-      <h3 class="sub-head">AI notes <span class="muted">(unverified hypotheses from past runs)</span></h3>
-      <div id="notes-list" class="notes-list"></div>
     </div>
-  </details>
+  </section>
 
-  <details class="card" id="sec-settings">
-    <summary><span class="sum-icon" data-icon="sliders"></span><span class="sum-title">Settings &amp; thresholds</span><span class="sum-hint">read-only — backend decides</span></summary>
-    <div class="card-body">
-      <div id="system-grid" class="kv-grid"></div>
-      <p class="muted small">These come from SystemConfig and firmware constants. Visual themes never change them.
-      <span data-icon="plug" class="inline-icon" aria-hidden="true"></span> Camera power is wired-only — there is no battery to watch.</p>
+  <!-- ============================ PLANT DOCTOR ============================ -->
+  <section class="screen" id="screen-doctor" hidden aria-labelledby="doctor-title">
+    <div class="card pad">
+      <div class="panel-head"><h2 id="doctor-title">Plant Doctor</h2><span class="muted" id="doctor-status"></span></div>
+      <div id="detection-card"></div>
+      <h3 class="sub-head">Detection history</h3>
+      <div id="detection-history"></div>
     </div>
-  </details>
+  </section>
+
+  <!-- ============================ PHOTOS ============================ -->
+  <section class="screen" id="screen-photos" hidden aria-labelledby="photos-title">
+    <div class="card pad">
+      <div class="panel-head"><h2 id="photos-title">Photos</h2><span class="muted" id="photos-hint"></span></div>
+      <div class="photos-tools"><div class="segmented" id="image-filter" role="group" aria-label="Photo filter"></div></div>
+      <div id="latest-image" class="latest-image"></div>
+      <div id="image-gallery" class="gallery"></div>
+    </div>
+  </section>
+
+  <!-- ============================ INSIGHTS ============================ -->
+  <section class="screen" id="screen-insights" hidden aria-labelledby="insights-title">
+    <div class="card pad">
+      <div class="panel-head"><h2 id="insights-title">Insights</h2><span class="muted small">generated analysis — unverified</span></div>
+      <div id="insights-summary" class="insights-summary">Assistant not loaded yet.</div>
+      <div class="mini-grid two">
+        <div class="card mini"><span class="mini-k">What changed</span><div class="mini-v" id="insights-changed">—</div></div>
+        <div class="card mini"><span class="mini-k">What to check</span><div class="mini-v" id="insights-check">—</div></div>
+      </div>
+      <p class="muted small" id="insights-freshness"></p>
+      <details class="evidence" id="insights-evidence-wrap" hidden>
+        <summary>Evidence behind this overview</summary>
+        <ul id="insights-evidence"></ul>
+      </details>
+      <h3 class="sub-head">Trends <span class="muted">(one reading per chart — tap or hover for exact values)</span></h3>
+      <div class="head-tools"><div class="segmented" id="range-select" role="group" aria-label="Time range"></div></div>
+      <div id="charts" class="charts"></div>
+      <button class="btn btn-ghost" id="charts-more" type="button" hidden>Show more charts</button>
+      <div class="ask" id="ask-insights"></div>
+    </div>
+  </section>
+
+  <!-- ============================ SETTINGS ============================ -->
+  <section class="screen" id="screen-settings" hidden aria-labelledby="settings-title">
+    <div class="card pad">
+      <div class="panel-head"><h2 id="settings-title">Settings</h2><span class="muted small">read-only where it matters</span></div>
+      <h3 class="sub-head">Appearance</h3>
+      <div class="setting-row">
+        <span>Theme</span>
+        <div class="segmented" id="mode-select" role="group" aria-label="Appearance mode"></div>
+      </div>
+      <div class="setting-row">
+        <span>Plant colour theme</span>
+        <span id="theme-label" class="muted"></span>
+      </div>
+      <h3 class="sub-head">Assistant</h3>
+      <div id="assistant-status" class="kv-grid"></div>
+      <h3 class="sub-head">Safety thresholds &amp; configuration <span class="muted">(backend-driven — themes never change these)</span></h3>
+      <div id="system-grid" class="kv-grid"></div>
+      <p class="muted small"><span data-icon="plug" class="inline-icon" aria-hidden="true"></span> Camera power is wired-only — there is no battery to watch.
+      <span data-icon="camera" class="inline-icon" aria-hidden="true"></span> Photos and detections come from the persisted rows; nothing is invented.</p>
+    </div>
+  </section>
 </main>
 
+<nav class="bottomnav" id="bottomnav" aria-label="Primary screens"></nav>
+<div class="more-sheet" id="more-sheet" hidden>
+  <div class="more-inner" role="dialog" aria-label="More screens">
+    <div class="more-head"><strong>More</strong><button type="button" class="btn" id="more-close">Close</button></div>
+    <div id="more-links" class="more-links"></div>
+  </div>
+</div>
+
 <footer>
-  <p>Reads Google Sheets + Drive directly with your OAuth token — no workflow secrets in the browser.
-  Data contract: <code>docs/dashboard-data-contract-audit.md</code> · test-sheet guide: <code>docs/dashboard-test-data.md</code>.</p>
+  <p>Reads Google Sheets + Drive directly with your OAuth token; the assistant calls n8n endpoints with the same token,
+  verified server-side. No workflow secrets in the browser. Contract: <code>docs/dashboard-data-contract-audit.md</code>.</p>
 </footer>
 
 <div id="viewer" class="viewer" role="dialog" aria-modal="true" aria-label="Photo viewer" hidden>

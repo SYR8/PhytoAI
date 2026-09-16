@@ -1,12 +1,7 @@
-/* PhytoAI dashboard — consumer-first app (v2).
- *
- * Presentation only: the data contract is frozen (docs/dashboard-data-contract-audit.md).
- * - Reads Google Sheets + Drive directly with the user's OAuth token.
- * - Sheet override precedence: ?sheet=<ID> > localStorage > config.js (owner tooling).
- * - ml_est is always tagged as estimated from pump runtime; measured wt_delta_g shows
- *   "Device log only — not saved to history yet" (no persistence path exists).
- * - Dry-run and stale data stay loud and plain-worded.
- */
+/* PhytoAI dashboard — v3 app (navigation + themes + plant doctor + assistant).
+ * Presentation only; data contract frozen (docs/dashboard-data-contract-audit.md).
+ * The assistant runs through n8n with the user's Google token verified server-side;
+ * no model keys or n8n secrets ever live in the browser. */
 (function () {
   'use strict';
 
@@ -16,11 +11,11 @@
   var EXPIRY_KEY = 'phytoai_token_expiry';
   var SEEN_KEY = 'phytoai_seen_notification_ts';
   var SHEET_OVERRIDE_KEY = 'phytoai_sheet_override';
+  var MODE_KEY = 'phytoai_mode';
 
   var SHEETS = 'https://sheets.googleapis.com/v4/spreadsheets/';
   var DRIVE = 'https://www.googleapis.com/drive/v3/files/';
 
-  /* Iconify (Phosphor `ph`) — inlined at build time, no runtime token/network. */
   var PH = '<svg viewBox="0 0 256 256" aria-hidden="true" focusable="false">';
   var ICONS = {
     leaf: PH + '<path fill="currentColor" d="M223.45 40.07a8 8 0 0 0-7.52-7.52C139.8 28.08 78.82 51 52.82 94a87.1 87.1 0 0 0-12.76 49c.57 15.92 5.21 32 13.79 47.85l-19.51 19.5a8 8 0 0 0 11.32 11.32l19.5-19.51C81 210.73 97.09 215.37 113 215.94q1.67.06 3.33.06A86.93 86.93 0 0 0 162 203.18c43-26 65.93-86.97 61.45-163.11m-69.7 149.43c-22.75 13.78-49.68 14-76.71.77l88.63-88.62a8 8 0 0 0-11.32-11.32L65.73 179c-13.19-27-13-54 .77-76.71c22.09-36.47 74.6-56.44 141.31-54.06c2.39 66.66-17.59 119.18-54.06 141.27"/></svg>',
@@ -49,14 +44,23 @@
 
   var ART = { gardening: 'assets/undraw-gardening.svg', images: 'assets/undraw-images.svg', notifications: 'assets/undraw-notifications.svg', login: 'assets/undraw-login.svg' };
 
+  var ROUTES = [
+    { id: 'overview', label: 'Overview', icon: 'leaf' },
+    { id: 'timeline', label: 'Timeline', icon: 'list' },
+    { id: 'doctor', label: 'Doctor', icon: 'warning' },
+    { id: 'photos', label: 'Photos', icon: 'camera' },
+    { id: 'insights', label: 'Insights', icon: 'chart' },
+    { id: 'settings', label: 'Settings', icon: 'sliders' }
+  ];
+  var PRIMARY = ['overview', 'timeline', 'doctor', 'photos'];
+  var MORE = ['insights', 'settings'];
   var METRICS = [
-    { id: 'weight', label: 'Pot weight', unit: 'g', decimals: 1, gauge: false, spark: true, chart: true },
-    { id: 'moisture', label: 'Soil moisture', unit: '%', decimals: 0, gauge: true, spark: true, chart: true },
-    { id: 'waterC', label: 'Water temperature', unit: '°C', decimals: 1, gauge: true, chart: true },
-    { id: 'soilC', label: 'Soil temperature', unit: '°C', decimals: 1, gauge: true, chart: false },
-    { id: 'airC', label: 'Air temperature', unit: '°C', decimals: 1, chart: false },
-    { id: 'hum', label: 'Air humidity', unit: '%', decimals: 0, chart: false },
-    { id: 'light', label: 'Light sensor', unit: '', decimals: 0, chart: false }
+    { id: 'weight', field: 'weight', label: 'Pot weight', unit: 'g', decimals: 1, chart: true },
+    { id: 'moisture', field: 'moisture', label: 'Soil moisture', unit: '%', decimals: 0, chart: true },
+    { id: 'waterC', field: 'waterC', label: 'Water temperature', unit: '°C', decimals: 1, chart: true },
+    { id: 'soilC', field: 'soilC', label: 'Soil temperature', unit: '°C', decimals: 1, chart: false },
+    { id: 'airC', field: 'airC', label: 'Air temperature', unit: '°C', decimals: 1, chart: false },
+    { id: 'hum', field: 'hum', label: 'Air humidity', unit: '%', decimals: 0, chart: false }
   ];
   var RANGES = [ { id: '24h', label: '24 h', ms: 86400e3 }, { id: '7d', label: '7 days', ms: 7 * 86400e3 }, { id: '30d', label: '30 days', ms: 30 * 86400e3 }, { id: 'all', label: 'All', ms: 0 } ];
   var SEVERITY = [ { id: 'critical', label: 'Critical' }, { id: 'warning', label: 'Warnings' }, { id: 'info', label: 'Info' } ];
@@ -66,8 +70,9 @@
   var state = {
     token: null, tokenExpiry: 0, tokenClient: null, sheetId: null,
     cfg: {}, events: [], notifications: [], scans: [], notes: [], images: [], media: {}, meta: {},
-    theme: 'botanical', range: null, imageFilter: 'all', severityFilter: 'all', statusFilter: 'all',
-    chartsExpanded: false, timelineExpanded: false, viewerReturnFocus: null, loadErrors: [], revealed: false
+    theme: 'botanical', route: 'overview', range: null, imageFilter: 'all', severityFilter: 'all', statusFilter: 'all',
+    chartsExpanded: false, timelineExpanded: false, viewerReturnFocus: null, loadErrors: [],
+    ai: { overview: null, overviewAi: null, detection: null, loading: {}, loaded: {} }
   };
 
   var $ = function (id) { return document.getElementById(id); };
@@ -79,17 +84,13 @@
       .replace(/&/g, '&amp;').replace(/</g, '&lt;').replace(/>/g, '&gt;')
       .replace(/"/g, '&quot;').replace(/'/g, '&#39;');
   }
-  function icon(name, cls) { return '<span class="' + (cls || '') + '" data-icon-inline="' + name + '"></span>'; }
   function num(v) { if (v === undefined || v === null || String(v).trim() === '') return null; var n = Number(v); return isFinite(n) ? n : null; }
   function bool(v) { return String(v).trim().toLowerCase() === 'true'; }
   function parseDate(v) { if (!v) return null; var d = new Date(String(v).trim()); return isNaN(d.getTime()) ? null : d; }
   function fmtNum(v, dec) { return v === null || v === undefined || isNaN(v) ? '—' : Number(v).toFixed(dec); }
-  function fmtClock(d) { return d ? d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' }) : '—'; }
-  function fmtDay(d) { return d ? d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) : '—'; }
   function fmtWhen(d) {
     if (!d) return 'unknown';
-    var now = Date.now();
-    var diff = now - d.getTime();
+    var diff = Date.now() - d.getTime();
     if (diff < 90e3) return 'just now';
     if (diff < 3600e3) return Math.round(diff / 60e3) + ' min ago';
     var d0 = new Date(); d0.setHours(0, 0, 0, 0);
@@ -99,7 +100,7 @@
     if (days === 0) return part;
     if (days === 1) return 'yesterday ' + part.replace('this ', '');
     if (days < 7) return days + ' days ago';
-    return fmtDay(d) + ' at ' + fmtClock(d);
+    return d.toLocaleDateString(undefined, { month: 'short', day: 'numeric' }) + ' at ' + d.toLocaleTimeString(undefined, { hour: '2-digit', minute: '2-digit' });
   }
   function fmtAge(ms) {
     if (ms === null || ms === undefined || isNaN(ms)) return '—';
@@ -112,26 +113,27 @@
     return Math.round(h / 24) + ' days';
   }
   function median(arr) { if (!arr.length) return null; var s = arr.slice().sort(function (a, b) { return a - b; }); var m = Math.floor(s.length / 2); return s.length % 2 ? s[m] : (s[m - 1] + s[m]) / 2; }
+  function humanList(arr) { return arr.length ? arr.map(function (x) { return escapeHtml(x); }).join('<br>') : '—'; }
 
   /* ------------------------------------------------------- animation helpers */
   var revealObserver = null;
-  function observeReveals() {
-    var els = document.querySelectorAll('.reveal, .chart-card');
-    if (reducedMotion() || !('IntersectionObserver' in window)) { els.forEach(function (el) { el.classList.add('in'); }); return; }
+  function observeReveals(root) {
+    var host = root || document;
+    var els = host.querySelectorAll('.reveal, .chart-card');
+    if (reducedMotion() || !('IntersectionObserver' in window)) { Array.prototype.forEach.call(els, function (el) { el.classList.add('in'); }); return; }
     if (!revealObserver) {
       revealObserver = new IntersectionObserver(function (entries) {
         entries.forEach(function (e) { if (e.isIntersecting) { e.target.classList.add('in'); revealObserver.unobserve(e.target); } });
       }, { rootMargin: '0px 0px -8% 0px', threshold: 0.08 });
     }
-    els.forEach(function (el) { if (!el.classList.contains('in')) revealObserver.observe(el); });
+    Array.prototype.forEach.call(els, function (el) { if (!el.classList.contains('in')) revealObserver.observe(el); });
   }
   function countUp(el, to, decimals) {
     if (to === null || to === undefined || isNaN(to)) { el.textContent = '—'; return; }
     var from = Number(el.getAttribute('data-last') || 0);
     el.setAttribute('data-last', String(to));
     if (reducedMotion() || from === to) { el.textContent = Number(to).toFixed(decimals); return; }
-    var t0 = null;
-    var dur = 650;
+    var t0 = null, dur = 650;
     function frame(ts) {
       if (!t0) t0 = ts;
       var p = Math.min(1, (ts - t0) / dur);
@@ -141,30 +143,28 @@
     }
     requestAnimationFrame(frame);
   }
-  function setRawValue(el, value, decimals) { countUp(el, value, decimals); }
 
-  /* ------------------------------------------------------------------ art */
+  /* ------------------------------------------------------------------ art/icons */
   function hydrateArt(root) {
-    var nodes = (root || document).querySelectorAll('[data-art]');
-    Array.prototype.forEach.call(nodes, function (el) {
+    Array.prototype.forEach.call((root || document).querySelectorAll('[data-art]'), function (el) {
       if (el.getAttribute('data-art-done')) return;
       var key = el.getAttribute('data-art');
       if (!ART[key]) return;
       fetch(ART[key]).then(function (r) { if (!r.ok) throw new Error('art ' + r.status); return r.text(); }).then(function (svg) {
-        var clean = svg.replace(/<\?xml[^>]*\?>/, '')
-          .replace(/<svg([^>]*)>/, function (m, attrs) { return '<svg' + attrs.replace(/\s(width|height)="[^"]*"/g, '') + '>'; })
+        el.innerHTML = svg.replace(/<\?xml[^>]*\?>/, '')
+          .replace(/<svg([^>]*)>/, function (m, a) { return '<svg' + a.replace(/\s(width|height)="[^"]*"/g, '') + '>'; })
           .replace(/var\(--primary-svg-color,\s*[^)]+\)/g, 'currentColor');
-        el.innerHTML = clean;
         el.setAttribute('data-art-done', '1');
-        el.classList.remove('art-pending');
       }).catch(function () { el.hidden = true; });
     });
   }
   function paintIcons(root) {
-    var nodes = (root || document).querySelectorAll('[data-icon]');
-    Array.prototype.forEach.call(nodes, function (el) { if (!el.querySelector('svg')) el.innerHTML = ICONS[el.getAttribute('data-icon')] || ''; });
-    var inline = (root || document).querySelectorAll('[data-icon-inline]');
-    Array.prototype.forEach.call(inline, function (el) { if (!el.firstChild) el.outerHTML = ICONS[el.getAttribute('data-icon-inline')] || ''; });
+    Array.prototype.forEach.call((root || document).querySelectorAll('[data-icon]'), function (el) {
+      if (!el.querySelector('svg')) el.innerHTML = ICONS[el.getAttribute('data-icon')] || '';
+    });
+    Array.prototype.forEach.call((root || document).querySelectorAll('[data-icon-inline]'), function (el) {
+      if (!el.firstChild) el.outerHTML = ICONS[el.getAttribute('data-icon-inline')] || '';
+    });
   }
 
   /* ------------------------------------------------------------------ auth */
@@ -201,7 +201,7 @@
       $('auth-status').textContent = 'Google sign-in unavailable (offline?)';
       return;
     }
-    var tokenClientCfg = {
+    var cfg = {
       client_id: CFG.clientId,
       scope: CFG.scopes,
       callback: function (resp) {
@@ -220,8 +220,8 @@
       }
     };
     var hint = loginHint();
-    if (hint) tokenClientCfg.hint = hint;
-    state.tokenClient = google.accounts.oauth2.initTokenClient(tokenClientCfg);
+    if (hint) cfg.hint = hint;
+    state.tokenClient = google.accounts.oauth2.initTokenClient(cfg);
     if (restoreToken()) { setAuthUi(); loadAll(); } else { $('connect-btn').hidden = false; }
   }
 
@@ -240,10 +240,8 @@
   function renderSheetBanner() {
     var el = $('sheet-mode-banner');
     if (!el) return;
-    if (!sheetModeActive()) { el.hidden = true; return; }
-    el.hidden = false;
-    var label = $('sheet-mode-id');
-    if (label) label.textContent = state.sheetId.slice(0, 10) + '…';
+    el.hidden = !sheetModeActive();
+    if (!el.hidden) $('sheet-mode-id').textContent = state.sheetId.slice(0, 10) + '…';
   }
   function exitSheetMode() {
     try { localStorage.removeItem(SHEET_OVERRIDE_KEY); } catch (err) { }
@@ -251,7 +249,7 @@
     location.reload();
   }
 
-  /* ------------------------------------------------------------ data access */
+  /* ------------------------------------------------------------- data access */
   function authHeaders() { return { Authorization: 'Bearer ' + state.token }; }
   function sheetsGet(range) {
     var url = SHEETS + encodeURIComponent(state.sheetId) + '/values/' + encodeURIComponent(range) + '?majorDimension=ROWS';
@@ -285,6 +283,7 @@
     return values.slice(1).map(function (row, i) { var rec = { _row: i + 2 }; head.forEach(function (h, j) { rec[h] = row[j] === undefined ? '' : row[j]; }); return rec; });
   }
   function flowMlPerSec() { var v = num(state.cfg['pump_flow_ml_per_sec']); return v !== null && v > 0 ? v : Number(CFG.pumpFlowMlPerSec || 0); }
+  function cfgValue(key, fallback) { var v = state.cfg[key]; return v === undefined || v === null || String(v).trim() === '' ? fallback : v; }
 
   function loadAll() {
     if (!state.token) return;
@@ -305,22 +304,23 @@
       }).catch(function (err) { state.loadErrors.push(err.message); });
     });
     Promise.all(jobs).then(function () {
-      if (state.loadErrors.length) showBanner('Some data failed to load: ' + state.loadErrors.join(' · '), 'warn');
-      else showBanner('');
-      finalizeLoad();
+      if (state.loadErrors.length) showBanner('Some data failed to load: ' + state.loadErrors.join(' · '), 'warn'); else showBanner('');
+      state.ai = { overview: null, overviewAi: null, detection: null, loading: {}, loaded: {} };
+      if (!state.range) state.range = window.matchMedia('(max-width: 719px)').matches ? '24h' : '7d';
+      var species = cfgValue('last_species_guess', latestEvent() ? latestEvent().species : '') || 'unknown';
+      state.theme = pickTheme(species);
+      document.documentElement.setAttribute('data-theme', state.theme);
+      deriveImages();
+      renderAll();
+      hydrateArt();
+      paintIcons();
+      loadAssistantPanels();
     });
   }
-  function finalizeLoad() {
-    if (!state.range) state.range = window.matchMedia('(max-width: 719px)').matches ? '24h' : '7d';
-    var species = cfgValue('last_species_guess', latestEvent() ? latestEvent().species : '') || 'unknown';
-    state.theme = pickTheme(species);
-    document.documentElement.setAttribute('data-theme', state.theme);
-    deriveImages();
-    renderAll();
-    fitHero();
-    hydrateArt();
-    paintIcons();
-    observeReveals();
+  function loadAssistantPanels() {
+    fetchOverviewData(false);
+    fetchOverviewData(true);
+    fetchDetectionData();
   }
 
   /* --------------------------------------------------------- normalization */
@@ -332,27 +332,25 @@
       light: num(row.LightLevel), tankEmpty: String(row.TankEmpty).trim() === '' ? null : bool(row.TankEmpty),
       watered: bool(row.WateringTriggered), waterSec: num(row.WaterDurationSeconds),
       heater: bool(row.HeaterUsed), heaterSec: num(row.HeaterDurationSeconds),
-      species: String(row.SpeciesGuess || '').trim(), speciesConf: num(row.SpeciesConfidence),
-      photoId: String(row.PhotoFileID || '').trim(), anomaly: bool(row.AnomalyDetected),
-      anomalyText: String(row.AnomalyDescription || '').trim(), aiNotes: String(row.AI_Notes || '').trim(),
-      reasoning: String(row.ReasoningSummary || '').trim(), mlEst: null
+      species: String(row.SpeciesGuess || '').trim(), photoId: String(row.PhotoFileID || '').trim(),
+      anomaly: bool(row.AnomalyDetected), anomalyText: String(row.AnomalyDescription || '').trim(),
+      aiNotes: String(row.AI_Notes || '').trim(), reasoning: String(row.ReasoningSummary || '').trim(), mlEst: null
     };
     if (e.watered && e.waterSec !== null) e.mlEst = e.waterSec * flowMlPerSec();
     return e;
   }
   function normalizeNotification(row) {
     var type = String(row.type || '').trim();
-    var severity = LEGACY_TYPES[type] ? 'legacy' : (SEVERITY_BY_TYPE[type] || 'info');
     var options = [];
     try { options = JSON.parse(row.response_options || '[]').map(String); } catch (err) { options = []; }
     return {
-      raw: row, _row: row._row, ts: parseDate(row.timestamp), type: type, severity: severity,
+      raw: row, _row: row._row, ts: parseDate(row.timestamp), type: type,
+      severity: LEGACY_TYPES[type] ? 'legacy' : (SEVERITY_BY_TYPE[type] || 'info'),
       title: String(row.title || '').trim(), message: String(row.message || '').trim(), options: options,
       status: String(row.status || '').trim().toLowerCase(), response: String(row.response || '').trim(),
       resumeUrl: String(row.resume_url || '').trim(), contextRef: String(row.context_ref || '').trim()
     };
   }
-  function cfgValue(key, fallback) { var v = state.cfg[key]; return v === undefined || v === null || String(v).trim() === '' ? fallback : v; }
   function latestEvent() { var out = null; state.events.forEach(function (e) { if (e.ts && (!out || e.ts > out.ts)) out = e; }); return out; }
   function pickTheme(species) {
     var explicit = (CFG.profile && CFG.profile.theme) || cfgValue('plant_theme', '');
@@ -366,12 +364,12 @@
   function deriveImages() {
     var imgs = [];
     state.events.forEach(function (e) {
-      if (e.photoId) imgs.push({ id: e.photoId, kind: 'daily', label: 'Daily photo', ts: e.ts, species: e.species, light: e.light, aiNotes: e.aiNotes, verdict: null });
+      if (e.photoId) imgs.push({ id: e.photoId, kind: 'daily', label: 'Daily photo', ts: e.ts, species: e.species, aiNotes: e.aiNotes, verdict: null });
     });
     state.scans.forEach(function (s) {
       var id = driveIdFromLink(s.drive_links);
       if (!id) return;
-      imgs.push({ id: id, kind: 'scan', label: 'Health scan', ts: parseDate(s.timestamp), species: '', light: null, aiNotes: String(s.ai_notes || '').trim(), verdict: String(s.judge_verdict || '').trim() });
+      imgs.push({ id: id, kind: 'scan', label: 'Health scan', ts: parseDate(s.timestamp), species: '', aiNotes: String(s.ai_notes || '').trim(), verdict: String(s.judge_verdict || '').trim() });
     });
     imgs.sort(function (a, b) { return (b.ts ? b.ts.getTime() : 0) - (a.ts ? a.ts.getTime() : 0); });
     state.images = imgs;
@@ -384,12 +382,10 @@
     var ageMs = Date.now() - newest.ts.getTime();
     return { quiet: ageMs > (CFG.cameraQuietAfterMinutes || 2160) * 60000, ageMs: ageMs };
   }
-
-  /* -------------------------------------------------------------- derivation */
   function flagsFor(ev) {
     var out = [];
     if (bool(cfgValue('dry_run_mode', 'true'))) out.push({ severity: 'info', icon: 'sliders', title: 'Dry-run mode', text: 'Commands are simulated — the pump and heater stay off until you turn dry-run off.' });
-    if (!ev) { out.push({ severity: 'warning', icon: 'warning', title: 'No data yet', text: 'Nothing has been recorded yet, so every panel below stays empty.' }); return out; }
+    if (!ev) { out.push({ severity: 'warning', icon: 'warning', title: 'No data yet', text: 'Nothing has been recorded yet, so every screen stays empty on purpose.' }); return out; }
     var ageMs = Date.now() - ev.ts.getTime();
     if (ageMs > (CFG.staleAfterMinutes || 840) * 60000) out.push({ severity: 'warning', icon: 'warning', title: 'No new data', text: 'The newest reading is ' + fmtAge(ageMs) + ' old — treat everything as last-known, not live.' });
     if (ev.tankEmpty === true) out.push({ severity: 'critical', icon: 'drop', title: 'Tank is empty', text: 'Watering is paused until the tank is refilled.' });
@@ -402,14 +398,9 @@
     if (ev.anomaly) out.push({ severity: 'warning', icon: 'warning', title: 'Something looked off', text: ev.anomalyText || 'An anomaly was flagged in the latest check.' });
     pendingNotifications().forEach(function (n) { if (n.severity === 'critical') out.push({ severity: 'critical', icon: 'bell', title: n.title || n.type, text: n.message }); });
     var cam = cameraStatus();
-    if (cam.quiet) out.push({ severity: 'warning', icon: 'camera', title: 'No photos lately', text: 'The last picture is older than ' + Math.round((CFG.cameraQuietAfterMinutes || 2160) / 60) + ' h — that is expected until the camera runs again.' });
+    if (cam.quiet && ev) out.push({ severity: 'info', icon: 'camera', title: 'No photos lately', text: 'Expected until the camera runs again — photos are never fabricated.' });
     return out;
   }
-  /* Status mapping — presentation only, uses existing persisted fields:
-   * critical = tank empty OR a pending critical notification;
-   * attention = any warning flag (stale data, invalid reading, anomaly, camera quiet) or pending warning;
-   * thriving = no flags AND watered within 7 days AND the newest scan verdict is not "issue";
-   * ok = no flags but not enough recent positive signals. */
   function deriveStatus(ev, flags) {
     var species = cfgValue('last_species_guess', '') || 'this plant';
     if (!ev) return { code: 'ok', word: 'Waiting', line: 'Waiting for the first reading', explain: 'Connect Google and let the pot report in — nothing is shown until real data arrives.' };
@@ -419,46 +410,233 @@
     var wateredRecently = watered && watered.ts && (Date.now() - watered.ts.getTime() < 7 * 86400e3);
     var lastScan = state.scans.length ? state.scans[state.scans.length - 1] : null;
     var verdict = lastScan ? String(lastScan.judge_verdict || '').toLowerCase() : '';
-    var scanIssue = /issue|problem|disease|pest/.test(verdict);
     if (critical) return { code: 'critical', word: 'Critical', line: 'Your ' + species + ' needs you right now.', explain: 'See the flags below — nothing will be overridden automatically.' };
     if (attention) return { code: 'attention', word: 'Needs attention', line: 'Your ' + species + ' needs a look.', explain: 'Nothing is broken, but the flags below are worth a minute of your time.' };
-    if (wateredRecently && !scanIssue) return { code: 'thriving', word: 'Thriving', line: 'Your ' + species + ' is doing well.', explain: 'Watering is recent, no alerts are pending, and the last health check found no issues.' };
+    if (wateredRecently && !/issue|problem|disease|pest/.test(verdict)) return { code: 'thriving', word: 'Thriving', line: 'Your ' + species + ' is doing well.', explain: 'Watering is recent, no alerts are pending, and the last health check found no issues.' };
     return { code: 'ok', word: 'Looking OK', line: 'Your ' + species + ' looks fine.', explain: 'No alerts right now. The pot is being cared for on its normal rhythm.' };
   }
-
-  /* ------------------------------------------------------------------ render */
-  /* Pixel-perfect first screen: the hero fills the rest of the viewport so nothing
-   * below the fold competes with it (dvh is unreliable inside embeds/URL bars). */
-  function fitHero() {
-    var hero = $('hero');
-    if (!hero) return;
-    var top = hero.getBoundingClientRect().top + window.scrollY;
-    var h = window.innerHeight - top - 12;
-    if (h > 260) hero.style.minHeight = h + 'px';
+  function recommendedAction(ev, flags) {
+    if (!ev) return 'Connect Google so the pot can report in.';
+    if (ev.tankEmpty === true) return 'Refill the water tank — watering is paused while it is empty.';
+    var pending = pendingNotifications();
+    if (pending.length) return 'Answer the ' + pending.length + ' waiting item' + (pending.length > 1 ? 's' : '') + ' — open Timeline.';
+    var ageMs = Date.now() - ev.ts.getTime();
+    if (ageMs > (CFG.staleAfterMinutes || 840) * 60000) return 'Check the pot\'s power and connection — no data for ' + fmtAge(ageMs) + '.';
+    if (flags.some(function (f) { return f.title === 'A sensor did not answer'; })) return 'One sensor missed the last cycle — worth a look on the Settings screen.';
+    return 'Nothing needed right now — the next check follows the sun schedule.';
   }
-  window.addEventListener('resize', fitHero);
-  window.addEventListener('orientationchange', fitHero);
 
+  /* ------------------------------------------------------------------- mode */
+  function currentMode() { var m = ''; try { m = localStorage.getItem(MODE_KEY) || 'system'; } catch (err) { m = 'system'; } return m === 'light' || m === 'dark' ? m : 'system'; }
+  function effectiveMode() {
+    var m = currentMode();
+    if (m !== 'system') return m;
+    return (window.matchMedia && window.matchMedia('(prefers-color-scheme: light)').matches) ? 'light' : 'dark';
+  }
+  function applyMode() {
+    document.documentElement.setAttribute('data-mode', effectiveMode());
+    var seg = $('mode-select');
+    if (seg) Array.prototype.forEach.call(seg.children, function (b) { b.setAttribute('aria-pressed', String(b.getAttribute('data-mode') === currentMode())); });
+  }
+  function setMode(m) {
+    try { localStorage.setItem(MODE_KEY, m); } catch (err) { }
+    applyMode();
+  }
+  function cycleMode() { var order = ['system', 'light', 'dark']; setMode(order[(order.indexOf(currentMode()) + 1) % order.length]); }
+  if (window.matchMedia) {
+    var mq = window.matchMedia('(prefers-color-scheme: light)');
+    var mqHandler = function () { if (currentMode() === 'system') applyMode(); };
+    if (mq.addEventListener) mq.addEventListener('change', mqHandler); else if (mq.addListener) mq.addListener(mqHandler);
+  }
+
+  /* ------------------------------------------------------------------ router */
+  function currentRoute() {
+    var h = String(location.hash || '').replace(/^#\/?/, '');
+    return ROUTES.some(function (r) { return r.id === h; }) ? h : 'overview';
+  }
+  function goto(id, opts) {
+    if (currentRoute() === id) { renderRoute(); if (opts && opts.focus) opts.focus(); return; }
+    location.hash = '#/' + id;
+  }
+  function renderNav(active) {
+    var tabs = $('tabs');
+    if (!tabs.children.length) {
+      tabs.innerHTML = ROUTES.map(function (r) { return '<button type="button" data-route="' + r.id + '">' + escapeHtml(r.label) + '</button>'; }).join('');
+    }
+    Array.prototype.forEach.call(tabs.children, function (b) {
+      var on = b.getAttribute('data-route') === active;
+      if (on) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
+    });
+    var bn = $('bottomnav');
+    if (!bn.children.length) {
+      bn.innerHTML = PRIMARY.map(function (id) {
+        var r = ROUTES.filter(function (x) { return x.id === id; })[0];
+        return '<button type="button" data-route="' + id + '">' + ICONS[r.icon] + '<span>' + escapeHtml(r.label) + '</span></button>';
+      }).join('') + '<button type="button" data-more="1">' + ICONS.list + '<span>More</span></button>';
+      paintIcons(bn);
+    }
+    Array.prototype.forEach.call(bn.children, function (b) {
+      var id = b.getAttribute('data-route');
+      if (id === active) b.setAttribute('aria-current', 'page'); else b.removeAttribute('aria-current');
+      if (b.getAttribute('data-more') && MORE.indexOf(active) >= 0) b.setAttribute('aria-current', 'page');
+    });
+    var ml = $('more-links');
+    if (!ml.children.length) {
+      ml.innerHTML = MORE.map(function (id) {
+        var r = ROUTES.filter(function (x) { return x.id === id; })[0];
+        return '<button type="button" class="btn" data-route="' + id + '">' + escapeHtml(r.label) + '</button>';
+      }).join('');
+    }
+  }
+  function renderRoute() {
+    var id = currentRoute();
+    state.route = id;
+    ROUTES.forEach(function (r) { var el = $('screen-' + r.id); if (el) el.hidden = r.id !== id; });
+    renderNav(id);
+    if (!state.token) return;
+    renderScreen(id);
+    fitHero();
+    window.scrollTo(0, 0);
+  }
+  function renderScreen(id) {
+    if (id === 'overview') renderOverview();
+    else if (id === 'timeline') renderTimeline();
+    else if (id === 'doctor') renderDoctor();
+    else if (id === 'photos') renderPhotos();
+    else if (id === 'insights') renderInsights();
+    else if (id === 'settings') renderSettingsScreen();
+    paintIcons();
+  }
+
+  /* ------------------------------------------------------------ assistant API */
+  function assistantUrl(route) {
+    var base = String(CFG.assistantBase || '').replace(/\/$/, '');
+    var path = (CFG.assistantRoutes || {})[route];
+    return base && path ? base + path : null;
+  }
+  function assistantFetch(route, opts) {
+    var url = assistantUrl(route);
+    if (!url) return Promise.resolve({ ok: false, error: 'not_configured' });
+    if (!state.token) return Promise.resolve({ ok: false, error: 'not_signed_in' });
+    var ctrl = typeof AbortController !== 'undefined' ? new AbortController() : null;
+    var timer = setTimeout(function () { if (ctrl) ctrl.abort(); }, Number(CFG.assistantTimeoutMs || 15000));
+    var init = {
+      method: opts.method,
+      headers: Object.assign({ Authorization: 'Bearer ' + state.token }, opts.body ? { 'Content-Type': 'application/json' } : null),
+      signal: ctrl ? ctrl.signal : undefined
+    };
+    if (opts.body) init.body = JSON.stringify(opts.body);
+    return fetch(url + (opts.qs || ''), init).then(function (res) {
+      clearTimeout(timer);
+      return res.text().then(function (txt) {
+        var json = null;
+        try { json = JSON.parse(txt); } catch (err) { json = null; }
+        if (res.status === 404) return { ok: false, error: 'inactive', status: res.status };
+        if (res.status === 401 || res.status === 403) return { ok: false, error: 'denied', status: res.status, json: json };
+        if (!res.ok) return { ok: false, error: 'http_' + res.status, status: res.status, json: json };
+        if (!json) return { ok: false, error: 'bad_json', status: res.status };
+        return Object.assign({ ok: !!json.ok, json: json }, json);
+      });
+    }).catch(function (err) {
+      clearTimeout(timer);
+      var e = String(err && err.name === 'AbortError' ? 'timeout' : 'network');
+      return { ok: false, error: e };
+    });
+  }
+  function assErrorText(r) {
+    if (r.error === 'inactive') return 'The assistant endpoints are not live yet — the workflow is currently inactive. Nothing is faked while it is off.';
+    if (r.error === 'denied') return 'The workflow rejected this sign-in (token not valid for this dashboard). Sign in again or check the OAuth configuration.';
+    if (r.error === 'timeout') return 'The assistant took too long to answer — try again.';
+    if (r.error === 'not_signed_in') return 'Sign in with Google to use the assistant.';
+    if (r.error === 'not_configured') return 'No assistant endpoint is configured for this deployment.';
+    return 'The assistant is unreachable right now (network or CORS). Try again later.';
+  }
+  function askPlant(question, route) {
+    return assistantFetch('ask', { method: 'POST', body: { plant_id: CFG.plantId || 'default', question: question, context: { route: route || 'overview', client_time_utc: new Date().toISOString() } } });
+  }
+  function fetchOverviewData(ai) {
+    var key = ai ? 'overviewAi' : 'overview';
+    if (state.ai.loading[key]) return;
+    state.ai.loading[key] = true;
+    var r = assistantFetch('overview', { method: 'GET', qs: '?plant_id=' + encodeURIComponent(CFG.plantId || 'default') + (ai ? '&ai=1' : '') });
+    r.then(function (res) {
+      state.ai.loading[key] = false;
+      state.ai.loaded[key] = true;
+      state.ai[key] = res;
+      if (state.route === 'overview') renderOverviewAi();
+      if (state.route === 'insights') renderInsights();
+      if (state.route === 'overview') renderActionLine();
+    });
+  }
+  function fetchDetectionData() {
+    if (state.ai.loading.detection) return;
+    state.ai.loading.detection = true;
+    assistantFetch('detection', { method: 'GET', qs: '?plant_id=' + encodeURIComponent(CFG.plantId || 'default') }).then(function (res) {
+      state.ai.loading.detection = false;
+      state.ai.loaded.detection = true;
+      state.ai.detection = res;
+      if (state.route === 'doctor') renderDoctor();
+    });
+  }
+
+  /* --------------------------------------------------------------- ask bar */
+  function askTemplate(hostId, placeholder) {
+    return '<label class="visually-hidden" for="' + hostId + '-input">Ask about your plant</label>' +
+      '<input id="' + hostId + '-input" class="ask-input" type="text" maxlength="500" placeholder="' + escapeHtml(placeholder) + '">' +
+      '<button class="btn btn-primary ask-go" type="button" data-ask="' + hostId + '">Ask</button>' +
+      '<div class="ask-result" id="' + hostId + '-result" hidden></div>';
+  }
+  function askRender(hostId, placeholder, routeName) {
+    var host = $(hostId);
+    if (!host) return;
+    host.innerHTML = askTemplate(hostId, placeholder);
+    host.setAttribute('data-route-name', routeName);
+  }
+  function askSubmit(hostId) {
+    var host = $(hostId);
+    if (!host) return;
+    var input = $(hostId + '-input');
+    var result = $(hostId + '-result');
+    var q = (input.value || '').trim();
+    if (q.length < 3) { result.hidden = false; result.innerHTML = '<p class="ask-state">Ask at least a few words so the assistant has something to work with.</p>'; return; }
+    result.hidden = false;
+    result.innerHTML = '<p class="ask-state">Thinking…</p>';
+    askPlant(q, host.getAttribute('data-route-name') || 'overview').then(function (r) {
+      if (r.ok && r.answer) {
+        var conf = typeof r.confidence === 'number' ? Math.round(r.confidence * 100) + '%' : '—';
+        var typeLabel = r.answer_type === 'ai_summary' ? 'AI summary (unverified)' : r.answer_type === 'deterministic' ? 'Direct from your data' : 'Unavailable';
+        var evidence = Array.isArray(r.evidence) && r.evidence.length
+          ? '<details class="evidence"><summary>Evidence (' + r.evidence.length + ')</summary><ul>' + r.evidence.map(function (e) { return '<li>' + escapeHtml(e.source) + ' — ' + escapeHtml(e.label || e.id || '') + '</li>'; }).join('') + '</ul></details>'
+          : '';
+        var warnings = Array.isArray(r.warnings) && r.warnings.length ? '<div class="ask-warnings">Notes: ' + r.warnings.map(escapeHtml).join(', ') + '</div>' : '';
+        result.innerHTML = '<p class="ask-answer"></p>' +
+          '<div class="ask-meta"><span>' + escapeHtml(typeLabel) + '</span><span>confidence ' + escapeHtml(conf) + '</span>' +
+          '<span>data as of ' + escapeHtml(r.data_as_of_utc ? fmtWhen(parseDate(r.data_as_of_utc)) : '—') + '</span></div>' + warnings + evidence;
+        result.querySelector('.ask-answer').textContent = String(r.answer);
+      } else if (r.json && r.json.answer) {
+        result.innerHTML = '<p class="ask-answer"></p><div class="ask-warnings"></div>';
+        result.querySelector('.ask-answer').textContent = String(r.json.answer);
+        result.querySelector('.ask-warnings').textContent = (r.json.warnings || []).join(', ') || 'The assistant could not answer reliably.';
+      } else {
+        result.innerHTML = '<p class="ask-state">' + escapeHtml(assErrorText(r)) + '</p>';
+      }
+    });
+  }
+
+  /* --------------------------------------------------------------- overview */
   function renderAll() {
+    applyMode();
     renderChrome();
-    renderHero();
-    renderVitals();
-    renderTimeline();
-    renderHistory();
-    renderPhotos();
-    renderNotifications();
-    renderNotes();
-    renderSettings();
+    renderRoute();
     renderToasts();
   }
   function renderChrome() {
-    var dry = bool(cfgValue('dry_run_mode', 'true'));
-    $('dryrun-pill').hidden = !dry;
+    $('dryrun-pill').hidden = !bool(cfgValue('dry_run_mode', 'true'));
     var ev = latestEvent();
     var stale = ev ? (Date.now() - ev.ts.getTime()) > (CFG.staleAfterMinutes || 840) * 60000 : true;
     $('stale-pill').hidden = !stale;
   }
-  function renderHero() {
+  function renderOverview() {
     var hero = $('hero');
     var ev = latestEvent();
     var flags = flagsFor(ev);
@@ -471,122 +649,92 @@
     $('hero-flags').innerHTML = flags.slice(0, 3).map(function (f) {
       return '<div class="warning-chip ' + f.severity + '"><span class="chip-icon">' + (ICONS[f.icon] || ICONS.warning) + '</span><div><span class="w-title">' + escapeHtml(f.title) + '</span> — ' + escapeHtml(f.text) + '</div></div>';
     }).join('');
-    var p = plantIdentity();
-    $('plant-identity').textContent = p.name + (p.species !== 'unknown' ? ' · ' + p.species : '');
+    var species = cfgValue('last_species_guess', ev ? ev.species : '') || 'unknown';
+    var name = (CFG.profile && CFG.profile.name) || cfgValue('plant_name', '') || 'This plant';
+    $('plant-identity').textContent = name + (species !== 'unknown' ? ' · ' + species : '');
     $('hero-age').textContent = ev ? 'Last reading ' + fmtWhen(ev.ts) + ' · next check follows the sun schedule' : 'No readings yet';
-  }
-  function plantIdentity() {
-    return {
-      name: (CFG.profile && CFG.profile.name) || cfgValue('plant_name', '') || 'This plant',
-      species: cfgValue('last_species_guess', latestEvent() ? latestEvent().species : '') || 'unknown'
-    };
-  }
 
-  /* ---------------------------------------------------------- human metrics */
-  function gaugeSvg(value, min, max, invert) {
-    var pct = 0;
-    if (value !== null && max > min) pct = Math.max(0, Math.min(1, (value - min) / (max - min)));
-    if (invert) pct = 1 - pct;
-    var r = 26, c = 2 * Math.PI * r;
-    var dash = (pct * c).toFixed(1) + ' ' + c.toFixed(1);
-    return '<svg class="metric-gauge" viewBox="0 0 64 64" aria-hidden="true">' +
-      '<circle cx="32" cy="32" r="' + r + '" fill="none" stroke="currentColor" stroke-opacity="0.18" stroke-width="7"/>' +
-      '<circle cx="32" cy="32" r="' + r + '" fill="none" stroke="currentColor" stroke-width="7" stroke-linecap="round" stroke-dasharray="' + dash + '" transform="rotate(-90 32 32)"/>' +
-      '</svg>';
+    renderActionLine();
+
+    var chips = [];
+    var chip = function (k, v, cls) { return '<div class="chip ' + (cls || '') + '"><span class="chip-k">' + escapeHtml(k) + '</span><span class="chip-v">' + escapeHtml(v) + '</span></div>'; };
+    if (ev) {
+      chips.push(chip('Soil moisture', ev.moisture === null ? '—' : fmtNum(ev.moisture, 0) + ' %'));
+      chips.push(chip('Water temp', ev.waterC === null ? '—' : fmtNum(ev.waterC, 1) + ' °C'));
+      chips.push(chip('Pot weight', ev.weight === null ? '—' : fmtNum(ev.weight / 1000, 2) + ' kg'));
+      chips.push(chip('Tank', ev.tankEmpty === null ? '—' : ev.tankEmpty ? 'EMPTY' : 'OK', ev.tankEmpty ? 'bad' : ''));
+    } else chips.push('<p class="empty">No readings yet.</p>');
+    $('quick-vitals').innerHTML = chips.join('');
+
+    $('latest-event').innerHTML = ev ? (escapeHtml(fmtWhen(ev.ts)) + ' — ' + (ev.watered ? 'watered ' + (ev.waterSec || 0) + ' s' : ev.heater ? 'heated ' + (ev.heaterSec || 0) + ' s' : 'routine reading')) : '—';
+    var newest = state.notifications.filter(function (n) { return n.ts; }).sort(function (a, b) { return b.ts - a.ts; })[0];
+    $('latest-alert').innerHTML = newest ? ('<span class="' + (newest.severity === 'critical' ? 'sev-chip sev-possible_issue' : newest.severity === 'warning' ? 'sev-chip sev-monitor' : '') + '">' + escapeHtml(newest.title || newest.type) + '</span> ' + escapeHtml(fmtWhen(newest.ts))) : 'Nothing on record yet.';
+
+    var thumb = $('latest-thumb');
+    if (!state.images.length) {
+      thumb.innerHTML = '<span class="muted small">No photos yet — nothing is faked.</span>';
+    } else {
+      thumb.innerHTML = '<div class="media-state small"><span>loading…</span></div>';
+      driveMedia(state.images[0].id).then(function (url) {
+        var img = document.createElement('img');
+        img.alt = state.images[0].label + ' — ' + fmtWhen(state.images[0].ts);
+        img.src = url;
+        img.addEventListener('click', function () { openViewer(state.images[0]); });
+        thumb.innerHTML = '';
+        thumb.appendChild(img);
+      }).catch(function () { thumb.innerHTML = '<span class="muted small">Latest photo unavailable to this account.</span>'; });
+    }
+
+    renderOverviewAi();
+    askRender('ask-overview', 'Ask about your plant…', 'overview');
+    $('overview-links').innerHTML = ['timeline', 'doctor', 'photos', 'insights'].map(function (id) {
+      var r = ROUTES.filter(function (x) { return x.id === id; })[0];
+      return '<button type="button" class="btn" data-route="' + id + '">' + escapeHtml(r.label) + '</button>';
+    }).join('');
+    observeReveals($('screen-overview'));
   }
-  function sparkSvg(field) {
-    var vals = state.events.filter(function (e) { return e.ts && e[field] !== null; }).slice(-24);
-    if (vals.length < 2) return '';
-    var v = vals.map(function (e) { return e[field]; });
-    var min = Math.min.apply(null, v), max = Math.max.apply(null, v), span = (max - min) || 1;
-    var pts = v.map(function (x, i) { return ((i / (v.length - 1)) * 100).toFixed(1) + ',' + (26 - ((x - min) / span) * 22 - 2).toFixed(1); }).join(' ');
-    return '<svg viewBox="0 0 100 26" preserveAspectRatio="none" aria-hidden="true"><polyline points="' + pts + '" fill="none" stroke="currentColor" stroke-width="1.6" stroke-linecap="round" stroke-linejoin="round" opacity="0.9"/></svg>';
-  }
-  function lastNDays(field, days) {
-    var cutoff = Date.now() - days * 86400e3;
-    return state.events.filter(function (e) { return e.ts && e.ts.getTime() >= cutoff && e[field] !== null; }).map(function (e) { return e[field]; });
-  }
-  function metricCard(opts) {
-    return '<div class="metric ' + (opts.cls || '') + '" data-metric="' + opts.id + '">' +
-      '<div class="metric-head">' + (opts.visual || '') +
-      '<div class="metric-body"><p class="metric-sentence">' + opts.sentence + '</p>' +
-      '<span class="metric-raw" data-count-to="' + (opts.rawValue === null || opts.rawValue === undefined ? '' : opts.rawValue) + '" data-count-dec="' + (opts.rawDecimals || 0) + '">' + (opts.rawValue === null || opts.rawValue === undefined ? '—' : Number(opts.rawValue).toFixed(opts.rawDecimals || 0)) + '</span>' +
-      '<span class="metric-raw"> ' + escapeHtml(opts.rawSuffix || '') + '</span></div></div>' +
-      (opts.spark ? '<div class="metric-spark">' + opts.spark + '</div>' : '') + '</div>';
-  }
-  function renderVitals() {
+  function renderActionLine() {
     var ev = latestEvent();
-    var grid = $('vitals-grid');
-    if (!ev) { grid.innerHTML = '<p class="empty">No readings yet — the first event will fill this in.</p>'; $('vitals-hint').textContent = ''; return; }
-    var cards = [];
-    var week = function (field) { return lastNDays(field, 7); };
-
-    // Soil moisture
-    var mWeek = week('moisture');
-    var mMin = mWeek.length ? Math.min.apply(null, mWeek) : 0, mMax = mWeek.length ? Math.max.apply(null, mWeek) : 100;
-    var mTrend = ev.moisture !== null && mWeek.length > 1 ? (ev.moisture >= median(mWeek) ? 'holding around its weekly middle' : 'on the drier side of this week') : 'the first reading in a while';
-    cards.push(metricCard({ id: 'moisture', visual: gaugeSvg(ev.moisture, mMin, mMax, false),
-      sentence: 'The soil is <strong>' + (ev.moisture === null ? 'unreadable right now' : fmtNum(ev.moisture, 0) + '% moist</strong> — ' + mTrend) + '.',
-      rawValue: ev.moisture, rawDecimals: 0, rawSuffix: '% · ' + fmtWhen(ev.ts), spark: sparkSvg('moisture'),
-      cls: ev.moisture === null ? 'warn' : '' }));
-
-    // Water temperature
-    var wWeek = week('waterC');
-    var wMin = wWeek.length ? Math.min.apply(null, wWeek) : 15, wMax = wWeek.length ? Math.max.apply(null, wWeek) : 30;
-    cards.push(metricCard({ id: 'waterC', visual: gaugeSvg(ev.waterC, wMin, wMax, false),
-      sentence: 'The water sits at <strong>' + (ev.waterC === null ? 'an unknown temperature' : fmtNum(ev.waterC, 1) + ' °C</strong> — ' + (ev.waterC !== null && ev.waterC >= Number(cfgValue('max_water_temp_c', 28)) ? 'at the comfort limit set for this pot' : 'within the comfortable range for watering')) + '.',
-      rawValue: ev.waterC, rawDecimals: 1, rawSuffix: '°C', cls: ev.waterC === null ? 'warn' : '' }));
-
-    // Pot weight (gross) with trend
-    var prev = state.events.filter(function (e) { return e.ts && ev.ts && e.ts < ev.ts && e.weight !== null; });
-    var prevW = prev.length ? prev[prev.length - 1].weight : null;
-    var wDelta = ev.weight !== null && prevW !== null ? Math.round((ev.weight - prevW) * 10) / 10 : null;
-    cards.push(metricCard({ id: 'weight', visual: '<span class="metric-icon-lg">' + ICONS.leaf + '</span>',
-      sentence: 'The whole pot weighs <strong>' + (ev.weight === null ? 'unknown' : fmtNum(ev.weight / 1000, 2) + ' kg</strong> gross' + (wDelta === null ? '' : ' — ' + (wDelta < 0 ? 'down' : 'up') + ' ' + Math.abs(wDelta).toFixed(0) + ' g since the previous reading')) + '.',
-      rawValue: ev.weight, rawDecimals: 1, rawSuffix: 'g', spark: sparkSvg('weight'), cls: ev.weight === null ? 'warn' : '' }));
-
-    // Soil temp
-    cards.push(metricCard({ id: 'soilC', visual: gaugeSvg(ev.soilC, 10, 35, false),
-      sentence: 'Root-zone soil is ' + (ev.soilC === null ? 'unreadable' : '<strong>' + fmtNum(ev.soilC, 1) + ' °C</strong>'),
-      rawValue: ev.soilC, rawDecimals: 1, rawSuffix: '°C', cls: ev.soilC === null ? 'warn' : '' }));
-
-    // Air
-    cards.push(metricCard({ id: 'airC', visual: '<span class="metric-icon-lg">' + ICONS.thermometer + '</span>',
-      sentence: 'The room is <strong>' + (ev.airC === null ? 'unknown' : fmtNum(ev.airC, 1) + ' °C</strong> and ' + (ev.hum === null ? 'unknown humidity' : fmtNum(ev.hum, 0) + '% humid')) + '.',
-      rawValue: ev.airC, rawDecimals: 1, rawSuffix: '°C · ' + (ev.hum === null ? '—' : fmtNum(ev.hum, 0) + '%'), cls: ev.airC === null ? 'warn' : '' }));
-
-    // Light
-    cards.push(metricCard({ id: 'light', visual: '<span class="metric-icon-lg">' + ICONS.sun + '</span>',
-      sentence: 'The light sensor reads <strong>' + (ev.light === null ? 'nothing' : fmtNum(ev.light, 0)) + '</strong> (0/1 digital — the analog scale is still an open question).',
-      rawValue: ev.light, rawDecimals: 0, rawSuffix: 'raw' }));
-
-    // Tank + last actions
-    var cam = cameraStatus();
-    cards.push(metricCard({ id: 'tank', visual: '<span class="metric-icon-lg">' + ICONS.drop + '</span>',
-      sentence: ev.tankEmpty === null ? 'Tank state is unknown.' : (ev.tankEmpty ? '<strong>The tank is empty</strong> — watering is paused.' : 'The tank <strong>has water</strong> — nothing to do.'),
-      rawValue: null, rawSuffix: fmtWhen(ev.ts), cls: ev.tankEmpty ? 'bad' : '' }));
-    var lw = lastWaterings(1)[0];
-    cards.push(metricCard({ id: 'watered', visual: '<span class="metric-icon-lg">' + ICONS.chart + '</span>',
-      sentence: lw ? 'Last watering: <strong>' + (lw.waterSec || 0) + ' s</strong> ' + fmtWhen(lw.ts) + ' · <strong>' + fmtNum(lw.mlEst, 0) + ' ml</strong><span class="est-tag">ESTIMATE</span> from pump runtime.' : 'No watering recorded yet.',
-      rawValue: null, rawSuffix: 'scale delta: device log only — not saved to history yet', cls: 'warn' }));
-    cards.push(metricCard({ id: 'camera', visual: '<span class="metric-icon-lg">' + ICONS.camera + '</span>',
-      sentence: cam.ageMs === null ? 'No photos yet — the pot will add them once the camera runs.' : 'Last photo ' + fmtAge(cam.ageMs) + ' ago.',
-      rawValue: null, rawSuffix: 'camera is wired — there is no battery to watch', cls: cam.quiet ? 'warn' : '' }));
-
-    grid.innerHTML = cards.join('');
-    Array.prototype.forEach.call(grid.querySelectorAll('[data-count-to]'), function (el) {
-      var to = el.getAttribute('data-count-to');
-      if (to !== '') setRawValue(el, Number(to), Number(el.getAttribute('data-count-dec') || 0));
-    });
-    $('vitals-hint').textContent = 'one sentence per reading';
+    var r = state.ai.overview;
+    var line = null;
+    if (r && r.ok && Array.isArray(r.json.what_to_check) && r.json.what_to_check.length) line = r.json.what_to_check[0];
+    if (!line) line = recommendedAction(ev, flagsFor(ev));
+    $('action-line').textContent = line;
+  }
+  function renderOverviewAi() {
+    var el = $('overview-ai-text');
+    var meta = $('overview-ai-meta');
+    if (!el) return;
+    var r = state.ai.overview;
+    if (!state.ai.loaded.overview || state.ai.loading.overview) { el.textContent = 'Assistant overview loading…'; meta.textContent = ''; return; }
+    if (r && r.ok && r.json.summary) {
+      el.textContent = String(r.json.summary);
+      var asOf = r.json.data_as_of_utc ? fmtWhen(parseDate(r.json.data_as_of_utc)) : '—';
+      meta.textContent = (r.json.answer_type === 'ai_summary' ? 'AI summary (unverified)' : 'from your data') + ' · data ' + asOf;
+    } else {
+      el.textContent = assErrorText(r || { error: 'network' });
+      meta.textContent = '';
+    }
   }
 
   /* --------------------------------------------------------------- timeline */
+  function renderTimeline() {
+    var entries = timelineEntries();
+    var show = state.timelineExpanded ? entries : entries.slice(0, 10);
+    $('timeline').innerHTML = entries.length ? show.map(function (t) {
+      return '<li class="reveal"><span class="tl-icon ' + (t.cls || '') + '">' + (ICONS[t.icon] || ICONS.bell) + '</span>' +
+        '<div class="tl-text">' + t.text + '<span class="tl-when">' + escapeHtml(fmtWhen(t.ts)) + '</span></div></li>';
+    }).join('') + '' : '<li class="empty">Nothing has happened yet.</li>';
+    $('timeline-more').hidden = entries.length <= 10 || state.timelineExpanded;
+    $('timeline-hint').textContent = entries.length ? entries.length + ' moments' : '';
+    renderNotifications();
+    observeReveals($('screen-timeline'));
+  }
   function timelineEntries() {
     var out = [];
     state.events.forEach(function (e) {
       if (!e.ts) return;
-      if (e.watered) out.push({ ts: e.ts, icon: 'drop', cls: '', text: 'Watered for <strong>' + (e.waterSec || 0) + ' s</strong> (~' + fmtNum(e.mlEst, 0) + ' ml estimated from runtime).' });
+      if (e.watered) out.push({ ts: e.ts, icon: 'drop', cls: '', text: 'Watered for <strong>' + (e.waterSec || 0) + ' s</strong> (~' + fmtNum(e.mlEst, 0) + ' ml estimated from pump runtime).' });
       if (e.heater) out.push({ ts: e.ts, icon: 'thermometer', cls: 'warn', text: 'Heater warmed the water for <strong>' + (e.heaterSec || 0) + ' s</strong>.' });
       if (e.tankEmpty === true) out.push({ ts: e.ts, icon: 'drop', cls: 'bad', text: 'Tank reported <strong>empty</strong>.' });
       if (e.anomaly) out.push({ ts: e.ts, icon: 'warning', cls: 'warn', text: 'A check flagged: ' + escapeHtml(e.anomalyText || 'possible issue') + '.' });
@@ -598,20 +746,66 @@
     });
     return out.sort(function (a, b) { return b.ts - a.ts; });
   }
-  function renderTimeline() {
-    var entries = timelineEntries();
-    var show = state.timelineExpanded ? entries : entries.slice(0, 8);
-    $('timeline').innerHTML = entries.length ? show.map(function (t) {
-      return '<li class="reveal"><span class="tl-icon ' + (t.cls || '') + '">' + (ICONS[t.icon] || ICONS.bell) + '</span>' +
-        '<div class="tl-text">' + t.text + '<span class="tl-when">' + escapeHtml(fmtWhen(t.ts)) + '</span></div></li>';
-    }).join('') : '<li class="empty">Nothing has happened yet.</li>';
-    var more = $('timeline-more');
-    more.hidden = entries.length <= 8 || state.timelineExpanded;
-    $('timeline-hint').textContent = entries.length ? entries.length + ' moments' : '';
-    observeReveals();
+  function renderNotifications() {
+    var host = $('notification-list');
+    if (!host) return;
+    var sev = $('severity-filter');
+    var pending = pendingNotifications();
+    var badge = $('pending-count');
+    if (badge) { badge.hidden = pending.length === 0; badge.textContent = pending.length + ' waiting on you'; }
+    if (sev && !sev.children.length) {
+      sev.innerHTML = '<button type="button" data-sev="all" aria-pressed="true">All</button>' + SEVERITY.map(function (s) { return '<button type="button" data-sev="' + s.id + '" aria-pressed="false">' + s.label + '</button>'; }).join('');
+    }
+    if (sev) Array.prototype.forEach.call(sev.children, function (b) { b.setAttribute('aria-pressed', String(b.getAttribute('data-sev') === state.severityFilter)); });
+    if (!host) return;
+    var items = state.notifications.filter(function (n) {
+      if (state.severityFilter === 'critical' && n.severity !== 'critical') return false;
+      if (state.severityFilter === 'warning' && n.severity !== 'warning') return false;
+      if (state.severityFilter === 'info' && !(n.severity === 'info' || n.severity === 'legacy')) return false;
+      if (state.statusFilter !== 'all' && n.status !== state.statusFilter) return false;
+      return true;
+    }).sort(function (a, b) {
+      var ap = a.status === 'pending' ? 0 : 1, bp = b.status === 'pending' ? 0 : 1;
+      if (ap !== bp) return ap - bp;
+      return (b.ts ? b.ts.getTime() : 0) - (a.ts ? a.ts.getTime() : 0);
+    });
+    if (!items.length) {
+      host.innerHTML = state.notifications.length
+        ? '<p class="empty">No notes match this filter.</p>'
+        : '<div class="media-state"><span class="art" data-art="notifications" aria-hidden="true"></span><span>Nothing needs you right now — alerts and questions will land here.</span></div>';
+      hydrateArt(host);
+      return;
+    }
+    host.innerHTML = items.map(function (n) {
+      var actions = n.status === 'pending' && n.options.length ? n.options.map(function (opt) {
+        return '<button type="button" class="btn btn-answer" data-label="' + escapeHtml(opt) + '">' + escapeHtml(opt) + '</button>';
+      }).join('') : '';
+      var feedback = n.status === 'pending'
+        ? '<input class="notif-comment" type="text" placeholder="optional comment / correction"><div class="notif-feedback" hidden></div>'
+        : (n.response ? '<div class="notif-meta"><span>your answer: ' + escapeHtml(n.response) + '</span></div>' : '');
+      return '<article class="notif sev-' + n.severity + '" data-row="' + n._row + '">' +
+        '<div class="notif-head"><span class="notif-type">' + escapeHtml(n.type || 'note') + '</span>' +
+        '<span class="notif-meta"><span>' + escapeHtml(fmtWhen(n.ts)) + '</span><span>' + escapeHtml(n.status || '—') + '</span></span></div>' +
+        '<div class="notif-title">' + escapeHtml(n.title) + '</div><div class="notif-msg">' + escapeHtml(n.message) + '</div>' +
+        (actions ? '<div class="notif-actions">' + actions + '</div>' : '') + feedback +
+        '<details><summary>Raw row (debug)</summary><pre>' + escapeHtml(JSON.stringify(n.raw, null, 1)) + '</pre></details></article>';
+    }).join('');
   }
-
-  /* ----------------------------------------------------------------- charts */
+  function renderChartsBlock() {
+    var host = $('charts');
+    if (!host) return;
+    var ranges = $('range-select');
+    if (ranges && !ranges.children.length) {
+      ranges.innerHTML = RANGES.map(function (r) { return '<button type="button" data-range="' + r.id + '" aria-pressed="' + (state.range === r.id) + '">' + r.label + '</button>'; }).join('');
+    }
+    if (ranges) Array.prototype.forEach.call(ranges.children, function (b) { b.setAttribute('aria-pressed', String(b.getAttribute('data-range') === state.range)); });
+    var evs = rangeEvents();
+    var chartMetrics = METRICS.filter(function (m) { return m.chart; });
+    var visible = state.chartsExpanded ? chartMetrics : chartMetrics.slice(0, 3);
+    host.innerHTML = '';
+    visible.forEach(function (m) { host.appendChild(chartCard(m, evs)); });
+    $('charts-more').hidden = state.chartsExpanded || chartMetrics.length <= 3;
+  }
   function rangeEvents() {
     var r = RANGES.filter(function (x) { return x.id === state.range; })[0] || RANGES[1];
     var cutoff = r.ms ? Date.now() - r.ms : 0;
@@ -629,7 +823,7 @@
     return d;
   }
   function chartCard(metric, evs) {
-    var pts = evs.filter(function (e) { return e[metric.id] !== null && e[metric.id] !== undefined; });
+    var pts = evs.filter(function (e) { return e[metric.field] !== null && e[metric.field] !== undefined; });
     var card = document.createElement('div');
     card.className = 'chart-card reveal';
     card.setAttribute('data-metric', metric.id);
@@ -639,7 +833,7 @@
     }
     var W = 900, H = 300, padL = 52, padR = 14, padT = 16, padB = 30;
     var t0 = pts[0].ts.getTime(), t1 = pts[pts.length - 1].ts.getTime(), span = t1 - t0 || 1;
-    var vals = pts.map(function (e) { return e[metric.id]; });
+    var vals = pts.map(function (e) { return e[metric.field]; });
     var min = Math.min.apply(null, vals), max = Math.max.apply(null, vals);
     if (min === max) { min -= 1; max += 1; }
     var pad = (max - min) * 0.1; min -= pad; max += pad;
@@ -651,7 +845,6 @@
     var segments = []; var cur = [pts[0]];
     for (var j = 1; j < pts.length; j++) { if (pts[j].ts.getTime() - pts[j - 1].ts.getTime() > gapMs) { segments.push(cur); cur = []; } cur.push(pts[j]); }
     segments.push(cur);
-
     var parts = [];
     parts.push('<defs><linearGradient id="grad-' + metric.id + '" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="var(--accent)" stop-opacity="0.32"/><stop offset="100%" stop-color="var(--accent)" stop-opacity="0.02"/></linearGradient></defs>');
     [0, 0.5, 1].forEach(function (f) {
@@ -659,11 +852,10 @@
       parts.push('<line class="grid-line" x1="' + padL + '" y1="' + gy.toFixed(1) + '" x2="' + (W - padR) + '" y2="' + gy.toFixed(1) + '"/>');
       parts.push('<text x="' + (padL - 8) + '" y="' + (gy + 4).toFixed(1) + '" text-anchor="end">' + escapeHtml(fmtNum(gv, metric.decimals)) + '</text>');
     });
-    parts.push('<text x="' + padL + '" y="' + (H - 8) + '">' + escapeHtml(fmtDay(new Date(t0)) + ' ' + fmtClock(new Date(t0))) + '</text>');
-    parts.push('<text x="' + (W - padR) + '" y="' + (H - 8) + '" text-anchor="end">' + escapeHtml(fmtDay(new Date(t1)) + ' ' + fmtClock(new Date(t1))) + '</text>');
+    parts.push('<text x="' + padL + '" y="' + (H - 8) + '">' + escapeHtml(fmtWhen(new Date(t0))) + '</text>');
+    parts.push('<text x="' + (W - padR) + '" y="' + (H - 8) + '" text-anchor="end">' + escapeHtml(fmtWhen(new Date(t1))) + '</text>');
     segments.forEach(function (seg) {
-      if (seg.length < 1) return;
-      var sp = seg.map(function (e) { var p = [x(e.ts.getTime()), y(e[metric.id])]; return p; });
+      var sp = seg.map(function (e) { return [x(e.ts.getTime()), y(e[metric.field])]; });
       if (sp.length > 1) {
         var line = smoothPath(sp);
         var area = 'M' + padL + ',' + (H - padB) + ' L' + line.slice(1) + ' L' + sp[sp.length - 1][0].toFixed(1) + ',' + (H - padB) + ' Z';
@@ -671,15 +863,6 @@
         parts.push('<path class="series-line" d="' + line + '"/>');
       }
     });
-    var gapCount = 0;
-    for (var k = 1; k < pts.length; k++) {
-      if (pts[k].ts.getTime() - pts[k - 1].ts.getTime() > gapMs) {
-        gapCount++;
-        var gx = (x(pts[k - 1].ts.getTime()) + x(pts[k].ts.getTime())) / 2;
-        parts.push('<rect class="gap-badge" x="' + (gx - 16).toFixed(1) + '" y="' + padT + '" width="32" height="16" rx="8"/>');
-        parts.push('<text x="' + gx.toFixed(1) + '" y="' + (padT + 11.5) + '" text-anchor="middle">gap</text>');
-      }
-    }
     pts.forEach(function (e) {
       var cx = x(e.ts.getTime());
       if (e.watered) parts.push('<rect x="' + (cx - 3).toFixed(1) + '" y="' + (H - padB - 4) + '" width="6" height="6" fill="var(--info)"/>');
@@ -687,13 +870,10 @@
       if (e.tankEmpty === true) parts.push('<path d="M' + (cx - 4).toFixed(1) + ' ' + (H - padB - 16) + ' l8 8 M' + (cx + 4).toFixed(1) + ' ' + (H - padB - 16) + ' l-8 8" stroke="var(--bad)" stroke-width="2.4"/>');
     });
     var last = pts[pts.length - 1];
-    card.innerHTML = '<div class="chart-head"><span class="chart-title">' + escapeHtml(metric.label) + '</span><span class="chart-now">now ' + escapeHtml(fmtNum(last[metric.id], metric.decimals)) + ' ' + escapeHtml(metric.unit) + '</span></div>' +
-      '<div class="chart-wrap"><svg class="chart" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="' + escapeHtml(metric.label) + ' over time' + (gapCount ? ' with ' + gapCount + ' data gap' + (gapCount > 1 ? 's' : '') : '') + '"></svg><div class="chart-tip" hidden></div></div>';
+    card.innerHTML = '<div class="chart-head"><span class="chart-title">' + escapeHtml(metric.label) + '</span><span class="chart-now">now ' + escapeHtml(fmtNum(last[metric.field], metric.decimals)) + ' ' + escapeHtml(metric.unit) + '</span></div>' +
+      '<div class="chart-wrap"><svg class="chart" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="' + escapeHtml(metric.label) + ' over time"></svg><div class="chart-tip" hidden></div></div>';
     card.querySelector('.chart').innerHTML = parts.join('');
-    // Draw-in lengths + pointer tooltips
-    Array.prototype.forEach.call(card.querySelectorAll('.series-line'), function (p) {
-      try { p.style.setProperty('--draw', String(p.getTotalLength())); } catch (err) { }
-    });
+    Array.prototype.forEach.call(card.querySelectorAll('.series-line'), function (p) { try { p.style.setProperty('--draw', String(p.getTotalLength())); } catch (err) { } });
     var svg = card.querySelector('.chart');
     var tip = card.querySelector('.chart-tip');
     function showTip(clientX) {
@@ -702,70 +882,107 @@
       var nearest = pts[0], best = Infinity;
       pts.forEach(function (e) { var d = Math.abs(x(e.ts.getTime()) - px); if (d < best) { best = d; nearest = e; } });
       tip.hidden = false;
-      tip.innerHTML = escapeHtml(fmtNum(nearest[metric.id], metric.decimals)) + ' ' + escapeHtml(metric.unit) + ' · ' + escapeHtml(fmtWhen(nearest.ts));
+      tip.textContent = fmtNum(nearest[metric.field], metric.decimals) + ' ' + metric.unit + ' · ' + fmtWhen(nearest.ts);
       tip.style.left = ((x(nearest.ts.getTime()) / W) * rect.width) + 'px';
-      tip.style.top = ((y(nearest[metric.id]) / H) * rect.height) + 'px';
+      tip.style.top = ((y(nearest[metric.field]) / H) * rect.height) + 'px';
     }
     svg.addEventListener('pointermove', function (ev) { showTip(ev.clientX); });
     svg.addEventListener('pointerdown', function (ev) { showTip(ev.clientX); });
     svg.addEventListener('pointerleave', function () { tip.hidden = true; });
     return card;
   }
-  function renderHistory() {
-    var ranges = $('range-select');
-    if (!ranges.children.length) {
-      ranges.innerHTML = RANGES.map(function (r) { return '<button type="button" data-range="' + r.id + '" aria-pressed="' + (state.range === r.id) + '">' + r.label + '</button>'; }).join('');
-      ranges.addEventListener('click', function (ev) {
-        var b = ev.target.closest('button[data-range]'); if (!b) return;
-        state.range = b.getAttribute('data-range'); renderHistory();
-      });
-    } else {
-      Array.prototype.forEach.call(ranges.children, function (b) { b.setAttribute('aria-pressed', String(b.getAttribute('data-range') === state.range)); });
+
+  /* --------------------------------------------------------------- doctor */
+  function renderDoctor() {
+    var host = $('detection-card');
+    var status = $('doctor-status');
+    var r = state.ai.detection;
+    if (!state.ai.loaded.detection || state.ai.loading.detection) {
+      status.textContent = '';
+      host.innerHTML = '<p class="ask-state">Loading the latest detection…</p>';
+      return;
     }
-    var evs = rangeEvents();
-    var chartMetrics = METRICS.filter(function (m) { return m.chart; });
-    var visible = state.chartsExpanded ? chartMetrics : chartMetrics.slice(0, 3);
-    var host = $('charts');
-    host.innerHTML = '';
-    visible.forEach(function (m) { host.appendChild(chartCard(m, evs)); });
-    var more = $('charts-more');
-    more.hidden = state.chartsExpanded || chartMetrics.length <= 3;
-    $('history-hint').textContent = evs.length ? evs.length + ' readings in view' : 'no readings in this range';
-    renderWateringSummary();
-    observeReveals();
+    if (!r || !r.ok) {
+      status.textContent = 'assistant unavailable';
+      host.innerHTML = '<p class="ask-state">' + escapeHtml(assErrorText(r || { error: 'network' })) + '</p>' +
+        '<p class="muted small">Detections come from persisted DiseaseScans rows through the workflow — nothing is faked while the endpoint is off.</p>';
+      renderDetectionHistory([]);
+      return;
+    }
+    var d = r.json.detection;
+    if (!d) {
+      status.textContent = 'no detections';
+      host.innerHTML = '<div class="media-state"><span class="art" data-art="images" aria-hidden="true"></span><span>No detection data available yet — the weekly scan has not produced a result.</span></div>';
+      hydrateArt(host);
+      renderDetectionHistory(r.json.history || []);
+      return;
+    }
+    var sev = 'sev-' + (d.status || 'unknown');
+    var label = d.status === 'possible_issue' ? 'Possible issue detected' : d.status === 'monitor' ? 'Worth monitoring' : d.status === 'clear' ? 'Clear' : 'Unknown';
+    var confPct = d.confidence ? Math.round(Number(d.confidence) * 100) + '%' : '—';
+    host.innerHTML = '<div class="detection">' +
+      '<div class="detection-media" id="detection-media"><div class="media-state"><span>No linked image</span></div></div>' +
+      '<div class="detection-head"><span class="detection-label">' + escapeHtml(label) + '</span><span class="sev-chip ' + sev + '">' + escapeHtml(String(d.status || 'unknown')) + '</span></div>' +
+      '<div class="detection-grid">' +
+      '<div class="kv"><span>Label</span><b>' + escapeHtml(d.label || '—') + '</b></div>' +
+      '<div class="kv"><span>Confidence</span><b>' + escapeHtml(confPct) + '</b></div>' +
+      '<div class="kv"><span>Detected</span><b>' + escapeHtml(fmtWhen(parseDate(d.detected_at_utc))) + '</b></div>' +
+      '<div class="kv"><span>Verification</span><b>' + (d.is_verified ? 'owner-verified' : 'unverified AI hypothesis') + '</b></div>' +
+      '<div class="kv"><span>Resolved</span><b>' + (d.resolved ? 'yes' : 'no') + '</b></div>' +
+      '</div>' +
+      '<p>' + escapeHtml(d.observation || '') + '</p>' +
+      (Array.isArray(d.recommended_actions) && d.recommended_actions.length ? '<div><strong>Suggested next steps</strong><ul class="detection-actions">' + d.recommended_actions.map(function (a) { return '<li>' + escapeHtml(a) + '</li>'; }).join('') + '</ul></div>' : '') +
+      (Array.isArray(d.recommendation_basis) && d.recommendation_basis.length ? '<details class="evidence"><summary>Why these suggestions</summary><ul>' + d.recommendation_basis.map(function (a) { return '<li>' + escapeHtml(a) + '</li>'; }).join('') + '</ul></details>' : '') +
+      (Array.isArray(d.supporting_evidence) && d.supporting_evidence.length ? '<details class="evidence"><summary>Evidence</summary><ul>' + d.supporting_evidence.map(function (e) { return '<li>' + escapeHtml(e.source) + ' — ' + escapeHtml(e.label || e.id || '') + '</li>'; }).join('') + '</ul></details>' : '') +
+      (Array.isArray(d.data_warnings) && d.data_warnings.length ? '<div class="ask-warnings">Notes: ' + d.data_warnings.map(escapeHtml).join(', ') + '</div>' : '') +
+      '</div>';
+    var media = $('detection-media');
+    if (d.image_url && d.image_id) {
+      driveMedia(d.image_id).then(function (url) {
+        var img = document.createElement('img');
+        img.alt = 'Detection image from ' + fmtWhen(parseDate(d.detected_at_utc));
+        img.src = url;
+        img.addEventListener('click', function () { openViewer({ id: d.image_id, label: 'Detection image', ts: parseDate(d.detected_at_utc), kind: 'scan' }); });
+        media.innerHTML = '';
+        media.appendChild(img);
+      }).catch(function () { media.innerHTML = '<div class="media-state"><span>The linked image is not accessible to this account.</span></div>'; });
+    }
+    renderDetectionHistory(r.json.history || []);
+    paintIcons(host);
   }
-  function renderWateringSummary() {
-    var list = lastWaterings(4);
-    var el = $('watering-summary');
-    if (!list.length) { el.innerHTML = ''; return; }
-    el.innerHTML = list.map(function (e) {
-      return '<div class="watering-row">' +
-        '<span class="v">' + escapeHtml(fmtWhen(e.ts)) + ' · ' + (e.waterSec === null ? '?' : e.waterSec + ' s') + ' · ~' + fmtNum(e.mlEst, 0) + ' ml<span class="est-tag">ESTIMATE</span></span>' +
-        '<span class="v device-only">Scale delta: device log only — not saved to history yet</span></div>';
-    }).join('');
+  function renderDetectionHistory(history) {
+    var host = $('detection-history');
+    var list = Array.isArray(history) ? history.slice().reverse() : [];
+    if (!list.length && state.scans.length) {
+      list = state.scans.slice(-5).reverse().map(function (s) {
+        var y = null;
+        try { y = JSON.parse(s.yolo_opinion || 'null'); } catch (err) { }
+        return { detected_at_utc: s.timestamp, label: (y && (y.label_simple || y.label)) || s.judge_verdict || 'unknown', status: String(s.judge_verdict || '').toLowerCase().indexOf('issue') >= 0 ? 'possible_issue' : String(s.judge_verdict || '').toLowerCase().indexOf('monitor') >= 0 ? 'monitor' : 'clear', has_image: !!driveIdFromLink(s.drive_links) };
+      });
+    }
+    host.innerHTML = list.length ? '<div class="history-list">' + list.map(function (h) {
+      return '<div class="history-row"><span>' + escapeHtml(fmtWhen(parseDate(h.detected_at_utc))) + '</span><span>' + escapeHtml(h.label || 'unknown') + '</span>' +
+        '<span class="sev-chip sev-' + escapeHtml(h.status || 'unknown') + '">' + escapeHtml(String(h.status || 'unknown')) + '</span>' +
+        '<span class="muted small">' + (h.has_image ? 'image linked' : 'no image') + '</span></div>';
+    }).join('') + '</div>' : '<p class="empty">No earlier detections recorded.</p>';
   }
 
-  /* ----------------------------------------------------------------- photos */
-  function emptyState(artKey, msg) { return '<div class="media-state"><span class="art" data-art="' + artKey + '" aria-hidden="true"></span><span>' + msg + '</span></div>'; }
+  /* ------------------------------------------------------------------ photos */
   function renderPhotos() {
     var cam = cameraStatus();
     $('photos-hint').textContent = state.images.length ? 'last ' + (cam.ageMs === null ? 'unknown' : fmtAge(cam.ageMs) + ' ago') : 'none yet';
     var filters = $('image-filter');
     if (!filters.children.length) {
       filters.innerHTML = ['all', 'daily', 'scan'].map(function (f) { return '<button type="button" data-filter="' + f + '" aria-pressed="' + (state.imageFilter === f) + '">' + (f === 'all' ? 'All' : f === 'daily' ? 'Daily' : 'Scans') + '</button>'; }).join('');
-      filters.addEventListener('click', function (ev) {
-        var b = ev.target.closest('button[data-filter]'); if (!b) return;
-        state.imageFilter = b.getAttribute('data-filter'); renderPhotos();
-      });
-    } else {
-      Array.prototype.forEach.call(filters.children, function (b) { b.setAttribute('aria-pressed', String(b.getAttribute('data-filter') === state.imageFilter)); });
     }
+    Array.prototype.forEach.call(filters.children, function (b) { b.setAttribute('aria-pressed', String(b.getAttribute('data-filter') === state.imageFilter)); });
     var list = state.images.filter(function (i) { return state.imageFilter === 'all' || i.kind === state.imageFilter; });
     var latest = list[0];
     var el = $('latest-image');
     if (!latest) {
-      el.innerHTML = '<div class="latest-media">' + emptyState('images', 'No photos yet — when the camera takes its first picture it will appear here. Nothing is faked.') + '</div>' +
+      el.innerHTML = '<div class="latest-media"><div class="media-state"><span class="art" data-art="images" aria-hidden="true"></span><span>No photos yet — when the camera takes its first picture it will appear here. Nothing is faked.</span></div></div>' +
         '<div class="latest-meta"><h3>Latest photo</h3><p class="muted">Photos arrive through the daily and weekly capture jobs; until then this stays empty on purpose.</p></div>';
+      hydrateArt(el);
     } else {
       el.innerHTML = '<div class="latest-media"><div class="media-state" id="latest-state">Loading photo…</div></div>' +
         '<div class="latest-meta"><h3>' + escapeHtml(latest.label) + '</h3>' +
@@ -781,14 +998,6 @@
         img.src = url;
         img.addEventListener('click', function () { openViewer(latest); });
         st.replaceWith(img);
-        driveMeta(latest.id).then(function (meta) {
-          if (meta && meta.imageMediaMetadata && meta.imageMediaMetadata.width) {
-            var p = document.createElement('p');
-            p.className = 'muted small';
-            p.textContent = 'Drive: ' + meta.imageMediaMetadata.width + '×' + meta.imageMediaMetadata.height + (meta.createdTime ? ' · added ' + fmtWhen(parseDate(meta.createdTime)) : '');
-            el.querySelector('.latest-meta').appendChild(p);
-          }
-        });
       }).catch(function () { st.textContent = 'Photo unavailable — the file is not accessible with this account or was removed.'; });
     }
     var gallery = list.filter(function (i) { return i !== latest; }).slice(0, 48);
@@ -809,7 +1018,6 @@
       node.addEventListener('click', open);
       node.addEventListener('keydown', function (ev) { if (ev.key === 'Enter' || ev.key === ' ') { ev.preventDefault(); open(); } });
     });
-    hydrateArt(el);
   }
   function openViewer(item) {
     var v = $('viewer');
@@ -822,7 +1030,7 @@
     driveMedia(item.id).then(function (url) {
       $('viewer-img').src = url;
       $('viewer-img').alt = item.label + ' from ' + fmtWhen(item.ts);
-      $('viewer-meta').textContent = item.label + ' · ' + fmtWhen(item.ts) + (item.verdict ? ' · verdict: ' + item.verdict : '');
+      $('viewer-meta').textContent = item.label + ' · ' + fmtWhen(item.ts);
     }).catch(function () { $('viewer-meta').textContent = item.label + ' · photo unavailable'; });
   }
   function closeViewer() {
@@ -834,72 +1042,74 @@
     state.viewerReturnFocus = null;
   }
 
-  /* ---------------------------------------------------- notes & alerts */
-  function renderNotifications() {
-    var sev = $('severity-filter');
-    if (!sev.children.length) {
-      sev.innerHTML = '<button type="button" data-sev="all" aria-pressed="true">All</button>' + SEVERITY.map(function (s) { return '<button type="button" data-sev="' + s.id + '" aria-pressed="false">' + s.label + '</button>'; }).join('');
-      sev.addEventListener('click', function (ev) {
-        var b = ev.target.closest('button[data-sev]'); if (!b) return;
-        state.severityFilter = b.getAttribute('data-sev'); renderNotifications();
-      });
-      $('status-filter').addEventListener('change', function () { state.statusFilter = $('status-filter').value; renderNotifications(); });
-    }
-    Array.prototype.forEach.call(sev.children, function (b) { b.setAttribute('aria-pressed', String(b.getAttribute('data-sev') === state.severityFilter)); });
-    var items = state.notifications.filter(function (n) {
-      if (state.severityFilter === 'critical' && n.severity !== 'critical') return false;
-      if (state.severityFilter === 'warning' && n.severity !== 'warning') return false;
-      if (state.severityFilter === 'info' && !(n.severity === 'info' || n.severity === 'legacy')) return false;
-      if (state.statusFilter !== 'all' && n.status !== state.statusFilter) return false;
-      return true;
-    }).sort(function (a, b) {
-      var ap = a.status === 'pending' ? 0 : 1, bp = b.status === 'pending' ? 0 : 1;
-      if (ap !== bp) return ap - bp;
-      return (b.ts ? b.ts.getTime() : 0) - (a.ts ? a.ts.getTime() : 0);
-    });
-    var pending = pendingNotifications();
-    var badge = $('pending-count');
-    badge.hidden = pending.length === 0;
-    badge.textContent = pending.length + ' waiting on you';
-    $('notes-hint').textContent = pending.length ? pending.length + ' waiting' : state.notifications.length + ' notes';
-    if (!items.length) {
-      $('notification-list').innerHTML = state.notifications.length
-        ? '<p class="empty">No notes match this filter.</p>'
-        : '<div class="media-state"><span class="art" data-art="notifications" aria-hidden="true"></span><span>Nothing needs you right now — alerts and questions will land here.</span></div>';
-      hydrateArt($('notification-list'));
-      return;
-    }
-    $('notification-list').innerHTML = items.map(function (n) {
-      var actions = n.status === 'pending' && n.options.length ? n.options.map(function (opt) {
-        return '<button type="button" class="btn btn-answer" data-label="' + escapeHtml(opt) + '">' + escapeHtml(opt) + '</button>';
-      }).join('') : '';
-      var feedback = n.status === 'pending'
-        ? '<input class="notif-comment" type="text" placeholder="optional comment / correction"><div class="notif-feedback" hidden></div>'
-        : (n.response ? '<div class="notif-meta"><span>your answer: ' + escapeHtml(n.response) + '</span></div>' : '');
-      return '<article class="notif sev-' + n.severity + '" data-row="' + n._row + '">' +
-        '<div class="notif-head"><span class="notif-type">' + escapeHtml(n.type || 'note') + '</span>' +
-        '<span class="notif-meta"><span>' + escapeHtml(fmtWhen(n.ts)) + '</span><span>' + escapeHtml(n.status || '—') + '</span>' + (n.severity === 'legacy' ? '<span>legacy</span>' : '') + '</span></div>' +
-        '<div class="notif-title">' + escapeHtml(n.title) + '</div><div class="notif-msg">' + escapeHtml(n.message) + '</div>' +
-        (actions ? '<div class="notif-actions">' + actions + '</div>' : '') + feedback +
-        '<details><summary>Raw row (debug)</summary><pre>' + escapeHtml(JSON.stringify(n.raw, null, 1)) + '</pre></details></article>';
-    }).join('');
-  }
-  function renderNotes() {
-    var ev = latestEvent();
-    if (ev) {
-      var bits = [];
-      if (ev.reasoning) bits.push('<div><strong>Why the last decision:</strong> ' + escapeHtml(ev.reasoning) + '</div>');
-      if (ev.aiNotes) bits.push('<div><strong>AI note:</strong> ' + escapeHtml(ev.aiNotes) + '</div>');
-      if (!bits.length) bits.push('<span class="muted">The latest event has no saved AI text.</span>');
-      $('latest-decision').innerHTML = '<span class="ai-badge">SAVED AI OUTPUT</span> ' + escapeHtml(fmtWhen(ev.ts)) + bits.join('');
+  /* --------------------------------------------------------------- insights */
+  function renderInsights() {
+    var summary = $('insights-summary');
+    var r = state.ai.overviewAi;
+    if (!state.ai.loaded.overviewAi || state.ai.loading.overviewAi) {
+      summary.textContent = 'Assistant overview loading…';
+      $('insights-changed').textContent = '—'; $('insights-check').textContent = '—'; $('insights-freshness').textContent = '';
+      $('insights-evidence-wrap').hidden = true;
+    } else if (!r || !r.ok || !r.json.summary) {
+      summary.innerHTML = '<span class="ask-state">' + escapeHtml(assErrorText(r || { error: 'network' })) + '</span>';
+      $('insights-changed').innerHTML = '—'; $('insights-check').innerHTML = '—';
+      $('insights-freshness').textContent = '';
+      $('insights-evidence-wrap').hidden = true;
     } else {
-      $('latest-decision').innerHTML = '<span class="muted">Nothing saved yet.</span>';
+      summary.innerHTML = '<span class="ai-badge">' + escapeHtml(r.json.answer_type === 'ai_summary' ? 'AI GENERATED — UNVERIFIED' : 'FROM YOUR DATA') + '</span> <span id="insights-text"></span>';
+      $('insights-text').textContent = String(r.json.summary);
+      $('insights-changed').innerHTML = humanList(r.json.what_changed || []);
+      $('insights-check').innerHTML = humanList(r.json.what_to_check || []);
+      $('insights-freshness').textContent = 'Generated ' + fmtWhen(parseDate(r.json.generated_at_utc)) + ' · data as of ' + (r.json.data_as_of_utc ? fmtWhen(parseDate(r.json.data_as_of_utc)) : '—') + ' · status ' + String(r.json.status || 'unknown');
+      var ev = Array.isArray(r.json.evidence) ? r.json.evidence : [];
+      $('insights-evidence-wrap').hidden = !ev.length;
+      $('insights-evidence').innerHTML = ev.map(function (e) { return '<li>' + escapeHtml(e.source) + ' — ' + escapeHtml(e.label || e.id || '') + '</li>'; }).join('');
+      if (Array.isArray(r.json.warnings) && r.json.warnings.length) $('insights-freshness').textContent += ' · notes: ' + r.json.warnings.join(', ');
     }
-    var notes = state.notes.slice(-(LIM.notes || 80)).reverse();
-    $('notes-list').innerHTML = notes.length ? notes.map(function (n) {
-      return '<div class="note"><div class="note-head"><span>' + escapeHtml(n.agent || 'agent') + ' · ' + escapeHtml(fmtWhen(parseDate(n.timestamp))) + '</span><span>' + escapeHtml(String(n.context_ref || '').slice(0, 24)) + '</span></div>' + escapeHtml(n.note || '') + '</div>';
-    }).join('') + '<p class="muted small">AgentNotes are past guesses — unverified, never ground truth.</p>' : '<p class="empty">No AI notes yet.</p>';
+    askRender('ask-insights', 'Ask about a change, a sensor or the last scan…', 'insights');
+    renderChartsBlock();
+    observeReveals($('screen-insights'));
   }
+
+  /* --------------------------------------------------------------- settings */
+  function renderSettingsScreen() {
+    var modes = [['system', 'System'], ['light', 'Light'], ['dark', 'Dark']];
+    var seg = $('mode-select');
+    if (seg && !seg.children.length) {
+      seg.innerHTML = modes.map(function (m) { return '<button type="button" data-mode="' + m[0] + '" aria-pressed="' + (currentMode() === m[0]) + '">' + m[1] + '</button>'; }).join('');
+    }
+    applyMode();
+    var t = THEMES[state.theme] || THEMES.botanical;
+    $('theme-label').textContent = t.label + ' — ' + t.tagline + ' (presentation only)';
+    var r = state.ai.overview;
+    var rows = [
+      ['Assistant endpoint', assistantUrl('ask') || 'not configured'],
+      ['Access check', (state.ai.loaded.overview ? (r && r.ok ? 'reachable' : assErrorText(r || { error: 'network' })) : 'checking…')],
+      ['Auth model', 'your Google token, verified server-side (no keys in the browser)'],
+      ['Workflow', 'phytoai — endpoints live only while the workflow is active']
+    ];
+    $('assistant-status').innerHTML = rows.map(function (x) { return '<div class="kv-cell"><span class="k">' + escapeHtml(x[0]) + '</span><b>' + escapeHtml(String(x[1])) + '</b></div>'; }).join('');
+    var kv = [
+      ['Dry-run', cfgValue('dry_run_mode', '—')],
+      ['Max water temp (policy)', cfgValue('max_water_temp_c', '—') + ' °C'],
+      ['Max pump run', cfgValue('max_pump_seconds', '—') + ' s'],
+      ['Min re-water gap', cfgValue('min_rewater_interval_hours', '—') + ' h'],
+      ['Preheat margin', cfgValue('preheat_margin_c', '—') + ' °C'],
+      ['Preheat lead', cfgValue('preheat_lead_minutes', '—') + ' min'],
+      ['Heater firmware cutoff', '40.0 °C'],
+      ['Heater firmware refuse', '≥ 39.5 °C'],
+      ['Actuator hard cap', '120 s'],
+      ['Flash dark threshold', cfgValue('flash_dark_threshold', '—')],
+      ['Next sunrise', fmtWhen(parseDate(cfgValue('next_sunrise_utc', '')))],
+      ['Next sunset', fmtWhen(parseDate(cfgValue('next_sunset_utc', '')))],
+      ['Scan session', bool(cfgValue('scan_session_active', 'false')) ? 'active' : 'idle'],
+      ['Species on record', cfgValue('last_species_guess', '—')],
+      ['Perenual reference', cfgValue('perenual_status', 'not seeded')]
+    ];
+    $('system-grid').innerHTML = kv.map(function (x) { return '<div class="kv-cell"><span class="k">' + escapeHtml(x[0]) + '</span><b>' + escapeHtml(String(x[1])) + '</b></div>'; }).join('');
+  }
+
+  /* --------------------------------------------------------------- plumbing */
   function callResume(url, label, comment) {
     if (!url || !/^https?:\/\//i.test(url)) return Promise.resolve(false);
     var target;
@@ -920,7 +1130,7 @@
       return sheetsUpdate('Notifications!F' + row + ':G' + row, [['done', responseText]]).then(function () {
         item.status = 'done'; item.response = responseText;
         if (feedback) { feedback.hidden = false; feedback.className = 'notif-feedback ok'; feedback.textContent = resumed ? 'Saved and the workflow was pinged.' : 'Saved to the sheet.'; }
-        renderNotifications();
+        renderNotifications(); renderTimeline();
       });
     }).catch(function (err) {
       if (feedback) { feedback.hidden = false; feedback.className = 'notif-feedback error'; feedback.textContent = err.message; }
@@ -953,30 +1163,15 @@
     wrap.appendChild(el);
     setTimeout(function () { el.remove(); }, 15000);
   }
-
-  /* --------------------------------------------------------------- settings */
-  function renderSettings() {
-    var kv = [
-      ['Dry-run', cfgValue('dry_run_mode', '—')],
-      ['Max water temp (policy)', cfgValue('max_water_temp_c', '—') + ' °C'],
-      ['Max pump run', cfgValue('max_pump_seconds', '—') + ' s'],
-      ['Min re-water gap', cfgValue('min_rewater_interval_hours', '—') + ' h'],
-      ['Preheat margin', cfgValue('preheat_margin_c', '—') + ' °C'],
-      ['Preheat lead', cfgValue('preheat_lead_minutes', '—') + ' min'],
-      ['Heater firmware cutoff', '40.0 °C'], ['Heater firmware refuse', '≥ 39.5 °C'], ['Actuator hard cap', '120 s'],
-      ['Flash dark threshold', cfgValue('flash_dark_threshold', '—')],
-      ['Last light reading', cfgValue('last_lightlevel', '—') + ' · ' + fmtWhen(parseDate(cfgValue('last_lightlevel_utc', '')))],
-      ['Next sunrise', fmtWhen(parseDate(cfgValue('next_sunrise_utc', '')))],
-      ['Next sunset', fmtWhen(parseDate(cfgValue('next_sunset_utc', '')))],
-      ['Scan session', bool(cfgValue('scan_session_active', 'false')) ? 'active' : 'idle'],
-      ['Location', cfgValue('pot_latitude', '—') + ', ' + cfgValue('pot_longitude', '—')],
-      ['Species on record', cfgValue('last_species_guess', '—')],
-      ['Perenual reference', cfgValue('perenual_status', 'not seeded')]
-    ];
-    $('system-grid').innerHTML = kv.map(function (r) {
-      return '<div class="kv-cell"><span class="k">' + escapeHtml(r[0]) + '</span><b>' + escapeHtml(String(r[1])) + '</b></div>';
-    }).join('');
+  function fitHero() {
+    var hero = $('hero');
+    if (!hero || state.route !== 'overview') return;
+    var top = hero.getBoundingClientRect().top + window.scrollY;
+    var h = window.innerHeight - top - 12;
+    if (h > 260) hero.style.minHeight = h + 'px';
   }
+  window.addEventListener('resize', fitHero);
+  window.addEventListener('orientationchange', fitHero);
 
   /* ------------------------------------------------------------------ wiring */
   function bind() {
@@ -984,22 +1179,60 @@
     $('signin-btn').addEventListener('click', requestSignIn);
     $('refresh-btn').addEventListener('click', loadAll);
     $('sheet-mode-exit').addEventListener('click', exitSheetMode);
-    $('notification-list').addEventListener('click', function (ev) {
-      var btn = ev.target.closest('.btn-answer'); if (!btn) return;
-      respondToNotification(btn.closest('.notif'), btn.getAttribute('data-label'));
-    });
-    $('charts-more').addEventListener('click', function () { state.chartsExpanded = true; renderHistory(); });
+    $('mode-btn').addEventListener('click', cycleMode);
     $('timeline-more').addEventListener('click', function () { state.timelineExpanded = true; renderTimeline(); });
+    $('charts-more').addEventListener('click', function () { state.chartsExpanded = true; renderChartsBlock(); });
+    $('more-close').addEventListener('click', function () { $('more-sheet').hidden = true; });
     document.addEventListener('click', function (ev) {
+      var routeBtn = ev.target.closest ? ev.target.closest('[data-route]') : null;
+      if (routeBtn) { $('more-sheet').hidden = true; goto(routeBtn.getAttribute('data-route')); return; }
+      if (ev.target.closest && ev.target.closest('[data-more]')) { $('more-sheet').hidden = false; return; }
+      var askBtn = ev.target.closest ? ev.target.closest('[data-ask]') : null;
+      if (askBtn) { askSubmit(askBtn.getAttribute('data-ask')); return; }
       var closer = ev.target.closest ? ev.target.closest('[data-action="close-viewer"]') : null;
       if (closer) { closeViewer(); return; }
       if (ev.target === $('viewer')) closeViewer();
+      if (ev.target === $('more-sheet')) $('more-sheet').hidden = true;
     });
-    document.addEventListener('keydown', function (ev) { if (ev.key === 'Escape' && !$('viewer').hidden) closeViewer(); });
+    document.addEventListener('keydown', function (ev) {
+      if (ev.key === 'Enter' && ev.target && ev.target.classList && ev.target.classList.contains('ask-input')) {
+        var host = ev.target.closest('.ask');
+        if (host) askSubmit(host.id);
+      }
+      if (ev.key === 'Escape' && !$('viewer').hidden) closeViewer();
+    });
+    $('notification-list') && $('notification-list').addEventListener('click', function (ev) {
+      var btn = ev.target.closest('.btn-answer'); if (!btn) return;
+      respondToNotification(btn.closest('.notif'), btn.getAttribute('data-label'));
+    });
+    var sev = $('severity-filter');
+    if (sev) sev.addEventListener('click', function (ev) {
+      var b = ev.target.closest('button[data-sev]'); if (!b) return;
+      state.severityFilter = b.getAttribute('data-sev'); renderNotifications();
+    });
+    var status = $('status-filter');
+    if (status) status.addEventListener('change', function () { state.statusFilter = status.value; renderNotifications(); });
+    var modeSel = $('mode-select');
+    if (modeSel) modeSel.addEventListener('click', function (ev) {
+      var b = ev.target.closest('button[data-mode]'); if (!b) return;
+      setMode(b.getAttribute('data-mode'));
+    });
+    var ranges = $('range-select');
+    if (ranges) ranges.addEventListener('click', function (ev) {
+      var b = ev.target.closest('button[data-range]'); if (!b) return;
+      state.range = b.getAttribute('data-range'); renderChartsBlock();
+    });
+    var filters = $('image-filter');
+    if (filters) filters.addEventListener('click', function (ev) {
+      var b = ev.target.closest('button[data-filter]'); if (!b) return;
+      state.imageFilter = b.getAttribute('data-filter'); renderPhotos();
+    });
+    window.addEventListener('hashchange', function () { renderRoute(); });
   }
   function start() {
     state.sheetId = resolveSheetId();
     renderSheetBanner();
+    applyMode();
     paintIcons();
     if (!restoreToken()) $('signin-panel').hidden = false;
     bind();

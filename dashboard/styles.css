@@ -343,6 +343,135 @@ footer { width: 100%; max-width: 1200px; margin: 0 auto; padding: 0 var(--gutter
 .metric-value-changed { animation: pop .35s ease; }
 @keyframes pop { 0% { transform: scale(1); } 40% { transform: scale(1.06); } 100% { transform: scale(1); } }
 
+/* =========================================================================
+ * v3 — app shell: screens, navigation, light mode, assistant, plant doctor
+ * ========================================================================= */
+
+/* light mode: overrides only presentational variables */
+html[data-mode="light"] {
+  color-scheme: light;
+  --bg: #eef4ef;
+  --panel: rgba(255, 255, 255, 0.94);
+  --panel-2: #ffffff;
+  --panel-3: #e7efe9;
+  --border: #c9d8cd;
+  --text: #16241b;
+  --muted: #5b6f61;
+  --accent: #1f8a52;
+  --accent-2: #176b40;
+  --accent-soft: rgba(31, 138, 82, 0.12);
+  --bad: #c0392f;
+  --bad-soft: rgba(192, 57, 47, 0.12);
+  --warn: #9a6d0f;
+  --warn-soft: rgba(154, 109, 15, 0.14);
+  --ok: #1f8a52;
+  --info: #2f6f9a;
+  --info-soft: rgba(47, 111, 154, 0.12);
+  --shadow: 0 12px 30px rgba(30, 50, 38, 0.12);
+  --glow: rgba(31, 138, 82, 0.10);
+}
+html[data-mode="light"] body { background: radial-gradient(900px 420px at 85% -8%, var(--glow), transparent 62%), var(--bg); }
+html[data-mode="light"] .topbar { background: linear-gradient(180deg, rgba(255,255,255,.96), rgba(238,244,239,.92)); }
+html[data-mode="light"] .notif pre, html[data-mode="light"] .notif-comment, html[data-mode="light"] .chart-tip { background: #f7faf7; color: var(--text); }
+html[data-mode="light"] .viewer { background: rgba(240, 245, 241, 0.96); }
+html[data-mode="light"] .thumb .thumb-tag { background: rgba(255,255,255,.85); }
+
+/* screens */
+.screen { display: grid; gap: 12px; }
+.tabs { display: none; gap: 4px; }
+.tabs button {
+  background: transparent; border: 0; color: var(--muted); font: inherit; font-size: 13px;
+  padding: 9px 12px; border-radius: 999px; cursor: pointer;
+}
+.tabs button:hover { color: var(--text); }
+.tabs button[aria-current="page"] { background: var(--accent-soft); color: var(--accent); font-weight: 700; }
+.btn-icon { display: inline-grid; place-items: center; width: 38px; height: 38px; padding: 0; }
+.btn-icon svg { width: 18px; height: 18px; }
+
+.bottomnav {
+  position: fixed; left: 0; right: 0; bottom: 0; z-index: 40;
+  display: flex; justify-content: space-around; gap: 2px;
+  padding: 6px max(8px, var(--gutter)) calc(6px + env(safe-area-inset-bottom, 0px));
+  background: color-mix(in srgb, var(--panel-3) 92%, transparent);
+  border-top: 1px solid var(--border);
+  backdrop-filter: blur(10px);
+}
+.bottomnav button {
+  flex: 1 1 0; display: grid; justify-items: center; gap: 2px;
+  background: none; border: 0; color: var(--muted); font-size: 10.5px; padding: 6px 2px; cursor: pointer; border-radius: 12px;
+}
+.bottomnav button svg { width: 21px; height: 21px; }
+.bottomnav button[aria-current="page"] { color: var(--accent); font-weight: 700; }
+.more-sheet { position: fixed; inset: 0; z-index: 55; background: rgba(4, 8, 6, .55); display: grid; align-items: end; }
+.more-inner { background: var(--panel); border-top-left-radius: 20px; border-top-right-radius: 20px; border: 1px solid var(--border); padding: 14px var(--gutter) calc(20px + env(safe-area-inset-bottom, 0px)); display: grid; gap: 10px; }
+.more-head { display: flex; justify-content: space-between; align-items: center; }
+.more-links { display: grid; gap: 8px; }
+.more-links button { text-align: left; }
+
+/* overview extras */
+.card { background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); box-shadow: var(--shadow); }
+.card.pad { padding: 16px; }
+.action-card { display: flex; align-items: center; gap: 12px; padding: 13px 16px; }
+.action-line { font-weight: 600; }
+.chip-row { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 150px), 1fr)); gap: 8px; }
+.chip { background: var(--panel-2); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 10px 12px; display: grid; gap: 2px; }
+.chip.bad { border-color: var(--bad); }
+.chip.warn { border-color: var(--warn); }
+.chip-k { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .6px; }
+.chip-v { font-weight: 700; font-size: 17px; }
+.mini-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 220px), 1fr)); gap: 8px; }
+.mini { padding: 11px 13px; display: grid; gap: 4px; }
+.mini-k { color: var(--muted); font-size: 11px; text-transform: uppercase; letter-spacing: .6px; }
+.mini-v { font-size: 14px; overflow-wrap: anywhere; }
+.latest-thumb { min-height: 84px; display: grid; place-items: center; }
+.latest-thumb img { width: 100%; max-height: 160px; object-fit: cover; border-radius: 10px; border: 1px solid var(--border); cursor: zoom-in; }
+.ai-card { padding: 14px 16px; display: grid; gap: 6px; }
+.ai-head { display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; align-items: baseline; }
+.ai-text { margin: 0; overflow-wrap: anywhere; }
+.links-row { display: flex; flex-wrap: wrap; gap: 8px; }
+.insights-summary { font-size: 15px; margin-bottom: 10px; overflow-wrap: anywhere; }
+.setting-row { display: flex; justify-content: space-between; align-items: center; gap: 10px; flex-wrap: wrap; padding: 8px 0; border-bottom: 1px dashed var(--border); }
+.evidence summary { cursor: pointer; color: var(--accent); font-size: 13px; }
+.evidence ul { margin: 8px 0 0; padding-left: 18px; color: var(--muted); font-size: 13px; }
+
+/* assistant ask bar */
+.ask { display: grid; grid-template-columns: 1fr auto; gap: 8px; align-items: start; padding: 12px 14px; background: var(--panel); border: 1px solid var(--border); border-radius: var(--radius); }
+.ask-input { grid-column: 1; background: var(--panel-2); border: 1px solid var(--border); color: var(--text); border-radius: 999px; padding: 11px 14px; font-size: 14px; min-width: 0; }
+.ask-input:focus { outline: none; border-color: var(--accent-2); }
+.ask-go { grid-column: 2; }
+.ask-result { grid-column: 1 / -1; display: grid; gap: 8px; }
+.ask-answer { margin: 0; font-size: 14.5px; overflow-wrap: anywhere; }
+.ask-meta { display: flex; flex-wrap: wrap; gap: 8px 12px; color: var(--muted); font-size: 11.5px; }
+.ask-warnings { color: var(--warn); font-size: 12px; }
+.ask-state { color: var(--muted); font-size: 13px; }
+
+/* plant doctor */
+.detection { display: grid; gap: 12px; }
+.detection-media { background: var(--panel-2); border: 1px solid var(--border); border-radius: var(--radius-sm); overflow: hidden; min-height: 180px; display: grid; place-items: center; }
+.detection-media img { width: 100%; height: auto; display: block; cursor: zoom-in; }
+.detection-head { display: flex; flex-wrap: wrap; gap: 8px; align-items: baseline; justify-content: space-between; }
+.detection-label { font-size: 18px; font-weight: 800; }
+.sev-chip { font-size: 11px; font-weight: 800; letter-spacing: .4px; border-radius: 999px; border: 1px solid var(--border); padding: 2px 9px; }
+.sev-possible_issue { color: var(--bad); border-color: var(--bad); background: var(--bad-soft); }
+.sev-monitor { color: var(--warn); border-color: var(--warn); background: var(--warn-soft); }
+.sev-clear { color: var(--ok); border-color: var(--ok); }
+.sev-unknown { color: var(--muted); }
+.detection-grid { display: grid; grid-template-columns: repeat(auto-fit, minmax(min(100%, 200px), 1fr)); gap: 8px; }
+.detection-actions { margin: 4px 0 0; padding-left: 18px; }
+.detection-actions li { margin: 3px 0; }
+.history-list { display: grid; gap: 6px; }
+.history-row { display: flex; flex-wrap: wrap; gap: 6px 12px; align-items: baseline; justify-content: space-between; background: var(--panel-2); border: 1px solid var(--border); border-radius: var(--radius-sm); padding: 9px 12px; font-size: 13px; }
+
+@media (min-width: 720px) {
+  .tabs { display: flex; }
+  .bottomnav { display: none; }
+  .screen { gap: 14px; }
+}
+@media (max-width: 719px) {
+  main { padding-bottom: 96px; }
+  .hero { min-height: calc(100dvh - var(--topbar-h) - 40px); }
+}
+
 /* --------------------------- prefers-reduced-motion: kill every animation --------------------------- */
 @media (prefers-reduced-motion: reduce) {
   *, *::before, *::after { animation: none !important; transition: none !important; }
