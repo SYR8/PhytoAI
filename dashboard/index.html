@@ -31,6 +31,7 @@
 
 <main>
   <div id="banner" class="banner" role="status" aria-live="polite" hidden></div>
+  <div id="quota-state" class="quota-state" role="status" aria-live="polite" hidden></div>
   <div id="toasts" class="toasts" aria-live="polite" aria-atomic="false"></div>
 
   <div id="sheet-mode-banner" class="sheet-banner" role="status" hidden>
@@ -72,6 +73,18 @@
     <div class="card action-card" id="action-card">
       <span class="sum-icon" aria-hidden="true" data-icon="warning"></span>
       <div id="action-line" class="action-line">Checking what needs doing…</div>
+    </div>
+
+    <div class="card trend-card reveal" id="trend-card">
+      <div class="panel-head">
+        <h2>Plant trend</h2>
+        <span class="muted small" id="trend-hint">last 7 days</span>
+      </div>
+      <div id="trend-chart" class="trend-chart"></div>
+      <div class="trend-foot">
+        <span class="muted small" id="trend-caption"></span>
+        <button type="button" class="btn btn-primary" id="trend-full">View full history</button>
+      </div>
     </div>
 
     <div class="chip-row" id="quick-vitals" aria-label="Essential readings"></div>
@@ -195,8 +208,10 @@
       </div>
       <h3 class="sub-head">Assistant</h3>
       <div id="assistant-status" class="kv-grid"></div>
-      <h3 class="sub-head">Safety thresholds &amp; configuration <span class="muted">(backend-driven — themes never change these)</span></h3>
-      <div id="system-grid" class="kv-grid"></div>
+      <details class="settings-more">
+        <summary>Safety thresholds &amp; configuration <span class="muted">(backend-driven — themes never change these)</span></summary>
+        <div id="system-grid" class="kv-grid"></div>
+      </details>
       <p class="muted small"><span data-icon="plug" class="inline-icon" aria-hidden="true"></span> Camera power is wired-only — there is no battery to watch.
       <span data-icon="camera" class="inline-icon" aria-hidden="true"></span> Photos and detections come from the persisted rows; nothing is invented.</p>
     </div>

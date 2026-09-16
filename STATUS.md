@@ -176,6 +176,32 @@ Implemented and live-applied (`7c7434d` workflow — 224 nodes; dashboard in the
 - **Verified:** headless suite 22/22 (coalescing, route-storm zero refetch, one-request-per-question for chip/Enter/both handoffs, one-at-a-time, busy cooldown, quota banner + gate, nav structure, zero overflow at 5 widths, 0 console errors) plus live workflow MCP tests **exec 780–799, 42/42** (per-intent read counts, quota shapes, no-model paths); `validate_workflow` valid; `node --check` clean. Details: `docs/dashboard-ux-v3.md` §2026-09-16.
 - **Limit stated:** serialization is per browser tab — the n8n workflow is not globally single-threaded across users/devices (server-side queueing would be a separate change); the quota gate is client-side.
 
+### 3.7 Startup request storm fix + charts visibility + botanical polish (2026-09-16)
+
+Implemented in the dashboard (commit pending at time of writing; no workflow change needed):
+- **Hard refresh now sends 2 data requests instead of 8** (identical stub, before = `00532a9`): one
+  `values:batchGet` bootstrap for the five tabs (was 5 per-tab reads) and one `/webhook/dashboard/overview`
+  for the active route (was overview + overview?ai=1 + detection). Endpoint-by-endpoint table:
+  `docs/dashboard-ux-v3.md` section 2026-09-16.
+- **Boot state machine** `auth_pending -> authenticated -> bootstrapping -> routing -> ready` (each transition
+  once; hashchange ignored during boot; initial hash normalized via `replaceState`). **Route-scoped loaders:**
+  only the visible route requests panel data - Overview `/overview`, Insights `/overview?ai=1`, Doctor
+  `/detection`; Photos/Timeline/Settings/Assistant fetch nothing; hidden routes are never prefetched.
+- **Quota state** with retry-after countdown: route requests are suppressed while it runs, manual `Refresh`
+  re-arms after it ends, nothing retries automatically, theme/resize/banner events never refetch.
+- **Instrumentation:** `PHYTOAI_STATS.startupRequests`, `routeRequests`, `coalesced`, `activeRoute`, `bootPhase`
+  plus a bounded netLog of safe endpoint/label metadata only (no tokens, headers, rows or bodies).
+- **Charts fixed and visible:** root cause was chart cards rebuilt by range switches never receiving the `in`
+  reveal class (permanently `opacity: 0`), compounded by IntersectionObserver callbacks being droppable.
+  Overview now has a "Plant trend" preview (7-day, markers, legend, "View full history" -> Insights); Insights
+  shows all four full charts (moisture, weight, water/soil temperature) with honest per-chart empty states and
+  a reveal fallback so content can never stay invisible.
+- **Visual system reworked:** layered deep-forest dark palette, warm botanical light palette, gradient surfaces
+  and CTA, stronger hierarchy (identity/status -> recommendation -> trend -> three vitals -> latest -> deeper
+  navigation), Settings wall-of-numbers behind a collapsed details.
+- Verified: headless suite **30/30 normal + 30/30 reduced-motion**; charts nonzero at 320/390/768/1280/1920;
+  zero overflow; zero console errors; `node --check` + static smoke 8/8.
+
 ## 4. WHAT'S LEFT (priority order)
 
 1. **M1 — Persistent named Cloudflare tunnel** (top priority; production webhook base URL; quick-tunnel URLs change and would invalidate stored resume URLs).

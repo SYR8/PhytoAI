@@ -58,10 +58,10 @@
   var PRIMARY = ['overview', 'assistant', 'doctor', 'photos'];
   var MORE = ['timeline', 'insights', 'settings'];
   var METRICS = [
-    { id: 'weight', field: 'weight', label: 'Pot weight', unit: 'g', decimals: 1, chart: true },
-    { id: 'moisture', field: 'moisture', label: 'Soil moisture', unit: '%', decimals: 0, chart: true },
-    { id: 'waterC', field: 'waterC', label: 'Water temperature', unit: '°C', decimals: 1, chart: true },
-    { id: 'soilC', field: 'soilC', label: 'Soil temperature', unit: '°C', decimals: 1, chart: false },
+    { id: 'moisture', field: 'moisture', label: 'Soil moisture', unit: '%', decimals: 0, chart: true, blurb: 'How wet the soil is at each sensor cycle.' },
+    { id: 'weight', field: 'weight', label: 'Pot weight', unit: 'g', decimals: 1, chart: true, blurb: 'Gross scale reading at each cycle (device log).' },
+    { id: 'waterC', field: 'waterC', label: 'Water temperature', unit: '°C', decimals: 1, chart: true, blurb: 'Tank water temperature from the DS18B20 probe.' },
+    { id: 'soilC', field: 'soilC', label: 'Soil temperature', unit: '°C', decimals: 1, chart: true, blurb: 'Soil probe temperature at each cycle.' },
     { id: 'airC', field: 'airC', label: 'Air temperature', unit: '°C', decimals: 1, chart: false },
     { id: 'hum', field: 'hum', label: 'Air humidity', unit: '%', decimals: 0, chart: false }
   ];
@@ -75,7 +75,7 @@
     cfg: {}, events: [], notifications: [], scans: [], notes: [], images: [], media: {}, meta: {},
     theme: 'botanical', route: 'overview', range: null, imageFilter: 'all', severityFilter: 'all', statusFilter: 'all',
     chartsExpanded: false, timelineExpanded: false, viewerReturnFocus: null, loadErrors: [], chatSending: false, askCooldownUntil: 0,
-    chat: [], chatSeq: 0, pendingAsk: null,
+    chat: [], chatSeq: 0, pendingAsk: null, quotaUntil: 0, quotaTimer: null,
     ai: { overview: null, overviewAi: null, detection: null, loading: {}, loaded: {} }
   };
 
@@ -130,11 +130,32 @@
   var sched = {
     hi: [], lo: [], activeCount: 0,
     pending: {}, cache: {}, busyUntil: {},
-    stats: { started: 0, cacheHits: 0, coalesced: 0, peakConcurrent: 0, byLabel: {} }
+    stats: {
+      started: 0, cacheHits: 0, coalesced: 0, peakConcurrent: 0, byLabel: {},
+      startupRequests: 0, routeRequests: {}, activeRoute: null, bootPhase: 'auth_pending',
+      netLog: []
+    }
   };
   window.PHYTOAI_STATS = sched.stats;
+  var boot = { phase: 'auth_pending', counting: false };
+  function bootSetPhase(p) {
+    if (boot.phase === p) return;
+    boot.phase = p;
+    sched.stats.bootPhase = p;
+    dlog('boot ' + p);
+  }
   function dlog(label) {
     try { if (/[?&]debug=1/.test(location.search) && window.console) console.debug('[phytoai] ' + label); } catch (err) { }
+  }
+  function schedPushNet(entry) {
+    entry.t = Date.now();
+    entry.phase = boot.phase;
+    sched.stats.netLog.push(entry);
+    if (sched.stats.netLog.length > 200) sched.stats.netLog.shift();
+  }
+  function notifyQuota(ms) {
+    state.quotaUntil = Math.max(Number(state.quotaUntil || 0), Date.now() + Number(ms || SCHED.quotaCooldownMs || 60000));
+    renderQuotaState();
   }
   function busyUntilFor(key) {
     var t = Number(sched.busyUntil[key] || 0);
@@ -148,6 +169,7 @@
     var prefix = String(key).split(':')[0];
     if (prefix === 'assistant' || prefix === 'sheets') sched.busyUntil[prefix] = until;
     dlog('quota-gate ' + prefix);
+    notifyQuota(until - Date.now());
   }
   function quotaError(label) {
     var e = new Error('Plant data is temporarily busy. Please try again in about a minute.');
@@ -163,6 +185,9 @@
       (function (t) {
         sched.stats.started++;
         sched.stats.byLabel[t.label] = (sched.stats.byLabel[t.label] || 0) + 1;
+        if (boot.counting && t.route) sched.stats.startupRequests++;
+        if (t.route) sched.stats.routeRequests[t.route] = (sched.stats.routeRequests[t.route] || 0) + 1;
+        schedPushNet({ why: t.label, route: t.route || null, path: t.netPath || null, coalesced: false });
         dlog('start ' + t.label + ' (active ' + sched.activeCount + ')');
         Promise.resolve().then(t.run).then(function (v) {
           if (t.ttlMs) sched.cache[t.key] = { at: Date.now(), value: v };
@@ -183,17 +208,29 @@
     var ttl = Number(opts.ttlMs || 0);
     if (ttl && !opts.fresh) {
       var c = sched.cache[key];
-      if (c && Date.now() - c.at < ttl) { sched.stats.cacheHits++; dlog('cache ' + (opts.label || key)); return Promise.resolve(c.value); }
+      if (c && Date.now() - c.at < ttl) {
+        sched.stats.cacheHits++;
+        schedPushNet({ why: opts.label || key, route: opts.route || null, path: opts.netPath || null, coalesced: true, kind: 'cache' });
+        dlog('cache ' + (opts.label || key));
+        return Promise.resolve(c.value);
+      }
     }
     var blocked = busyUntilFor(key);
     if (blocked > Date.now() && opts.userGesture !== true) {
       var be = new Error('Plant data is temporarily busy. Please try again in about a minute.');
       be.busy = true; be.retryAfterMs = blocked - Date.now();
+      schedPushNet({ why: opts.label || key, route: opts.route || null, path: opts.netPath || null, coalesced: true, kind: 'blocked' });
+      notifyQuota(be.retryAfterMs);
       return Promise.reject(be);
     }
-    if (sched.pending[key]) { sched.stats.coalesced++; dlog('coalesce ' + (opts.label || key)); return sched.pending[key]; }
+    if (sched.pending[key]) {
+      sched.stats.coalesced++;
+      schedPushNet({ why: opts.label || key, route: opts.route || null, path: opts.netPath || null, coalesced: true, kind: 'pending' });
+      dlog('coalesce ' + (opts.label || key));
+      return sched.pending[key];
+    }
     var p = new Promise(function (resolve, reject) {
-      var task = { key: key, label: opts.label || key, ttlMs: ttl, cooldown: opts.busyCooldownMs, run: run, resolve: resolve, reject: reject };
+      var task = { key: key, label: opts.label || key, ttlMs: ttl, cooldown: opts.busyCooldownMs, route: opts.route, netPath: opts.netPath, run: run, resolve: resolve, reject: reject };
       (opts.priority ? sched.hi : sched.lo).push(task);
     });
     sched.pending[key] = p;
@@ -215,6 +252,11 @@
       }, { rootMargin: '0px 0px -8% 0px', threshold: 0.08 });
     }
     Array.prototype.forEach.call(els, function (el) { if (!el.classList.contains('in')) revealObserver.observe(el); });
+    // Content must never stay invisible just because a browser throttles or
+    // drops IntersectionObserver callbacks (background tabs, embeddings).
+    setTimeout(function () {
+      Array.prototype.forEach.call(els, function (el) { if (!el.classList.contains('in')) el.classList.add('in'); });
+    }, 1500);
   }
   function countUp(el, to, decimals) {
     if (to === null || to === undefined || isNaN(to)) { el.textContent = '—'; return; }
@@ -300,7 +342,7 @@
           state.tokenExpiry = Date.now() + (Number(resp.expires_in || 3600) * 1000) - 60000;
           sessionStorage.setItem(TOKEN_KEY, state.token);
           sessionStorage.setItem(EXPIRY_KEY, String(state.tokenExpiry));
-          setAuthUi(); loadAll();
+          setAuthUi(); bootStart();
         } else {
           showBanner('Google sign-in failed. Check the OAuth client ID and the authorized JavaScript origin https://phytoai.edgeone.dev (HTTPS).', 'error');
         }
@@ -312,7 +354,7 @@
     var hint = loginHint();
     if (hint) cfg.hint = hint;
     state.tokenClient = google.accounts.oauth2.initTokenClient(cfg);
-    if (restoreToken()) { setAuthUi(); loadAll(); } else { $('connect-btn').hidden = false; }
+    if (restoreToken()) { setAuthUi(); bootStart(); } else { $('connect-btn').hidden = false; }
   }
 
   /* ------------------------------------------------------- sheet override */
@@ -348,11 +390,11 @@
     if (/AgentNotes/i.test(range)) return 'notes';
     return 'events';
   }
-  function sheetsGet(range, fresh) {
+  function sheetsGet(range, fresh, routeTag) {
     var kind = sheetKind(range);
     var ttl = kind === 'config' ? Number(SCHED.configTtlMs || 300000) : Number(SCHED.sheetsTtlMs || 45000);
     var url = SHEETS + encodeURIComponent(state.sheetId) + '/values/' + encodeURIComponent(range) + '?majorDimension=ROWS';
-    return schedRun('sheets:' + String(state.sheetId || '') + ':' + kind, { label: 'sheets:' + kind, ttlMs: ttl, fresh: !!fresh, busyCooldownMs: Number(SCHED.quotaCooldownMs || 60000) }, function () {
+    return schedRun('sheets:' + String(state.sheetId || '') + ':' + kind, { label: 'sheets:' + kind, ttlMs: ttl, fresh: !!fresh, route: routeTag || null, netPath: '/v4/spreadsheets/*/values', busyCooldownMs: Number(SCHED.quotaCooldownMs || 60000) }, function () {
       return fetch(url, { headers: authHeaders() }).then(function (res) {
         if (res.status === 429 || res.status === 403) {
           return res.text().then(function (t) {
@@ -367,7 +409,7 @@
   }
   function sheetsUpdate(range, values) {
     var url = SHEETS + encodeURIComponent(state.sheetId) + '/values/' + encodeURIComponent(range) + '?valueInputOption=USER_ENTERED';
-    return schedRun('sheets:write:' + String(state.sheetId || '') + ':' + range, { label: 'sheets:write', userGesture: true }, function () {
+    return schedRun('sheets:write:' + String(state.sheetId || '') + ':' + range, { label: 'sheets:write', userGesture: true, netPath: '/v4/spreadsheets/*/values' }, function () {
       return fetch(url, { method: 'PUT', headers: Object.assign({ 'Content-Type': 'application/json' }, authHeaders()), body: JSON.stringify({ range: range, majorDimension: 'ROWS', values: values }) })
         .then(function (res) { if (!res.ok) return res.text().then(function (t) { throw new Error('Sheets write → ' + res.status + ': ' + String(t).slice(0, 120)); }); return res.json(); });
     });
@@ -375,7 +417,7 @@
   function driveMeta(id) {
     if (state.meta[id] !== undefined) return Promise.resolve(state.meta[id]);
     var fields = 'id,name,createdTime,imageMediaMetadata(width,height)';
-    return schedRun('drive:meta:' + id, { label: 'drive:meta' }, function () {
+    return schedRun('drive:meta:' + id, { label: 'drive:meta', netPath: '/drive/v3/files/*' }, function () {
       return fetch(DRIVE + encodeURIComponent(id) + '?fields=' + encodeURIComponent(fields), { headers: authHeaders() })
         .then(function (res) { if (!res.ok) throw new Error('drive meta ' + res.status); return res.json(); })
         .then(function (d) { state.meta[id] = d; return d; })
@@ -384,7 +426,7 @@
   }
   function driveMedia(id) {
     if (state.media[id]) return Promise.resolve(state.media[id]);
-    return schedRun('drive:media:' + id, { label: 'drive:media', ttlMs: Number(SCHED.driveTtlMs || 86400000) }, function () {
+    return schedRun('drive:media:' + id, { label: 'drive:media', ttlMs: Number(SCHED.driveTtlMs || 86400000), netPath: '/drive/v3/files/*' }, function () {
       return fetch(DRIVE + encodeURIComponent(id) + '?alt=media', { headers: authHeaders() })
         .then(function (res) { if (!res.ok) throw new Error('drive media ' + res.status); return res.blob(); })
         .then(function (blob) { var url = URL.createObjectURL(blob); state.media[id] = url; return url; });
@@ -398,46 +440,88 @@
   function flowMlPerSec() { var v = num(state.cfg['pump_flow_ml_per_sec']); return v !== null && v > 0 ? v : Number(CFG.pumpFlowMlPerSec || 0); }
   function cfgValue(key, fallback) { var v = state.cfg[key]; return v === undefined || v === null || String(v).trim() === '' ? fallback : v; }
 
-  function loadAll(force) {
-    if (!state.token) return;
+  /* ---------------------------------------------------------- data bootstrap
+   * One hard refresh performs exactly one Sheets bootstrap request
+   * (values:batchGet for the five persisted tabs) and then loads only the
+   * active route's panel data. Nothing else is fetched in the background. */
+  var SHEET_TABS = [
+    ['cfg', 'SystemConfig!A1:C'], ['events', 'Events!A1:Y'], ['notifications', 'Notifications!A1:I'], ['scans', 'DiseaseScans!A1:J'], ['notes', 'AgentNotes!A1:E']
+  ];
+  function applySheet(kind, values) {
+    if (kind === 'events') state.events = toRecords(values).map(normalizeEvent);
+    else if (kind === 'notifications') state.notifications = toRecords(values).map(normalizeNotification);
+    else if (kind === 'scans') state.scans = toRecords(values);
+    else if (kind === 'notes') state.notes = toRecords(values);
+    else {
+      state.cfg = {};
+      toRecords(values).forEach(function (row) { var k = String(row.Key === undefined ? '' : row.Key).trim(); if (k) state.cfg[k] = row.Value; });
+    }
+  }
+  function loadBootstrap(force, routeTag) {
+    if (!state.token) return Promise.resolve(null);
     showBanner('Loading…');
     state.loadErrors = [];
-    var jobs = [
-      ['cfg', 'SystemConfig!A1:C'], ['events', 'Events!A1:Y'], ['notifications', 'Notifications!A1:I'], ['scans', 'DiseaseScans!A1:J'], ['notes', 'AgentNotes!A1:E']
-    ].map(function (j) {
-      return sheetsGet(j[1], !!force).then(function (values) {
-        if (j[0] === 'events') state.events = toRecords(values).map(normalizeEvent);
-        else if (j[0] === 'notifications') state.notifications = toRecords(values).map(normalizeNotification);
-        else if (j[0] === 'scans') state.scans = toRecords(values);
-        else if (j[0] === 'notes') state.notes = toRecords(values);
-        else {
-          state.cfg = {};
-          toRecords(values).forEach(function (row) { var k = String(row.Key === undefined ? '' : row.Key).trim(); if (k) state.cfg[k] = row.Value; });
+    var ranges = SHEET_TABS.map(function (j) { return j[1]; });
+    var url = SHEETS + encodeURIComponent(state.sheetId) + '/values:batchGet?majorDimension=ROWS&' +
+      ranges.map(function (r) { return 'ranges=' + encodeURIComponent(r); }).join('&');
+    return schedRun('sheets:' + String(state.sheetId || '') + ':bootstrap', {
+      label: 'sheets:bootstrap', ttlMs: Number(SCHED.sheetsTtlMs || 45000), fresh: !!force,
+      route: routeTag || 'boot', netPath: '/v4/spreadsheets/*/values:batchGet',
+      busyCooldownMs: Number(SCHED.quotaCooldownMs || 60000)
+    }, function () {
+      return fetch(url, { headers: authHeaders() }).then(function (res) {
+        if (res.status === 429 || res.status === 403) {
+          return res.text().then(function (t) {
+            if (res.status === 429 || /quota|RESOURCE_EXHAUSTED/i.test(t)) throw quotaError('sheets:bootstrap');
+            throw new Error('Sheets bootstrap → ' + res.status + ' ' + String(t).slice(0, 120));
+          });
         }
-      }).catch(function (err) { state.loadErrors.push(err); });
-    });
-    Promise.all(jobs).then(function () {
-      var failed = state.loadErrors.filter(function (e) { return !e.busy; });
-      var busy = state.loadErrors.some(function (e) { return e.busy || e.quota; });
-      if (busy) showBanner('Plant data is temporarily busy. Please try again in about a minute.', 'warn');
-      else if (failed.length) showBanner('Some data failed to load: ' + failed.map(function (e) { return e.message; }).join(' · '), 'warn');
-      else showBanner('');
-      state.ai = { overview: null, overviewAi: null, detection: null, loading: {}, loaded: {} };
-      if (!state.range) state.range = window.matchMedia('(max-width: 719px)').matches ? '24h' : '7d';
-      var species = cfgValue('last_species_guess', latestEvent() ? latestEvent().species : '') || 'unknown';
-      state.theme = pickTheme(species);
-      document.documentElement.setAttribute('data-theme', state.theme);
-      deriveImages();
-      renderAll();
-      hydrateArt();
-      paintIcons();
-      loadAssistantPanels(force);
+        if (!res.ok) return res.text().then(function (t) { throw new Error('Sheets bootstrap → ' + res.status + ' ' + String(t).slice(0, 120)); });
+        return res.json().then(function (d) { return d.valueRanges || []; });
+      });
+    }).then(function (valueRanges) {
+      SHEET_TABS.forEach(function (j, i) {
+        var vr = valueRanges[i];
+        applySheet(j[0], vr ? (vr.values || []) : []);
+      });
+      finishBootstrap();
+    }).catch(function (err) {
+      if (err && (err.busy || err.quota)) {
+        state.loadErrors.push(err);
+        finishBootstrap();
+        return null;
+      }
+      // A missing/renamed tab must not blank the whole app: degrade to
+      // per-tab reads (still serialized, still one active request at a time).
+      return Promise.all(SHEET_TABS.map(function (j) {
+        return sheetsGet(j[1], true, routeTag || 'boot').then(function (values) { applySheet(j[0], values); })
+          .catch(function (e) { state.loadErrors.push(e); });
+      })).then(function () { finishBootstrap(); });
     });
   }
-  function loadAssistantPanels(force) {
-    fetchOverviewData(false, force);
-    fetchOverviewData(true, force);
-    fetchDetectionData(force);
+  function finishBootstrap() {
+    var failed = state.loadErrors.filter(function (e) { return !e.busy && !e.quota; });
+    var blocked = state.loadErrors.some(function (e) { return e.busy || e.quota; });
+    if (blocked) renderQuotaState();
+    else if (failed.length) showBanner('Some data failed to load: ' + failed.map(function (e) { return e.message; }).join(' · '), 'warn');
+    else { showBanner(''); noteDataOk(); }
+    state.ai = { overview: null, overviewAi: null, detection: null, loading: {}, loaded: {} };
+    if (!state.range) state.range = window.matchMedia('(max-width: 719px)').matches ? '24h' : '7d';
+    var species = cfgValue('last_species_guess', latestEvent() ? latestEvent().species : '') || 'unknown';
+    state.theme = pickTheme(species);
+    document.documentElement.setAttribute('data-theme', state.theme);
+    deriveImages();
+  }
+  /* Route-scoped panel loading: only the screen in front of the user may ask
+   * the workflow for data — Overview, Insights, Doctor are never prefetched. */
+  function ensureRouteData(id, force) {
+    // While a quota countdown is running, do not launch further requests —
+    // one quota state, one manual retry, never an automatic follow-up.
+    if (!force && Number(state.quotaUntil || 0) > Date.now()) return [Promise.resolve(null)];
+    if (id === 'overview') return [fetchOverviewData(false, force, id)];
+    if (id === 'insights') return [fetchOverviewData(true, force, id)];
+    if (id === 'doctor') return [fetchDetectionData(force, id)];
+    return [];
   }
 
   /* --------------------------------------------------------- normalization */
@@ -605,15 +689,18 @@
       }).join('');
     }
   }
-  function renderRoute() {
+  function renderRoute(forceRoute) {
     var id = currentRoute();
     state.route = id;
+    sched.stats.activeRoute = { id: id, since: Date.now() };
     ROUTES.forEach(function (r) { var el = $('screen-' + r.id); if (el) el.hidden = r.id !== id; });
     renderNav(id);
-    if (!state.token) return;
+    if (!state.token) return [];
     renderScreen(id);
+    var pending = ensureRouteData(id, forceRoute);
     fitHero();
     window.scrollTo(0, 0);
+    return pending;
   }
   function renderScreen(id) {
     if (id === 'overview') renderOverview();
@@ -656,7 +743,9 @@
     if (!url) return Promise.resolve({ ok: false, error: 'not_configured' });
     if (!state.token) return Promise.resolve({ ok: false, error: 'not_signed_in' });
     var key = assistantCacheKey(route, opts);
-    return schedRun(key, { label: 'assistant:' + route, priority: true, ttlMs: assistantTtlMs(route), fresh: !!opts.fresh, busyCooldownMs: Number(SCHED.quotaCooldownMs || 60000) }, function () {
+    var netPath = null;
+    try { netPath = new URL(url).pathname; } catch (err) { netPath = null; }
+    return schedRun(key, { label: 'assistant:' + route, priority: true, ttlMs: assistantTtlMs(route), fresh: !!opts.fresh, route: opts.route || route, netPath: netPath, busyCooldownMs: Number(SCHED.quotaCooldownMs || 60000) }, function () {
       return assistantFetchNet(route, url, opts).then(function (r) {
         if (assistantBusyResult(r)) { r.quota = true; markBusy(key, Number(SCHED.quotaCooldownMs || 60000)); }
         return r;
@@ -732,28 +821,32 @@
   function askPlant(question, route) {
     return assistantFetch('ask', { method: 'POST', body: { plant_id: CFG.plantId || 'default', question: question, context: { route: route || 'overview', client_time_utc: new Date().toISOString() } } });
   }
-  function fetchOverviewData(ai, force) {
+  function fetchOverviewData(ai, force, routeTag) {
     var key = ai ? 'overviewAi' : 'overview';
-    if (state.ai.loading[key]) return;
+    if (!force && (state.ai.loaded[key] || state.ai.loading[key])) return Promise.resolve(null);
     state.ai.loading[key] = true;
-    var r = assistantFetch('overview', { method: 'GET', fresh: !!force, qs: '?plant_id=' + encodeURIComponent(CFG.plantId || 'default') + (ai ? '&ai=1' : '') });
-    r.then(function (res) {
+    var r = assistantFetch('overview', { method: 'GET', fresh: !!force, route: routeTag || (ai ? 'insights' : 'overview'), qs: '?plant_id=' + encodeURIComponent(CFG.plantId || 'default') + (ai ? '&ai=1' : '') });
+    return r.then(function (res) {
       state.ai.loading[key] = false;
       state.ai.loaded[key] = true;
       state.ai[key] = res;
+      if (res && res.quota) renderQuotaState(); else noteDataOk();
       if (state.route === 'overview') renderOverviewAi();
       if (state.route === 'insights') renderInsights();
       if (state.route === 'overview') renderActionLine();
+      return res;
     });
   }
-  function fetchDetectionData(force) {
-    if (state.ai.loading.detection) return;
+  function fetchDetectionData(force, routeTag) {
+    if (!force && (state.ai.loaded.detection || state.ai.loading.detection)) return Promise.resolve(null);
     state.ai.loading.detection = true;
-    assistantFetch('detection', { method: 'GET', fresh: !!force, qs: '?plant_id=' + encodeURIComponent(CFG.plantId || 'default') }).then(function (res) {
+    return assistantFetch('detection', { method: 'GET', fresh: !!force, route: routeTag || 'doctor', qs: '?plant_id=' + encodeURIComponent(CFG.plantId || 'default') }).then(function (res) {
       state.ai.loading.detection = false;
       state.ai.loaded.detection = true;
       state.ai.detection = res;
+      if (res && res.quota) renderQuotaState(); else noteDataOk();
       if (state.route === 'doctor') renderDoctor();
+      return res;
     });
   }
 
@@ -925,12 +1018,46 @@
     input.style.height = Math.min(input.scrollHeight, 132) + 'px';
   }
 
+  /* ------------------------------------------------------------ boot states
+   * auth pending → authenticated → bootstrapping → routing → ready.
+   * Each transition happens once per page load; a hashchange during boot is
+   * ignored, and the initial-hash normalization uses history.replaceState so
+   * it cannot trigger a second route load. */
+  function bootStart() {
+    if (boot.phase !== 'auth_pending') return;
+    bootSetPhase('authenticated');
+    boot.counting = true;
+    bootSetPhase('bootstrapping');
+    loadBootstrap(false, 'boot').then(routeLoad, routeLoad);
+  }
+  function routeLoad() {
+    if (boot.phase === 'routing' || boot.phase === 'ready') return;
+    bootSetPhase('routing');
+    var pending = renderAll(false) || [];
+    hydrateArt();
+    paintIcons();
+    Promise.all(pending).then(bootDone, bootDone);
+  }
+  function bootDone() {
+    if (boot.phase === 'ready') return;
+    bootSetPhase('ready');
+    boot.counting = false;
+    setAuthUi();
+  }
+  function normalizeInitialHash() {
+    var h = String(location.hash || '');
+    var id = h.replace(/^#\/?/, '');
+    if (ROUTES.some(function (r) { return r.id === id; })) return;
+    try { history.replaceState(null, '', location.pathname + location.search + '#/' + currentRoute()); } catch (err) { }
+  }
+
   /* --------------------------------------------------------------- overview */
-  function renderAll() {
+  function renderAll(forceRoute) {
     applyMode();
     renderChrome();
-    renderRoute();
+    var pending = renderRoute(forceRoute);
     renderToasts();
+    return pending;
   }
   function renderChrome() {
     $('dryrun-pill').hidden = !bool(cfgValue('dry_run_mode', 'true'));
@@ -957,13 +1084,13 @@
     $('hero-age').textContent = ev ? 'Last reading ' + fmtWhen(ev.ts) + ' · next check follows the sun schedule' : 'No readings yet';
 
     renderActionLine();
+    renderTrendCard();
 
     var chips = [];
     var chip = function (k, v, cls) { return '<div class="chip ' + (cls || '') + '"><span class="chip-k">' + escapeHtml(k) + '</span><span class="chip-v">' + escapeHtml(v) + '</span></div>'; };
     if (ev) {
       chips.push(chip('Soil moisture', ev.moisture === null ? '—' : fmtNum(ev.moisture, 0) + ' %'));
       chips.push(chip('Water temp', ev.waterC === null ? '—' : fmtNum(ev.waterC, 1) + ' °C'));
-      chips.push(chip('Pot weight', ev.weight === null ? '—' : fmtNum(ev.weight / 1000, 2) + ' kg'));
       chips.push(chip('Tank', ev.tankEmpty === null ? '—' : ev.tankEmpty ? 'EMPTY' : 'OK', ev.tankEmpty ? 'bad' : ''));
     } else chips.push('<p class="empty">No readings yet.</p>');
     $('quick-vitals').innerHTML = chips.join('');
@@ -1102,14 +1229,46 @@
     }
     if (ranges) Array.prototype.forEach.call(ranges.children, function (b) { b.setAttribute('aria-pressed', String(b.getAttribute('data-range') === state.range)); });
     var evs = rangeEvents();
+    var rangeLabel = (RANGES.filter(function (r) { return r.id === state.range; })[0] || RANGES[1]).label;
     var chartMetrics = METRICS.filter(function (m) { return m.chart; });
-    var visible = state.chartsExpanded ? chartMetrics : chartMetrics.slice(0, 3);
     host.innerHTML = '';
-    visible.forEach(function (m) { host.appendChild(chartCard(m, evs)); });
-    $('charts-more').hidden = state.chartsExpanded || chartMetrics.length <= 3;
+    chartMetrics.forEach(function (m) { host.appendChild(chartCard(m, evs, { rangeLabel: rangeLabel })); });
+    observeReveals(host);
+    var more = $('charts-more');
+    if (more) more.hidden = true;
+  }
+  function renderTrendCard() {
+    var host = $('trend-chart');
+    if (!host) return;
+    var evs = eventsInRange('7d');
+    var prefs = ['moisture', 'weight', 'waterC', 'soilC'];
+    var pick = null;
+    for (var i = 0; i < prefs.length && !pick; i++) {
+      var m = METRICS.filter(function (x) { return x.id === prefs[i]; })[0];
+      if (!m) continue;
+      var pts = evs.filter(function (e) { return e[m.field] !== null && e[m.field] !== undefined; });
+      if (pts.length >= 2) pick = m;
+    }
+    var hint = $('trend-hint');
+    var caption = $('trend-caption');
+    if (pick) {
+      if (hint) hint.textContent = pick.label + ' · last 7 days';
+      if (caption) caption.textContent = 'One point per sensor cycle, straight from your Events sheet — no invented values.';
+      host.innerHTML = '';
+      host.appendChild(chartCard(pick, evs, { rangeLabel: 'the last 7 days' }));
+    } else {
+      if (hint) hint.textContent = 'last 7 days';
+      if (caption) caption.textContent = 'The line appears once at least two sensor cycles have been recorded.';
+      host.innerHTML = '<div class="chart-empty"><span class="chart-empty-icon" data-icon="chart" aria-hidden="true"></span>' +
+        '<p class="chart-empty-text">No trend yet — at least <b>two readings</b> in the last 7 days are needed. Nothing is invented to fill the gap.</p></div>';
+      paintIcons(host);
+    }
   }
   function rangeEvents() {
-    var r = RANGES.filter(function (x) { return x.id === state.range; })[0] || RANGES[1];
+    return eventsInRange(state.range);
+  }
+  function eventsInRange(rangeId) {
+    var r = RANGES.filter(function (x) { return x.id === rangeId; })[0] || RANGES[1];
     var cutoff = r.ms ? Date.now() - r.ms : 0;
     return state.events.filter(function (e) { return e.ts && e.ts.getTime() >= cutoff; });
   }
@@ -1124,16 +1283,34 @@
     }
     return d;
   }
-  function chartCard(metric, evs) {
+  function chartLegendHtml(metric) {
+    return '<div class="chart-legend">' +
+      '<span class="legend-item"><span class="dot dot-line"></span>' + escapeHtml(metric.label) + ' (' + escapeHtml(metric.unit) + ')</span>' +
+      '<span class="legend-item"><span class="dot dot-water"></span>watering</span>' +
+      '<span class="legend-item"><span class="dot dot-heat"></span>heating</span>' +
+      '<span class="legend-item"><span class="legend-x">✕</span>tank empty</span>' +
+      '</div>';
+  }
+  function chartEmptyCard(metric, rangeLabel) {
+    var card = document.createElement('div');
+    card.className = 'chart-card reveal';
+    card.setAttribute('data-metric', metric.id);
+    card.innerHTML = '<div class="chart-head"><span class="chart-title">' + escapeHtml(metric.label) + '</span><span class="chart-now muted">waiting for readings</span></div>' +
+      '<div class="chart-empty"><span class="chart-empty-icon" data-icon="chart" aria-hidden="true"></span>' +
+      '<p class="chart-empty-text">At least <b>two readings</b> in ' + escapeHtml(rangeLabel) + ' are needed before a line appears. Nothing is invented or smoothed over.</p></div>' +
+      '<div class="chart-caption">' + escapeHtml(metric.blurb || '') + '</div>';
+    paintIcons(card);
+    return card;
+  }
+  function chartCard(metric, evs, opts) {
+    opts = opts || {};
+    var rangeLabel = opts.rangeLabel || 'this window';
     var pts = evs.filter(function (e) { return e[metric.field] !== null && e[metric.field] !== undefined; });
     var card = document.createElement('div');
     card.className = 'chart-card reveal';
     card.setAttribute('data-metric', metric.id);
-    if (pts.length < 2) {
-      card.innerHTML = '<div class="chart-head"><span class="chart-title">' + escapeHtml(metric.label) + '</span></div><p class="empty">Not enough readings in this range yet.</p>';
-      return card;
-    }
-    var W = 900, H = 300, padL = 52, padR = 14, padT = 16, padB = 30;
+    if (pts.length < 2) return chartEmptyCard(metric, rangeLabel);
+    var W = 900, H = 300, padL = 54, padR = 16, padT = 18, padB = 34;
     var t0 = pts[0].ts.getTime(), t1 = pts[pts.length - 1].ts.getTime(), span = t1 - t0 || 1;
     var vals = pts.map(function (e) { return e[metric.field]; });
     var min = Math.min.apply(null, vals), max = Math.max.apply(null, vals);
@@ -1148,7 +1325,10 @@
     for (var j = 1; j < pts.length; j++) { if (pts[j].ts.getTime() - pts[j - 1].ts.getTime() > gapMs) { segments.push(cur); cur = []; } cur.push(pts[j]); }
     segments.push(cur);
     var parts = [];
-    parts.push('<defs><linearGradient id="grad-' + metric.id + '" x1="0" y1="0" x2="0" y2="1"><stop offset="0%" stop-color="var(--accent)" stop-opacity="0.32"/><stop offset="100%" stop-color="var(--accent)" stop-opacity="0.02"/></linearGradient></defs>');
+    parts.push('<defs><linearGradient id="grad-' + metric.id + '" x1="0" y1="0" x2="0" y2="1">' +
+      '<stop offset="0%" stop-color="var(--accent)" stop-opacity="0.38"/>' +
+      '<stop offset="55%" stop-color="var(--accent-2)" stop-opacity="0.14"/>' +
+      '<stop offset="100%" stop-color="var(--accent-2)" stop-opacity="0.02"/></linearGradient></defs>');
     [0, 0.5, 1].forEach(function (f) {
       var gv = min + f * (max - min), gy = y(gv);
       parts.push('<line class="grid-line" x1="' + padL + '" y1="' + gy.toFixed(1) + '" x2="' + (W - padR) + '" y2="' + gy.toFixed(1) + '"/>');
@@ -1167,13 +1347,16 @@
     });
     pts.forEach(function (e) {
       var cx = x(e.ts.getTime());
-      if (e.watered) parts.push('<rect x="' + (cx - 3).toFixed(1) + '" y="' + (H - padB - 4) + '" width="6" height="6" fill="var(--info)"/>');
-      if (e.heater) parts.push('<circle cx="' + cx.toFixed(1) + '" cy="' + (H - padB - 10) + '" r="3.4" fill="var(--warn)"/>');
-      if (e.tankEmpty === true) parts.push('<path d="M' + (cx - 4).toFixed(1) + ' ' + (H - padB - 16) + ' l8 8 M' + (cx + 4).toFixed(1) + ' ' + (H - padB - 16) + ' l-8 8" stroke="var(--bad)" stroke-width="2.4"/>');
+      if (e.watered) parts.push('<g class="marker marker-water"><rect x="' + (cx - 3.5).toFixed(1) + '" y="' + (H - padB - 5) + '" width="7" height="7" rx="2"/></g>');
+      if (e.heater) parts.push('<g class="marker marker-heat"><circle cx="' + cx.toFixed(1) + '" cy="' + (H - padB - 12) + '" r="3.8"/></g>');
+      if (e.tankEmpty === true) parts.push('<g class="marker marker-tank"><path d="M' + (cx - 4.5).toFixed(1) + ' ' + (H - padB - 22) + ' l9 9 M' + (cx + 4.5).toFixed(1) + ' ' + (H - padB - 22) + ' l-9 9"/></g>');
     });
     var last = pts[pts.length - 1];
-    card.innerHTML = '<div class="chart-head"><span class="chart-title">' + escapeHtml(metric.label) + '</span><span class="chart-now">now ' + escapeHtml(fmtNum(last[metric.field], metric.decimals)) + ' ' + escapeHtml(metric.unit) + '</span></div>' +
-      '<div class="chart-wrap"><svg class="chart" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="' + escapeHtml(metric.label) + ' over time"></svg><div class="chart-tip" hidden></div></div>';
+    parts.push('<circle class="last-dot" cx="' + x(last.ts.getTime()).toFixed(1) + '" cy="' + y(last[metric.field]).toFixed(1) + '" r="4.5"/>');
+    card.innerHTML = '<div class="chart-head"><span class="chart-title">' + escapeHtml(metric.label) + '</span><span class="chart-now">now <b>' + escapeHtml(fmtNum(last[metric.field], metric.decimals)) + '</b> ' + escapeHtml(metric.unit) + '</span></div>' +
+      '<div class="chart-wrap"><svg class="chart" viewBox="0 0 ' + W + ' ' + H + '" role="img" aria-label="' + escapeHtml(metric.label) + ' over ' + escapeHtml(rangeLabel) + ', latest ' + escapeHtml(fmtNum(last[metric.field], metric.decimals)) + ' ' + escapeHtml(metric.unit) + '"></svg><div class="chart-tip" hidden></div></div>' +
+      chartLegendHtml(metric) +
+      '<div class="chart-caption">' + escapeHtml(metric.blurb || '') + '</div>';
     card.querySelector('.chart').innerHTML = parts.join('');
     Array.prototype.forEach.call(card.querySelectorAll('.series-line'), function (p) { try { p.style.setProperty('--draw', String(p.getTotalLength())); } catch (err) { } });
     var svg = card.querySelector('.chart');
@@ -1387,7 +1570,7 @@
     var r = state.ai.overview;
     var rows = [
       ['Assistant endpoint', assistantUrl('ask') || 'not configured'],
-      ['Access check', (state.ai.loaded.overview ? (r && r.ok ? 'reachable' : assErrorText(r || { error: 'blocked' }, 'overview')) : 'checking…')],
+      ['Access check', (state.ai.loaded.overview ? (r && r.ok ? 'reachable' : assErrorText(r || { error: 'blocked' }, 'overview')) : 'checked when Overview or Insights is open')],
       ['Auth model', 'your Google token, verified server-side (no keys in the browser)'],
       ['Workflow', 'phytoai — endpoints live only while the workflow is active']
     ];
@@ -1459,6 +1642,46 @@
     if (!message) { el.hidden = true; el.textContent = ''; el.className = 'banner'; return; }
     el.hidden = false; el.className = 'banner' + (kind ? ' ' + kind : ''); el.textContent = message;
   }
+  /* One quota state per session: visible while the retry-after countdown runs,
+   * then a "try again now" affordance. Nothing retries on its own. */
+  function noteDataOk() {
+    if (!state.quotaUntil) return;
+    state.quotaUntil = 0;
+    renderQuotaState();
+  }
+  function renderQuotaState() {
+    var el = $('quota-state');
+    if (!el) return;
+    var until = Number(state.quotaUntil || 0);
+    if (!until) {
+      el.hidden = true;
+      el.textContent = '';
+      el.className = 'quota-state';
+      if (state.quotaTimer) { clearInterval(state.quotaTimer); state.quotaTimer = null; }
+      var rb = $('refresh-btn');
+      if (rb) rb.classList.remove('quota-ready');
+      return;
+    }
+    var left = until - Date.now();
+    el.hidden = false;
+    if (left > 0) {
+      el.className = 'quota-state warn';
+      el.innerHTML = '<span class="quota-icon" aria-hidden="true"></span><span>Plant data is temporarily busy. Please try again in about a minute — retry available in <b>' + Math.ceil(left / 1000) + ' s</b>.</span>';
+    } else {
+      el.className = 'quota-state ready';
+      el.innerHTML = '<span class="quota-icon" aria-hidden="true"></span><span>Plant data was busy — you can try again now with <b>Refresh</b>.</span>';
+    }
+    var rbtn = $('refresh-btn');
+    if (rbtn) { if (left <= 0) rbtn.classList.add('quota-ready'); else rbtn.classList.remove('quota-ready'); }
+    var tick = function () {
+      var u = Number(state.quotaUntil || 0);
+      if (!u || Date.now() >= u) {
+        if (state.quotaTimer) { clearInterval(state.quotaTimer); state.quotaTimer = null; }
+      }
+      renderQuotaState();
+    };
+    if (left > 0 && !state.quotaTimer) state.quotaTimer = setInterval(tick, 1000);
+  }
   function toast(severity, title, message) {
     var wrap = $('toasts');
     var el = document.createElement('div');
@@ -1482,11 +1705,23 @@
   function bind() {
     $('connect-btn').addEventListener('click', requestSignIn);
     $('signin-btn').addEventListener('click', requestSignIn);
-    $('refresh-btn').addEventListener('click', function () { loadAll(true); });
+    $('refresh-btn').addEventListener('click', function () {
+      if (!state.token) return;
+      if (Number(state.quotaUntil || 0) > Date.now()) { renderQuotaState(); return; }
+      showBanner('Refreshing…');
+      loadBootstrap(true, 'refresh').then(function () {
+        var blocked = Number(state.quotaUntil || 0) > Date.now();
+        renderAll(!blocked);
+        hydrateArt();
+        paintIcons();
+      });
+    });
     $('sheet-mode-exit').addEventListener('click', exitSheetMode);
     $('mode-btn').addEventListener('click', cycleMode);
     $('timeline-more').addEventListener('click', function () { state.timelineExpanded = true; renderTimeline(); });
     $('charts-more').addEventListener('click', function () { state.chartsExpanded = true; renderChartsBlock(); });
+    var trendFull = $('trend-full');
+    if (trendFull) trendFull.addEventListener('click', function () { state.range = '7d'; goto('insights'); });
     $('more-close').addEventListener('click', function () { $('more-sheet').hidden = true; });
     var chatForm = $('chat-form');
     function submitChat() {
@@ -1572,13 +1807,18 @@
       var b = ev.target.closest('button[data-filter]'); if (!b) return;
       state.imageFilter = b.getAttribute('data-filter'); renderPhotos();
     });
-    window.addEventListener('hashchange', function () { renderRoute(); });
+    window.addEventListener('hashchange', function () {
+      if (boot.phase === 'auth_pending' || boot.phase === 'authenticated' || boot.phase === 'bootstrapping') return;
+      renderRoute();
+    });
   }
   function start() {
     state.sheetId = resolveSheetId();
+    normalizeInitialHash();
     renderSheetBanner();
     applyMode();
     paintIcons();
+    renderQuotaState();
     if (!restoreToken()) $('signin-panel').hidden = false;
     bind();
     initAuth();

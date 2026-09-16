@@ -262,3 +262,71 @@ text), so quota never surfaces as fake data and is never retried automatically.
 across devices/users (that would need queueing inside n8n); the quota gate is client-side; a real-token live
 end-to-end ask against the deployed origin was not exercised in this pass (MCP pinned-token tests cover the
 workflow side; live CORS/HTTP was verified earlier from the EdgeOne origin).
+
+## 2026-09-16 - startup request storm fix, charts visibility, botanical polish (this commit)
+
+**Symptom:** a hard refresh produced **3 n8n webhook executions** (overview, overview?ai=1, detection), each
+reaching several Sheets nodes -> intermittent quota. Separately, the owner reported charts were "not visibly
+available".
+
+**Root causes (dashboard only; no workflow change needed):**
+1. `loadAll()` called `loadAssistantPanels()`, which fired **all three** assistant endpoints at boot regardless of
+   the active route.
+2. The five persisted tabs were read as **five separate Sheets requests**.
+3. Range switches rebuilt chart cards **without re-attaching the reveal observer** (`.chart-card .chart` stays
+   `opacity: 0` until the `in` class is added); IntersectionObserver callbacks can also be throttled/dropped in
+   embedded or background contexts. Full charts also lived only on Insights, with nothing on the home screen.
+
+**Fix:**
+- **Boot state machine** `auth_pending -> authenticated -> bootstrapping -> routing -> ready`; each transition
+  once per load, exposed as `PHYTOAI_STATS.bootPhase`; `hashchange` is ignored during boot; the initial hash is
+  normalized with `history.replaceState` (no event, no second loader).
+- **One bootstrap request:** `values:batchGet` for SystemConfig/Events/Notifications/DiseaseScans/AgentNotes.
+  A non-quota failure degrades to per-tab reads (still serialized); a 429 opens the quota state instead.
+- **Route-scoped panel loading** (`ensureRouteData`, called only from the router): Overview -> `/overview`,
+  Insights -> `/overview?ai=1`, Doctor -> `/detection`; Photos/Timeline/Settings/Assistant load no workflow data.
+  Loaded/loading guards make revisits and route changes free (TTL caches still apply).
+- **Quota state:** one banner with a live retry-after countdown ("retry available in N s"), route requests are
+  suppressed while it runs, and when it ends the UI offers a manual retry (`Refresh` highlight) - nothing
+  retries automatically, and a failed manual refresh does not cascade into route requests.
+- **Instrumentation:** `PHYTOAI_STATS.startupRequests` (data requests counted while booting),
+  `routeRequests` (per-route), `coalesced`, `activeRoute`, `bootPhase`, plus a bounded 200-entry `netLog`
+  (endpoint path, route, reason label, coalesced flag, boot phase). No tokens, headers, sheet rows or response
+  bodies are ever recorded or logged.
+- **Charts:** Overview gains a **"Plant trend"** card (7-day, automatic metric pick with 2-point minimum,
+  event markers, legend, plain-language caption, "View full history" -> Insights). Insights shows **four full
+  charts** (soil moisture, gross weight, water temperature, soil temperature) with friendly per-chart empty
+  states ("at least two readings... nothing is invented"), gradient area fill, glow line, last-point dot and
+  markers. `renderChartsBlock` re-observes reveals after every rebuild; a 1.5 s fallback marks reveals `in` so
+  content can never stay invisible when the observer is throttled.
+- **Visual system:** layered deep-forest dark tokens and a warm botanical light palette (pale green surfaces,
+  deep forest text, moss accents, amber/coral alerts), layered gradient body backgrounds, gradient surfaces and
+  primary CTA, clearer panel/hero/action hierarchy, bottom-nav active glow, and the Settings wall-of-numbers
+  moved behind a collapsed "Safety thresholds & configuration" details. Overview now shows exactly three vitals
+  (soil moisture, water temp, tank).
+
+**Validation (all executed, this commit):**
+- Headless end-to-end suite (stubbed transport, one page with main + quota + test-sheet instances): **30/30
+  PASS**, and **30/30 PASS** again with `--force-prefers-reduced-motion` (animations verified off). Includes:
+  boot endpoint audit, one-active-request peak, theme-change zero-request check, six-route storm with exactly
+  one detection / one ai-overview request, chart dimensions at 320/390/768/1280/1920, quota countdown and
+  manual retry, test-sheet override, assistant chat single-request.
+- `node --check` app.js/config.js pass; static smoke 8/8 over HTTP; zero console errors in every iframe.
+- Personal-data-safe instrumentation verified: netLog contains only endpoint paths, labels and flags.
+
+**Hard-refresh endpoint counts (identical stub, before = `00532a9`, after = this commit):**
+
+| Request | Before | After |
+|---|---|---|
+| Sheets per-tab reads | 5 (SystemConfig, Events, Notifications, DiseaseScans, AgentNotes) | 0 |
+| Sheets `values:batchGet` | 0 | 1 (5 ranges) |
+| `/webhook/dashboard/overview` | 1 | 1 (active route only) |
+| `/webhook/dashboard/overview?ai=1` | 1 | 0 |
+| `/webhook/dashboard/detection` | 1 | 0 |
+| **Total data requests** | **8** | **2** |
+| Static art assets (same-origin, cached) | 2 | 2 |
+| Max concurrent | 1 | 1 |
+
+**Still not real:** the batchGet covers the five documented tabs; adding a new tab requires updating
+`SHEET_TABS`. Quota state is client-side (per tab) and the countdown is presentational - the n8n workflow still
+has no server-side queue.
