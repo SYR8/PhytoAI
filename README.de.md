@@ -1,6 +1,7 @@
 <div align="center">
 
 # 🌱 PhytoAI
+![Banner](PhytoaiBanner.png)
 
 **ESP32-Sensoren + Kamera-Blick + n8n + KI + Dashboard = eine Pflanze, die sagen kann, wann sie Aufmerksamkeit braucht.**
 
@@ -10,6 +11,7 @@
 [![Google Sheets](https://img.shields.io/badge/Google%20Sheets-Speicher-34a853)](https://developers.google.com/sheets/api)
 [![Google Drive](https://img.shields.io/badge/Google%20Drive-Bilder-4285f4)](https://developers.google.com/drive)
 [![YOLOv8](https://img.shields.io/badge/YOLOv8n--cls-PlantVillage-red)](https://docs.ultralytics.com/)
+[![Perenual](https://img.shields.io/badge/Perenual-optionale%20Referenz-2f8a52)](https://perenual.com/)
 [![License: MIT](https://img.shields.io/badge/Lizenz-MIT-success)](LICENSE)
 [![Status](https://img.shields.io/badge/Status-erster%20Echtpflanzen--Lauf%20geplant-yellow)](#aktueller-status)
 
@@ -29,26 +31,27 @@ kontinuierliche End-to-End-Lauf mit einer echten Pflanze ist für heute geplant.
 
 1. [Überblick](#überblick)
 2. [Was PhytoAI kann](#was-phytoai-kann)
-3. [Warum dieses Projekt spannend ist](#warum-dieses-projekt-spannend-ist)
-4. [Aktueller Status](#aktueller-status)
-5. [Systemfluss](#systemfluss)
-6. [Repository-Karte](#repository-karte)
-7. [Was man nachbauen kann](#was-man-nachbauen-kann)
-8. [Benötigte Hardware](#benötigte-hardware)
-9. [Benötigte Software und Dienste](#benötigte-software-und-dienste)
-10. [Kamera und KI-Pflanzeninspektion](#kamera-und-ki-pflanzeninspektion)
-11. [Daten und Projektgedächtnis](#daten-und-projektgedächtnis)
-12. [PlantVillage und YOLO-Modell](#plantvillage-und-yolo-modell)
-13. [Dashboard und Benachrichtigungen](#dashboard-und-benachrichtigungen)
-14. [Auf n8n gebaut: fast jeder Dienst ist austauschbar](#auf-n8n-gebaut-fast-jeder-dienst-ist-austauschbar)
-15. [Workflow-Karte](#workflow-karte)
-16. [Aufbauanleitung](#aufbauanleitung)
-17. [Test und Verifikation](#test-und-verifikation)
-18. [Fehlersuche](#fehlersuche)
-19. [Datenschutz und Sicherheit](#datenschutz-und-sicherheit)
-20. [Grenzen und Zukunftsideen](#grenzen-und-zukunftsideen)
-21. [Lizenz und Attribution](#lizenz-und-attribution)
-22. [Mitmachen und selbst bauen](#mitmachen-und-selbst-bauen)
+3. [Artenwissen von Perenual](#artenwissen-von-perenual)
+4. [Warum dieses Projekt spannend ist](#warum-dieses-projekt-spannend-ist)
+5. [Aktueller Status](#aktueller-status)
+6. [Systemfluss](#systemfluss)
+7. [Repository-Karte](#repository-karte)
+8. [Was man nachbauen kann](#was-man-nachbauen-kann)
+9. [Benötigte Hardware](#benötigte-hardware)
+10. [Benötigte Software und Dienste](#benötigte-software-und-dienste)
+11. [Kamera und KI-Pflanzeninspektion](#kamera-und-ki-pflanzeninspektion)
+12. [Daten und Projektgedächtnis](#daten-und-projektgedächtnis)
+13. [PlantVillage und YOLO-Modell](#plantvillage-und-yolo-modell)
+14. [Dashboard und Benachrichtigungen](#dashboard-und-benachrichtigungen)
+15. [Auf n8n gebaut: fast jeder Dienst ist austauschbar](#auf-n8n-gebaut-fast-jeder-dienst-ist-austauschbar)
+16. [Workflow-Karte](#workflow-karte)
+17. [Aufbauanleitung](#aufbauanleitung)
+18. [Test und Verifikation](#test-und-verifikation)
+19. [Fehlersuche](#fehlersuche)
+20. [Datenschutz und Sicherheit](#datenschutz-und-sicherheit)
+21. [Grenzen und Zukunftsideen](#grenzen-und-zukunftsideen)
+22. [Lizenz und Attribution](#lizenz-und-attribution)
+23. [Mitmachen und selbst bauen](#mitmachen-und-selbst-bauen)
 
 ## Überblick
 
@@ -94,6 +97,41 @@ Hier stehen nur implementierte oder klar entworfene Funktionen.
   Daten (deterministische Absichten) oder aus begrenzten KI-Zusammenfassungen.
 - **Beobachtungen für spätere Verbesserung sammeln** — geplantes Datensatz-Flywheel: bestätigte Scans
   können später exportiert und zur Feinabstimmung des Modells auf die echten Wohnbedingungen genutzt werden.
+
+## Artenwissen von Perenual
+
+[Perenual](https://perenual.com/) ist eine **optionale Pflanzenpflege-Referenz-API**, die PhytoAI
+für allgemeine Arteninformationen nutzen kann — ein kleiner, lazy Nebenast im n8n-Workflow, nicht
+Teil der Kern-Sensorpipeline. **Optional, aber wertvoll:** Sie ergänzt artspezifischen Kontext,
+den weder Sensoren noch Bildklassifikator allein liefern.
+
+- **Funktionsweise:** Wenn ein Arten-Vorschlag vorliegt, prüft der Workflow den Cache
+  (`Check Perenual Cache`). Nur bei neuem Vorschlag (oder veraltetem Cache) sucht er bei Perenual,
+  wählt den besten Treffer, holt die Pflegedetails und cached das Ergebnis — Pflegedetails in
+  `SystemConfig`, einen Hinweis zu Störungen in `AgentNotes`. Wiederholte identische Abfragen
+  werden bewusst vermieden (Quota-Disziplin).
+- **Beratend und generisch:** Die Referenz beschreibt die Art allgemein. Sie ist **nachrangig
+  gegenüber gemessenen Pflanzendaten, lokaler Historie und Besitzer-Bestätigung** und
+  **überstimmt keine Sensor-Evidenz**.
+- **Sanftes Degradieren:** Fehlt der Schlüssel oder schlägt ein Lookup fehl, läuft der Workflow
+  ohne Perenual weiter. Eine Quota-Überschreitung wird explizit behandelt und festgehalten
+  (Notiz in `AgentNotes` plus `lookup_failed_...`-Cache-Status), statt den Lauf abzubrechen.
+- **Wofür es hilft:** Die gecachte Referenz wird als beratender Kontext für die
+  Pflegeentscheidung und den Treatment Advisor eingesetzt, damit Empfehlungen artspezifische
+  Erwartungen neben den eigenen Messdaten dieser Pflanze nennen können.
+
+**Konfiguration (optional):** kostenlosen Perenual-API-Schlüssel anlegen, die n8n-Zugangsdaten mit
+**Query Auth** und Parametername `key` hinzufügen und die `perenual_*`-Werte in `SystemConfig` leer
+lassen, bis die Anreicherung läuft. Der Cache-Zustand ist als `perenual_status` (`ok`, `not_found`
+oder `lookup_failed_...`) in SystemConfig und im Dashboard unter Einstellungen sichtbar.
+
+### Was Perenual nicht ist
+
+- Es ist **kein** trainierter Krankheits-Klassifikator.
+- Es ist **kein** Ersatz für das PlantVillage/YOLO-Modell.
+- Es sind **nicht** die eigenen gelernten Pflanzendaten des Besitzers.
+- Es ist **nicht** maßgeblich für diese konkrete Pflanze oder Umgebung.
+- Es ist **nicht** erforderlich für den Basisbetrieb von Dashboard oder Testdaten.
 
 ## Warum dieses Projekt spannend ist
 
@@ -153,6 +191,10 @@ Sensoren + Kamera -> WROOM/ESP32-Gerät -> n8n-Workflow -> Sheets/Drive
 5. **Anzeigen und fragen:** Das Dashboard liest Sheets/Drive mit dem eigenen Google-Login; offene
    Fragen werden `Notifications`-Zeilen mit Resume-URL, und Dashboard-Buttons setzen den pausierten
    Workflow fort.
+
+**Beratender Nebenast (optional — nicht die Kern-Sensorpipeline):** Arten-Vorschlag →
+Perenual-Referenz-Lookup → gecachter beratender Kontext → KI/Treatment Advisor. Er läuft lazy,
+cacht aggressiv, und der Workflow läuft unverändert weiter, wenn er nicht verfügbar ist.
 
 ## Repository-Karte
 
@@ -344,6 +386,7 @@ anpasst.
 | Bildspeicher | Google Drive | S3-kompatibler Speicher, Dropbox, Nextcloud, lokales Dateisystem oder ein anderer Datei-Node |
 | Benachrichtigungen | Dashboard/In-App und Browser-Hinweise bei offener Seite | Telegram, Discord, E-Mail, Matrix, Slack, Web Push oder ein anderer Dienst |
 | Vision-Analyse | PlantVillage/YOLO-Dienst + KI-Analyse | Ein anderes lokales Modell, Cloud-Vision-API, OpenAI-kompatibler Vision-Endpunkt oder eigener Dienst |
+| Arten-/Pflegereferenz | Perenual | Eine andere Pflanzenpflege-API, eine lokale Referenztabelle oder der deaktivierte Ast |
 | Assistenten-Antwort | n8n/KI-Workflow | Anderer LLM-Anbieter, lokales Modell oder eigener Agent |
 | Dashboard-Quelle | Aktuelle Dashboard/Sheets-Integration | Konnektor ersetzen und das normalisierte Antwortformat beibehalten |
 | Automatisierungs-Engine | n8n | n8n als Integrations-Hub behalten und einzelne Nodes nach Bedarf ersetzen |

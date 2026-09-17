@@ -10,6 +10,7 @@
 [![Google Sheets](https://img.shields.io/badge/Google%20Sheets-storage-34a853)](https://developers.google.com/sheets/api)
 [![Google Drive](https://img.shields.io/badge/Google%20Drive-images-4285f4)](https://developers.google.com/drive)
 [![YOLOv8](https://img.shields.io/badge/YOLOv8n--cls-PlantVillage-red)](https://docs.ultralytics.com/)
+[![Perenual](https://img.shields.io/badge/Perenual-optional%20reference-2f8a52)](https://perenual.com/)
 [![License: MIT](https://img.shields.io/badge/License-MIT-success)](LICENSE)
 [![Status](https://img.shields.io/badge/status-first%20real--plant%20run%20planned-yellow)](#current-status)
 
@@ -29,26 +30,27 @@ end-to-end run is planned for today.
 
 1. [Overview](#overview)
 2. [What it can do](#what-it-can-do)
-3. [Why this project is cool](#why-this-project-is-cool)
-4. [Current status](#current-status)
-5. [System flow](#system-flow)
-6. [Repository map](#repository-map)
-7. [What a newcomer can build](#what-a-newcomer-can-build)
-8. [Hardware needed](#hardware-needed)
-9. [Software and services needed](#software-and-services-needed)
-10. [Camera and AI plant inspection](#camera-and-ai-plant-inspection)
-11. [Data and project memory](#data-and-project-memory)
-12. [PlantVillage and YOLO model](#plantvillage-and-yolo-model)
-13. [Dashboard and notifications](#dashboard-and-notifications)
-14. [Built on n8n: swap almost any service](#built-on-n8n-swap-almost-any-service)
-15. [Workflow map](#workflow-map)
-16. [Setup guide](#setup-guide)
-17. [Testing and verification](#testing-and-verification)
-18. [Troubleshooting](#troubleshooting)
-19. [Privacy and safety](#privacy-and-safety)
-20. [Limitations and future ideas](#limitations-and-future-ideas)
-21. [License and attribution](#license-and-attribution)
-22. [Contributing and build your own](#contributing-and-build-your-own)
+3. [Species knowledge from Perenual](#species-knowledge-from-perenual)
+4. [Why this project is cool](#why-this-project-is-cool)
+5. [Current status](#current-status)
+6. [System flow](#system-flow)
+7. [Repository map](#repository-map)
+8. [What a newcomer can build](#what-a-newcomer-can-build)
+9. [Hardware needed](#hardware-needed)
+10. [Software and services needed](#software-and-services-needed)
+11. [Camera and AI plant inspection](#camera-and-ai-plant-inspection)
+12. [Data and project memory](#data-and-project-memory)
+13. [PlantVillage and YOLO model](#plantvillage-and-yolo-model)
+14. [Dashboard and notifications](#dashboard-and-notifications)
+15. [Built on n8n: swap almost any service](#built-on-n8n-swap-almost-any-service)
+16. [Workflow map](#workflow-map)
+17. [Setup guide](#setup-guide)
+18. [Testing and verification](#testing-and-verification)
+19. [Troubleshooting](#troubleshooting)
+20. [Privacy and safety](#privacy-and-safety)
+21. [Limitations and future ideas](#limitations-and-future-ideas)
+22. [License and attribution](#license-and-attribution)
+23. [Contributing and build your own](#contributing-and-build-your-own)
 
 ## Overview
 
@@ -97,6 +99,41 @@ Only implemented or clearly designed features are listed here.
   intents) or from bounded AI summaries.
 - **Accumulate observations for later improvement** — designed dataset flywheel: verified scans can
   later be exported and used to fine-tune the plant-health model for this plant's real home conditions.
+
+## Species knowledge from Perenual
+
+[Perenual](https://perenual.com/) is an **optional plant-care reference API** that PhytoAI can
+consult for generic species information — a small, lazy side branch in the n8n workflow, not part
+of the core sensor pipeline. **Optional, but valuable:** it adds species-aware context that
+neither the sensors nor the image classifier provide by themselves.
+
+- **How it works:** when a species guess is available, the workflow checks the cache
+  (`Check Perenual Cache`). Only if the guess is new (or the cache is stale) does it search
+  Perenual, pick the best match, fetch the care details, and cache the result — care details in
+  `SystemConfig`, and a note about any interruption in `AgentNotes`. Repeated identical lookups are
+  avoided on purpose (quota discipline).
+- **Advisory and generic:** the reference describes the species in general terms. It is **lower
+  priority than measured plant data, local history, and owner verification**, and it does **not**
+  override sensor evidence.
+- **Graceful degradation:** if the key is missing or a lookup fails, the workflow continues without
+  Perenual. A quota-exceeded response is handled explicitly and recorded (a note in `AgentNotes`
+  plus a `lookup_failed_...` cache status) instead of breaking the run.
+- **Where it helps:** the cached reference is injected as advisory context for the care decision and
+  the Treatment Advisor, so advice can include species-aware expectations next to what this plant's
+  own data shows.
+
+**Configuration (optional):** create a free Perenual API key, add the n8n credential with **Query
+Auth** and parameter name `key`, and leave the `perenual_*` values in `SystemConfig` empty until the
+enrichment runs. The cached state is visible as `perenual_status` (`ok`, `not_found`, or
+`lookup_failed_...`) in SystemConfig and on the dashboard Settings screen.
+
+### What Perenual is not
+
+- It is **not** a trained disease classifier.
+- It is **not** a replacement for the PlantVillage/YOLO model.
+- It is **not** the owner's own learned plant data.
+- It is **not** authoritative for this specific plant or environment.
+- It is **not** required for basic dashboard or test-data operation.
 
 ## Why this project is cool
 
@@ -154,6 +191,10 @@ sensors + camera -> WROOM/ESP32 device -> n8n workflow -> Sheets/Drive
    owner confirms (human in the loop).
 5. **Show and ask:** the dashboard reads Sheets/Drive with the user's own Google login; open questions
    become `Notifications` rows with a resume URL, and dashboard buttons resume the paused workflow.
+
+**Advisory side branch (optional — not the core sensor pipeline):** plant species guess →
+Perenual reference lookup → cached advisory context → AI/Treatment Advisor. It runs lazily, caches
+aggressively, and the workflow continues unchanged when it is unavailable.
 
 ## Repository map
 
@@ -341,6 +382,7 @@ your preferred service by editing the relevant workflow branch.
 | Image storage | Google Drive | S3-compatible storage, Dropbox, Nextcloud, local filesystem, or another file node |
 | Notifications | Dashboard/in-app and browser alerts while open | Telegram, Discord, email, Matrix, Slack, Web Push, or another service |
 | Vision analysis | PlantVillage/YOLO service + AI analysis | Another local model, cloud vision API, OpenAI-compatible vision endpoint, or custom service |
+| Species/care reference | Perenual | Another plant-care API, local plant reference table, or leaving the branch disabled |
 | Assistant response | n8n/AI workflow | Another LLM provider, local model, or custom agent |
 | Dashboard source | Current dashboard/Sheets integration | Replace the connector and preserve the normalized response format |
 | Automation engine | n8n | Keep n8n as the integration hub and replace individual nodes as needed |
