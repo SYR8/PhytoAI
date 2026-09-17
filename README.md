@@ -159,7 +159,7 @@ sensors + camera -> WROOM/ESP32 device -> n8n workflow -> Sheets/Drive
 
 - `dashboard/` — the static web dashboard (`index.html`, `styles.css`, `app.js`, `config.example.js`, assets).
 - `firmware/` — production and bench firmware: `wroom_production/`, `wroom_calibration/`, `esp32cam_production/`, `esp32cam/` (with test plans).
-- `workflows/` — the importable n8n workflow (the annotated copy is documented in [Workflow map](#workflow-map)).
+- `workflows/` — the importable n8n workflow; `phytoai.annotated.json` is the same workflow with navigation notes (see [Workflow map](#workflow-map)).
 - `scripts/` — dataset preparation and YOLO training pipeline (bootstrap + flywheel).
 - `yolo-service/` — local CPU classifier service (FastAPI + Ultralytics) incl. the deployed trained checkpoint.
 - `Hardware/` — parts list; wiring details in `docs/SmartPot-Full-Engineering-Spec-PRD.md` and `docs/hw-bench-2026-09-15.md`.
@@ -357,13 +357,14 @@ your preferred service by editing the relevant workflow branch.
 - The workflow includes **navigation sticky notes** so you can follow it branch by branch after
   importing (entry, normalize, safety/validation, storage, image storage, vision specialist, AI
   assistant, notifications, dashboard source, owner configuration).
-- An **annotated copy** of the workflow is included in `workflows/` for reading and learning; the
-  original `workflows/phytoai.json` remains the proven production export.
+- Import [`workflows/phytoai.annotated.json`](workflows/phytoai.annotated.json) to read the workflow
+  with those notes; import [`workflows/phytoai.json`](workflows/phytoai.json) to run the proven
+  production export. Both are the same system — the annotated copy changes **no** behaviour.
 - The sticky notes mark **where storage, image storage, notifications, and AI providers can be
   replaced** (see the table above).
 - Nodes and credentials referenced by documentation should **not be renamed** — that is what keeps
   the guides, dashboard contracts, and resume URLs working.
-- Customization notes: see [Built on n8n: swap almost any service](#built-on-n8n-swap-almost-any-service).
+- Full customization notes: [docs/workflow-customization.md](docs/workflow-customization.md).
 
 ## Setup guide
 

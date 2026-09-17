@@ -158,7 +158,7 @@ Sensoren + Kamera -> WROOM/ESP32-Gerät -> n8n-Workflow -> Sheets/Drive
 
 - `dashboard/` — das statische Web-Dashboard (`index.html`, `styles.css`, `app.js`, `config.example.js`, Assets).
 - `firmware/` — Produktions- und Bench-Firmware: `wroom_production/`, `wroom_calibration/`, `esp32cam_production/`, `esp32cam/` (mit Testplänen).
-- `workflows/` — der importierbare n8n-Workflow (die annotierte Kopie ist in der [Workflow-Karte](#workflow-karte) beschrieben).
+- `workflows/` — der importierbare n8n-Workflow; `phytoai.annotated.json` ist derselbe Workflow mit Navigations-Notizen (siehe [Workflow-Karte](#workflow-karte)).
 - `scripts/` — Datensatz-Vorbereitung und YOLO-Trainingspipeline (Bootstrap + Flywheel).
 - `yolo-service/` — lokaler CPU-Klassifikator-Dienst (FastAPI + Ultralytics) inkl. eingesetztem trainierten Checkpoint.
 - `Hardware/` — Bauteilliste; Verkabelung in `docs/SmartPot-Full-Engineering-Spec-PRD.md` und `docs/hw-bench-2026-09-15.md`.
@@ -360,13 +360,15 @@ anpasst.
 - Der Workflow enthält **Navigations-Sticky-Notes**, damit man ihn nach dem Import Zweig für Zweig
   verfolgen kann (Eingang, Normalisieren, Sicherheit/Validierung, Speicher, Bildspeicher,
   Vision-Spezialist, KI-Assistent, Benachrichtigungen, Dashboard-Quelle, Besitzer-Konfiguration).
-- Eine **annotierte Kopie** des Workflows liegt in `workflows/` zum Lesen und Lernen; das Original
-  `workflows/phytoai.json` bleibt der bewährte Produktions-Export.
+- Zum Lesen mit Notizen [`workflows/phytoai.annotated.json`](workflows/phytoai.annotated.json)
+  importieren; zum Ausführen den bewährten Produktions-Export
+  [`workflows/phytoai.json`](workflows/phytoai.json). Beide sind dasselbe System — die annotierte
+  Kopie ändert **kein** Verhalten.
 - Die Sticky-Notes markieren, **wo Speicher, Bildspeicher, Benachrichtigungen und KI-Anbieter
   ersetzt werden können** (siehe Tabelle oben).
 - Nodes und Zugangsdaten, auf die die Dokumentation verweist, sollten **nicht umbenannt werden** —
   das hält Anleitungen, Dashboard-Verträge und Resume-URLs funktionsfähig.
-- Anpassungshinweise: siehe [Auf n8n gebaut](#auf-n8n-gebaut-fast-jeder-dienst-ist-austauschbar).
+- Vollständige Anpassungshinweise: [docs/workflow-customization.md](docs/workflow-customization.md).
 
 ## Aufbauanleitung
 
