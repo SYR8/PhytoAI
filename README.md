@@ -1,7 +1,7 @@
 <div align="center">
 
 # 🌱 PhytoAI
-
+![Banner](PhytoaiBanner.png)
 **ESP32 sensors + camera vision + n8n + AI + dashboard = a plant that can tell you when it needs attention.**
 
 [![ESP32](https://img.shields.io/badge/ESP32-WROOM-informational)](https://www.espressif.com/en/products/socs/esp32)
