@@ -1,4 +1,4 @@
-// PhytoAI ESP32-WROOM — production firmware v1 (2026-09-15)
+// PhytoAI ESP32-WROOM — production firmware v1.1 (2026-09-19)
 //
 // WHAT:   The pot's "body": reads all sensors, reports telemetry to n8n over WiFi/HTTPS,
 //         executes the returned watering/heating decision under local hard safety limits.
@@ -28,6 +28,9 @@
 //      invalid safety state (tank/soil/water probe must be valid and not empty).
 //   6. Camera power is WIRED-ONLY: this firmware has no camera-battery assumptions, and no
 //      battery gate/telemetry is used anywhere on the WROOM side.
+//   7. Serial diagnostics: 'i' status, 's' debug send (one telemetry cycle now, same code path
+//      as the schedule; dry_run still gates all GPIO), 'l' runtime actuator cap (5-600 s,
+//      NVS-persisted), 'h' help. 't' stays the explicit INSTALLATION tare.
 // SPEC:   docs/opencode-wroom-production-brief.md | Bench: docs/hw-bench-2026-09-15.md
 //         Audit: docs/cross-audit-2026-09-15.md | Plan header format: Plan.md section 5.3
 // FUTURE: OTA updates are NOT in v1 (no OTA/WiFi-ap/MQTT). Deep sleep is not used in v1.
@@ -88,12 +91,16 @@ uint8_t waterTempAddress[8] = {0x28, 0x94, 0x6B, 0xCB, 0x00, 0x00, 0x00, 0xBF};
 uint8_t soilTempAddress[8]  = {0x28, 0x83, 0xFC, 0xC8, 0x00, 0x00, 0x00, 0x0F};
 
 // ---------------------------------------------------------------------------
-// Hard safety limits — compile-time constants, never parameters/serial/OTA
+// Hard safety limits — compile-time constants; only the actuator cap is runtime-
+// adjustable via serial 'l', and only within the compile-time 5-600 s bounds
 // ---------------------------------------------------------------------------
 const float    HEATER_CUTOFF_C = 40.0f;   // continuous cutoff while ON (hardware ceiling)
 const float    HEATER_REFUSE_C = 39.5f;   // refuse to start at/above
 const float    POLICY_TARGET_C_DEFAULT = 28.0f; // requested safe target when the decision carries none
-const uint32_t ACTUATOR_CAP_S  = 120;     // pump and heater hard cap per pulse
+const uint32_t ACTUATOR_CAP_S_DEFAULT = 120;  // factory default for the runtime actuator cap
+const uint32_t ACTUATOR_CAP_S_MIN = 5;        // serial 'l' hard lower bound (seconds)
+const uint32_t ACTUATOR_CAP_S_MAX = 600;      // serial 'l' hard upper bound (seconds)
+uint32_t actuatorCapS = ACTUATOR_CAP_S_DEFAULT; // runtime cap; NVS-persisted by 'l'
 const uint32_t SETTLE_AFTER_PUMP_MS = 3000; // weight settle before the post-watering sample
 const char*    NVS_NS = "phytoai-wroom";
 const uint32_t WDT_TIMEOUT_S   = 8;
@@ -105,6 +112,11 @@ const uint32_t FALLBACK_INTERVAL_MS = 12UL * 3600UL * 1000UL;
 const float    DEFAULT_PREHEAT_LEAD_MIN = 25.0f;
 const float    DEFAULT_MAX_PUMP_SECONDS = 60.0f;
 const uint32_t CLOCK_VALID_AFTER = 1600000000UL;
+
+// Optional one-time diagnostic telemetry POST after boot (ms after boot). DEFAULT OFF:
+// keep it commented out for real operation — it forces an extra cycle outside the
+// schedule and (with dry_run_mode=false) can actuate pump/heater. Bench diagnostics only.
+// #define DEBUG_POST_AFTER_BOOT_MS 120000
 
 DHT dht(PIN_DHT22, DHT22);
 OneWire oneWire(PIN_ONEWIRE);
@@ -167,6 +179,12 @@ unsigned long lastSampleMs = 0;
 unsigned long lastConfigTryMs = 0;
 unsigned long nextPostAtMs = 0;
 bool nextPostIsSunrise = false;
+
+#ifdef DEBUG_POST_AFTER_BOOT_MS
+uint32_t debugPostAtMs = DEBUG_POST_AFTER_BOOT_MS;  // one-time boot POST (bench only)
+#else
+uint32_t debugPostAtMs = 0;                          // disabled (default)
+#endif
 
 bool relayOffLevel() { return RELAY_ACTIVE_LOW ? HIGH : LOW; }
 bool relayOnLevel()  { return RELAY_ACTIVE_LOW ? LOW : HIGH; }
@@ -465,7 +483,7 @@ Decision parseDecision(const String& body) {
 uint32_t clampSec(float requested, float cfgCap) {
   float v = requested;
   if (v > cfgCap) v = cfgCap;
-  if (v > (float)ACTUATOR_CAP_S) v = (float)ACTUATOR_CAP_S;
+  if (v > (float)actuatorCapS) v = (float)actuatorCapS;
   if (v < 0) v = 0;
   return (uint32_t)v;
 }
@@ -630,6 +648,22 @@ void computeNextPost() {
   Serial.println(F(" s"));
 }
 
+void printNextPost() {
+  if (!clockValid() || nextPostAtMs == 0) { Serial.println(F("[sched] next POST: unknown")); return; }
+  unsigned long remainingS = (nextPostAtMs > millis()) ? (nextPostAtMs - millis()) / 1000UL : 0UL;
+  time_t at = time(nullptr) + (time_t)remainingS;
+  struct tm tmv;
+  gmtime_r(&at, &tmv);
+  char hhmm[8];
+  strftime(hhmm, sizeof(hhmm), "%H:%M", &tmv);
+  Serial.print(F("[sched] next POST at "));
+  Serial.print(nextPostIsSunrise ? F("sunrise ") : F("sunset "));
+  Serial.print(hhmm);
+  Serial.print(F(" UTC (in "));
+  Serial.print(remainingS);
+  Serial.println(F(" s)"));
+}
+
 void decisionCycle() {
   Serial.println(F("[cycle] posting telemetry..."));
   Reading r = readAllSensors();
@@ -671,8 +705,29 @@ void decisionCycle() {
 }
 
 // ---------------------------------------------------------------------------
-// Serial commands — INSTALLATION/RESET only (rule 2); normal operation is autonomous
+// Serial commands — installation + diagnostics only; normal operation is autonomous
 // ---------------------------------------------------------------------------
+void loadActuatorCap() {
+  prefs.begin(NVS_NS, true);
+  uint32_t saved = prefs.getUInt("act_cap_s", ACTUATOR_CAP_S_DEFAULT);
+  prefs.end();
+  if (saved < ACTUATOR_CAP_S_MIN || saved > ACTUATOR_CAP_S_MAX) {
+    actuatorCapS = ACTUATOR_CAP_S_DEFAULT;
+    Serial.print(F("[limit] stored actuator cap invalid ("));
+    Serial.print(saved);
+    Serial.print(F(" s) - using default "));
+    Serial.print(ACTUATOR_CAP_S_DEFAULT);
+    Serial.println(F(" s"));
+    return;
+  }
+  actuatorCapS = saved;
+  if (actuatorCapS != ACTUATOR_CAP_S_DEFAULT) {
+    Serial.print(F("[limit] restored actuator cap from NVS: "));
+    Serial.print(actuatorCapS);
+    Serial.println(F(" s"));
+  }
+}
+
 void commandInstallTare() {
   Serial.println(F("[HX711] INSTALLATION/RESET TARE - NOT normal operation."));
   Serial.println(F("        Remove the pot, plant, tray and hoses: tare with the platform EMPTY."));
@@ -694,6 +749,79 @@ void commandInstallTare() {
   Serial.println(F("        (stored in NVS; restored at boot without re-taring)"));
 }
 
+void commandSetActuatorCap() {
+  Serial.print(F("[limit] current actuator cap: "));
+  Serial.print(actuatorCapS);
+  Serial.print(F(" s (hard bounds "));
+  Serial.print(ACTUATOR_CAP_S_MIN);
+  Serial.print('-');
+  Serial.print(ACTUATOR_CAP_S_MAX);
+  Serial.println(F(" s)"));
+  Serial.println(F("[limit] enter new cap in seconds, then press Enter (non-numeric input aborts):"));
+  String input;
+  bool gotLine = false;
+  unsigned long t0 = millis();
+  while (!gotLine && millis() - t0 < 60000UL) {
+    wdtPet();
+    while (Serial.available()) {
+      char c = (char)Serial.read();
+      if (c == '\r') continue;
+      if (c == '\n') {
+        if (input.length() > 0) { gotLine = true; break; }
+        continue;
+      }
+      if (input.length() < 12) input += c;
+    }
+    delay(20);
+  }
+  if (!gotLine) { Serial.println(F("[limit] timeout - aborted (no changes)")); return; }
+  input.trim();
+  for (size_t i = 0; i < input.length(); i++) {
+    if (!isDigit((unsigned char)input[i])) {
+      Serial.print(F("[limit] rejected: \""));
+      Serial.print(input);
+      Serial.println(F("\" is not a number - no changes"));
+      return;
+    }
+  }
+  long v = input.toInt();
+  if (v < (long)ACTUATOR_CAP_S_MIN || v > (long)ACTUATOR_CAP_S_MAX) {
+    Serial.print(F("[limit] rejected: "));
+    Serial.print(v);
+    Serial.print(F(" s is outside the safe bounds "));
+    Serial.print(ACTUATOR_CAP_S_MIN);
+    Serial.print('-');
+    Serial.print(ACTUATOR_CAP_S_MAX);
+    Serial.println(F(" s - no changes"));
+    return;
+  }
+  actuatorCapS = (uint32_t)v;
+  prefs.begin(NVS_NS, false);
+  prefs.putUInt("act_cap_s", actuatorCapS);
+  prefs.end();
+  Serial.print(F("[limit] confirmed new actuator cap: "));
+  Serial.print(actuatorCapS);
+  Serial.println(F(" s (persisted to NVS; applies to pump and heater)"));
+}
+
+void commandDebugSend() {
+  Serial.println(F("[s] debug send: one full telemetry cycle via the scheduled code path"));
+  if (WiFi.status() != WL_CONNECTED) {
+    Serial.println(F("[s] WiFi down - reconnecting..."));
+    if (!wifiConnect()) { Serial.println(F("[s] aborted: no WiFi")); return; }
+  }
+  if (!clockValid()) {
+    Serial.println(F("[s] NTP clock invalid - syncing..."));
+    if (!ntpSync()) { Serial.println(F("[s] aborted: no valid UTC clock")); return; }
+  }
+  Serial.println(F("[s] GET /config first, then POST /core/sensor (12-field telemetry)"));
+  fetchConfig();
+  Serial.print(F("[s] actuation gating for this forced cycle: dry_run="));
+  Serial.println(cfg.dryRun ? F("true (GPIO stays off)") : F("false (decision decides)"));
+  decisionCycle();
+  printNextPost();
+}
+
 void commandStatus() {
   Serial.print(F("[status] uptime_s="));
   Serial.print(millis() / 1000UL);
@@ -705,6 +833,8 @@ void commandStatus() {
   if (hxOffsetKnown) Serial.print(scale.get_offset()); else Serial.print(F("unset"));
   Serial.print(F(" factor="));
   Serial.print(HX711_SCALE_FACTOR, 3);
+  Serial.print(F(" actuator_cap_s="));
+  Serial.print(actuatorCapS);
   Serial.print(F(" tank_empty="));
   Serial.print(lastReading.tankEmpty ? F("true") : F("false"));
   Serial.print(F(" water_c="));
@@ -716,9 +846,11 @@ void handleSerial() {
   char c = Serial.read();
   switch (c) {
     case 't': case 'T': commandInstallTare(); break;
+    case 'l': case 'L': commandSetActuatorCap(); break;
+    case 's': case 'S': commandDebugSend(); break;
     case 'i': case 'I': commandStatus(); break;
     case 'h': case 'H': case '?':
-      Serial.println(F("commands: t=INSTALLATION tare (EMPTY platform, reset op), i=status, h=help"));
+      Serial.println(F("commands: t=INSTALLATION tare (EMPTY platform), l=actuator cap 5-600 s (NVS), s=send telemetry cycle now, i=status, h=help"));
       break;
     default: break;
   }
@@ -734,11 +866,14 @@ void setup() {
 
   Serial.begin(115200);
   delay(400);
+  loadActuatorCap();
   Serial.println();
-  Serial.println(F("PhytoAI WROOM production v1 (2026-09-15)"));
+  Serial.println(F("PhytoAI WROOM production v1.1 (2026-09-19)"));
   Serial.println(F("[safety] pump CH1 + heater CH2 forced OFF; dry-run gates all actuation"));
-  Serial.println(F("[safety] heater hard cutoff 40.0 C, refuse 39.5 C, 120 s actuator cap, 8 s WDT"));
-  Serial.println(F("[rules] no auto-tare (gross weight); 't' = INSTALLATION tare, 'i' = status, 'h' = help"));
+  Serial.print(F("[safety] heater hard cutoff 40.0 C, refuse 39.5 C, actuator cap "));
+  Serial.print(actuatorCapS);
+  Serial.println(F(" s ('l' = 5-600 s, NVS), 8 s WDT"));
+  Serial.println(F("[rules] no auto-tare (gross weight); 't'=INSTALLATION tare, 'l'=actuator cap, 's'=debug send, 'i'=status, 'h'=help"));
   Serial.println(F("[rules] camera is wired-only: no battery assumptions in this firmware"));
 
   pinMode(PIN_TANK, INPUT);
@@ -797,6 +932,12 @@ void loop() {
 
   if (millis() - lastConfigTryMs >= CONFIG_RETRY_MS) {
     if (WiFi.status() == WL_CONNECTED) fetchConfig();
+  }
+
+  if (debugPostAtMs > 0 && millis() >= debugPostAtMs) {
+    debugPostAtMs = 0;   // one-time diagnostic; default off (see DEBUG_POST_AFTER_BOOT_MS)
+    Serial.println(F("[debug] DEBUG_POST_AFTER_BOOT_MS fired - one telemetry cycle (dry_run still gates GPIO)"));
+    commandDebugSend();
   }
 
   if (clockValid() && millis() >= nextPostAtMs) {
