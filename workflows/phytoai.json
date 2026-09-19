@@ -1041,7 +1041,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const nowIso = $now.toISO();\nreturn [\n{ json: { Key: 'scan_session_active', Value: 'true', LastUpdated: nowIso } },\n{ json: { Key: 'scan_session_opened_utc', Value: nowIso, LastUpdated: nowIso } },\n];"
+        "jsCode": "const nowIso = $now.toISO();\nreturn [\n{ json: { Key: 'scan_session_active', Value: 'true', LastUpdated: nowIso } },\n{ json: { Key: 'scan_session_opened_utc', Value: nowIso, LastUpdated: nowIso } },\n{ json: { Key: 'scan_next_utc', Value: nowIso, LastUpdated: nowIso } },\n];"
       },
       "id": "a6481733-5d5f-4093-8c7a-83376c54b35f",
       "name": "Build Open Session Row",
@@ -1071,13 +1071,13 @@
             {
               "id": "3",
               "name": "title",
-              "value": "Weekly scan photo will be taken soon",
+              "value": "Weekly disease scan starts soon",
               "type": "string"
             },
             {
               "id": "4",
               "name": "message",
-              "value": "Weekly scan photo will be taken at 06:00 UTC (Monday) — make sure the camera is docked facing the plant. No action needed.",
+              "value": "={{ \"Weekly disease scan starts at \" + $now.toISO() + \" — camera will take its photos automatically.\" }}",
               "type": "string"
             },
             {
@@ -2914,7 +2914,7 @@
             {
               "id": "4",
               "name": "message",
-              "value": "={{ \"The weekly disease scan was postponed: \" + ($json.postpone_reason ?? ($json.status === \"expired\" ? \"camera positioning timed out\" : \"reason unknown\")) }}",
+              "value": "={{ \"The weekly disease scan was postponed: \" + ($json.postpone_reason ?? ($json.status === \"expired\" ? \"scan window elapsed\" : \"reason unknown\")) }}",
               "type": "string"
             },
             {
@@ -7128,7 +7128,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const lat = 49.9886;\nconst lng = 8.5958;\nfunction sunTimesForDay(year, month, day) {\nconst rad = Math.PI / 180;\nconst start = Date.UTC(year, month, day);\nconst jan1 = Date.UTC(year, 0, 1);\nconst doy = Math.floor((start - jan1) / 86400000) + 1;\nconst gamma = (2 * Math.PI / 365) * (doy - 1 + 0.5);\nconst eqtime = 229.18 * (0.000075 + 0.001868 * Math.cos(gamma) - 0.032077 * Math.sin(gamma) - 0.014615 * Math.cos(2 * gamma) - 0.040849 * Math.sin(2 * gamma));\nconst decl = 0.006918 - 0.399912 * Math.cos(gamma) + 0.070257 * Math.sin(gamma) - 0.006758 * Math.cos(2 * gamma) + 0.000907 * Math.sin(2 * gamma) - 0.002697 * Math.cos(3 * gamma) + 0.00148 * Math.sin(3 * gamma);\nconst zenith = 90.833;\nconst cosH = (Math.cos(zenith * rad) - Math.sin(lat * rad) * Math.sin(decl)) / (Math.cos(lat * rad) * Math.cos(decl));\nif (cosH > 1 || cosH < -1) {\nreturn { sunrise: null, sunset: null };\n}\nconst ha = Math.acos(cosH) / rad;\nconst toIso = (minutes) => new Date(start + Math.round(minutes * 60000)).toISOString();\nreturn {\nsunrise: toIso(720 - 4 * (lng + ha) - eqtime),\nsunset: toIso(720 - 4 * (lng - ha) - eqtime),\n};\n}\nconst configRows = $('Read SystemConfig E2').all().map((i) => i.json);\nconst cfg = {};\nlet lastLightUpdatedUtc = null;\nfor (const row of configRows) {\nif (row.Key !== undefined && row.Key !== null && String(row.Key).trim() !== '') {\nconst key = String(row.Key).trim();\ncfg[key] = row.Value;\nif (key === 'last_lightlevel' && row.LastUpdated) lastLightUpdatedUtc = String(row.LastUpdated);\n}\n}\nconst now = new Date();\nlet sunrise = cfg['next_sunrise_utc'] || '';\nlet sunset = cfg['next_sunset_utc'] || '';\nconst staleSunrise = !sunrise || Date.parse(sunrise) <= now.getTime();\nconst staleSunset = !sunset || Date.parse(sunset) <= now.getTime();\nif (staleSunrise || staleSunset) {\nconst today = sunTimesForDay(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());\nconst tomorrow = sunTimesForDay(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1);\nconst candidates = [\n{ type: 'sunrise', iso: today.sunrise },\n{ type: 'sunset', iso: today.sunset },\n{ type: 'sunrise', iso: tomorrow.sunrise },\n{ type: 'sunset', iso: tomorrow.sunset },\n].filter((c) => c.iso && Date.parse(c.iso) > now.getTime());\nif (staleSunrise) {\nconst n = candidates.find((c) => c.type === 'sunrise');\nsunrise = n ? n.iso : sunrise;\n}\nif (staleSunset) {\nconst n = candidates.find((c) => c.type === 'sunset');\nsunset = n ? n.iso : sunset;\n}\n}\nreturn [{\njson: {\nnext_sunrise_utc: sunrise,\nnext_sunset_utc: sunset,\npreheat_margin_c: (cfg['preheat_margin_c'] === undefined || cfg['preheat_margin_c'] === null || String(cfg['preheat_margin_c']).trim() === '') ? 2 : Number(cfg['preheat_margin_c']),\npreheat_lead_minutes: (cfg['preheat_lead_minutes'] === undefined || cfg['preheat_lead_minutes'] === null || String(cfg['preheat_lead_minutes']).trim() === '') ? 25 : Number(cfg['preheat_lead_minutes']),\ndry_run_mode: String(cfg['dry_run_mode'] || 'false').toLowerCase() === 'true',\npot_latitude: Number(cfg['pot_latitude'] || 49.9886),\npot_longitude: Number(cfg['pot_longitude'] || 8.5958),\nlast_lightlevel: (cfg['last_lightlevel'] === undefined || cfg['last_lightlevel'] === null || String(cfg['last_lightlevel']).trim() === '') ? null : Number(cfg['last_lightlevel']),\nflash_dark_threshold: (cfg['flash_dark_threshold'] === undefined || cfg['flash_dark_threshold'] === null || String(cfg['flash_dark_threshold']).trim() === '') ? null : Number(cfg['flash_dark_threshold']),\nlast_lightlevel_utc: lastLightUpdatedUtc,\n},\n}];"
+        "jsCode": "const lat = 49.9886;\nconst lng = 8.5958;\nfunction sunTimesForDay(year, month, day) {\nconst rad = Math.PI / 180;\nconst start = Date.UTC(year, month, day);\nconst jan1 = Date.UTC(year, 0, 1);\nconst doy = Math.floor((start - jan1) / 86400000) + 1;\nconst gamma = (2 * Math.PI / 365) * (doy - 1 + 0.5);\nconst eqtime = 229.18 * (0.000075 + 0.001868 * Math.cos(gamma) - 0.032077 * Math.sin(gamma) - 0.014615 * Math.cos(2 * gamma) - 0.040849 * Math.sin(2 * gamma));\nconst decl = 0.006918 - 0.399912 * Math.cos(gamma) + 0.070257 * Math.sin(gamma) - 0.006758 * Math.cos(2 * gamma) + 0.000907 * Math.sin(2 * gamma) - 0.002697 * Math.cos(3 * gamma) + 0.00148 * Math.sin(3 * gamma);\nconst zenith = 90.833;\nconst cosH = (Math.cos(zenith * rad) - Math.sin(lat * rad) * Math.sin(decl)) / (Math.cos(lat * rad) * Math.cos(decl));\nif (cosH > 1 || cosH < -1) {\nreturn { sunrise: null, sunset: null };\n}\nconst ha = Math.acos(cosH) / rad;\nconst toIso = (minutes) => new Date(start + Math.round(minutes * 60000)).toISOString();\nreturn {\nsunrise: toIso(720 - 4 * (lng + ha) - eqtime),\nsunset: toIso(720 - 4 * (lng - ha) - eqtime),\n};\n}\nconst configRows = $('Read SystemConfig E2').all().map((i) => i.json);\nconst cfg = {};\nlet lastLightUpdatedUtc = null;\nfor (const row of configRows) {\nif (row.Key !== undefined && row.Key !== null && String(row.Key).trim() !== '') {\nconst key = String(row.Key).trim();\ncfg[key] = row.Value;\nif (key === 'last_lightlevel' && row.LastUpdated) lastLightUpdatedUtc = String(row.LastUpdated);\n}\n}\nconst now = new Date();\nlet sunrise = cfg['next_sunrise_utc'] || '';\nlet sunset = cfg['next_sunset_utc'] || '';\nconst staleSunrise = !sunrise || Date.parse(sunrise) <= now.getTime();\nconst staleSunset = !sunset || Date.parse(sunset) <= now.getTime();\nif (staleSunrise || staleSunset) {\nconst today = sunTimesForDay(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate());\nconst tomorrow = sunTimesForDay(now.getUTCFullYear(), now.getUTCMonth(), now.getUTCDate() + 1);\nconst candidates = [\n{ type: 'sunrise', iso: today.sunrise },\n{ type: 'sunset', iso: today.sunset },\n{ type: 'sunrise', iso: tomorrow.sunrise },\n{ type: 'sunset', iso: tomorrow.sunset },\n].filter((c) => c.iso && Date.parse(c.iso) > now.getTime());\nif (staleSunrise) {\nconst n = candidates.find((c) => c.type === 'sunrise');\nsunrise = n ? n.iso : sunrise;\n}\nif (staleSunset) {\nconst n = candidates.find((c) => c.type === 'sunset');\nsunset = n ? n.iso : sunset;\n}\n}\nreturn [{\njson: {\nnext_sunrise_utc: sunrise,\nnext_sunset_utc: sunset,\npreheat_margin_c: (cfg['preheat_margin_c'] === undefined || cfg['preheat_margin_c'] === null || String(cfg['preheat_margin_c']).trim() === '') ? 2 : Number(cfg['preheat_margin_c']),\npreheat_lead_minutes: (cfg['preheat_lead_minutes'] === undefined || cfg['preheat_lead_minutes'] === null || String(cfg['preheat_lead_minutes']).trim() === '') ? 25 : Number(cfg['preheat_lead_minutes']),\ndry_run_mode: String(cfg['dry_run_mode'] || 'false').toLowerCase() === 'true',\npot_latitude: Number(cfg['pot_latitude'] || 49.9886),\npot_longitude: Number(cfg['pot_longitude'] || 8.5958),\nlast_lightlevel: (cfg['last_lightlevel'] === undefined || cfg['last_lightlevel'] === null || String(cfg['last_lightlevel']).trim() === '') ? null : Number(cfg['last_lightlevel']),\nflash_dark_threshold: (cfg['flash_dark_threshold'] === undefined || cfg['flash_dark_threshold'] === null || String(cfg['flash_dark_threshold']).trim() === '') ? null : Number(cfg['flash_dark_threshold']),\nlast_lightlevel_utc: lastLightUpdatedUtc,\nscan_session_active: String(cfg['scan_session_active'] || 'false').toLowerCase() === 'true',\nscan_next_utc: (cfg['scan_next_utc'] === undefined || cfg['scan_next_utc'] === null || String(cfg['scan_next_utc']).trim() === '') ? null : String(cfg['scan_next_utc']),\n},\n}];"
       },
       "id": "244948de-0444-4ff9-8c47-1520eed20335",
       "name": "Build Config Response",
@@ -7602,7 +7602,7 @@
       "typeVersion": 4.7,
       "position": [
         224,
-        1808
+        1744
       ],
       "executeOnce": true,
       "alwaysOutputData": true,
@@ -7615,15 +7615,15 @@
     },
     {
       "parameters": {
-        "jsCode": "const rows = $('Read SystemConfig Scan').all().map((i) => i.json);\nconst cfg = {};\nfor (const row of rows) {\nif (row.Key !== undefined && row.Key !== null && String(row.Key).trim() !== '') { cfg[String(row.Key).trim()] = row.Value; }\n}\nlet sessionActive = String(cfg['scan_session_active'] || 'false').toLowerCase() === 'true';\nconst staleReset = sessionActive;\nif (staleReset) { console.log('stale scan session reset'); sessionActive = false; }\nconst batteryRaw = cfg['camera_battery_percent'];\nconst battery = (batteryRaw === undefined || batteryRaw === null || batteryRaw === '') ? null : Number(batteryRaw);\nconst minBatteryPercent = Number(cfg['camera_battery_min_percent'] ?? 30);\nconst batteryLow = battery !== null && battery < minBatteryPercent;\nreturn [{ json: {\nsession_active: sessionActive,\nstale_reset: staleReset,\nbattery_percent: battery,\nbattery_low: batteryLow,\npostpone_reason: batteryLow ? 'low camera battery' : '',\n} }];"
+        "jsCode": "const rows = $('Read SystemConfig Scan').all().map((i) => i.json);\nconst cfg = {};\nfor (const row of rows) {\nif (row.Key !== undefined && row.Key !== null && String(row.Key).trim() !== '') { cfg[String(row.Key).trim()] = row.Value; }\n}\nlet sessionActive = String(cfg['scan_session_active'] || 'false').toLowerCase() === 'true';\nconst staleReset = sessionActive;\nif (staleReset) { console.log('stale scan session reset'); sessionActive = false; }\nconst batteryRaw = cfg['camera_battery_percent'];\nconst battery = (batteryRaw === undefined || batteryRaw === null || batteryRaw === '') ? null : Number(batteryRaw);\nconst minBatteryPercent = Number(cfg['camera_battery_min_percent'] ?? 30);\nconst batteryLow = battery !== null && battery < minBatteryPercent;\nconst scanAuto = String(cfg['scan_auto'] ?? 'true').toLowerCase() !== 'false';\nreturn [{ json: {\nsession_active: sessionActive,\nstale_reset: staleReset,\nbattery_percent: battery,\nbattery_low: batteryLow,\nscan_auto: scanAuto,\npostpone_reason: batteryLow ? 'low camera battery' : (scanAuto ? '' : 'automatic scans disabled (scan_auto=false)'),\n} }];"
       },
       "id": "33e3ca51-7232-4a1b-b540-4c82af365de8",
       "name": "Check Scan Preconditions",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        448,
-        1808
+        432,
+        1760
       ]
     },
     {
@@ -9031,7 +9031,7 @@
     },
     {
       "parameters": {
-        "content": "Branch C - Weekly disease scan (scheduler: battery check + position-camera HITL)",
+        "content": "Branch C - Weekly disease scan (scheduler: battery check + auto session open; 100% unattended - fixed camera, no positioning)",
         "height": 800,
         "width": 2280,
         "color": 4
@@ -9250,6 +9250,39 @@
       "position": [
         704,
         -640
+      ]
+    },
+    {
+      "parameters": {
+        "conditions": {
+          "options": {
+            "caseSensitive": true,
+            "leftValue": "",
+            "typeValidation": "strict",
+            "version": 3
+          },
+          "conditions": [
+            {
+              "id": "sa1",
+              "leftValue": "={{ $json.scan_auto }}",
+              "rightValue": true,
+              "operator": {
+                "type": "boolean",
+                "operation": "true"
+              }
+            }
+          ],
+          "combinator": "and"
+        },
+        "options": {}
+      },
+      "id": "fa46bc43-f30b-4b4e-833d-29e81b0840ac",
+      "name": "Scan Auto?",
+      "type": "n8n-nodes-base.if",
+      "typeVersion": 2.3,
+      "position": [
+        560,
+        1900
       ]
     }
   ],
@@ -11225,7 +11258,7 @@
       "main": [
         [
           {
-            "node": "Battery Low?",
+            "node": "Scan Auto?",
             "type": "main",
             "index": 0
           }
@@ -11748,6 +11781,24 @@
         [
           {
             "node": "Dash Ask Compose",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Scan Auto?": {
+      "main": [
+        [
+          {
+            "node": "Battery Low?",
+            "type": "main",
+            "index": 0
+          }
+        ],
+        [
+          {
+            "node": "Build Scan Postponed Row",
             "type": "main",
             "index": 0
           }
