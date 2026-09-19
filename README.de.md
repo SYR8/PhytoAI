@@ -512,6 +512,14 @@ Bestätigte Probleme und Lehren:
   Zugriff auf Tabelle und Drive-Ordner haben; dieses Teilen ist die Zugriffsgrenze.
 - **Workflow-Webhook liefert 404** — der Workflow muss aktiv sein (oder Testlistener mit
   `/webhook-test`-Präfix nutzen).
+- **Erster Lauf mit leeren Sheets ist gültig** — `Events`, `AgentNotes`, `DiseaseScans` und
+  `Notifications` dürfen im ersten Zyklus leer sein. Der Workflow aktiviert „Always Output Data“ für
+  diese Verlaufs-/Log-Reads; leere Historie liefert trotzdem eine normale Entscheidung (z. B.
+  Gießen verweigert, weil der Tank leer ist). Nur `SystemConfig` muss vor der Aktivierung die
+  Seed-Schlüssel enthalten — ist sie leer, ist das ein echter Einrichtungsfehler und der Workflow
+  schlägt bewusst laut fehl. **Eine leere 200-Antwort eines Webhooks bedeutet: der Workflow wurde
+  vorzeitig gestoppt** — im n8n-Executions-View prüfen, welcher Node die Kette beendet hat.
+  „Always Output Data“ ist jetzt Teil der Workflow-Konfiguration; keine manuelle Aktion nötig.
 - *Eigene Verifikation nötig:* offene Hardware-Fragen in `STATUS.md` (Relaisplatine, Netzteil, freie
   GPIOs) bleiben offen, bis sie am eigenen Aufbau gemessen sind.
 

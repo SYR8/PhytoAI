@@ -81,6 +81,8 @@ Diagnose-Sendezyklus.
 - `SystemConfig`-Tabelle: `drive_daily_photos_folder_id`, `drive_scan_photos_folder_id`, Standort (`pot_latitude`, `pot_longitude`).
 - `workflows/phytoai.json`: enthält in dieser Kopie `YOUR_SPREADSHEET_ID` als Platzhalter — die eigene Sheet-ID in den Google-Sheets-Nodes bzw. in SystemConfig setzen.
 
+**Erster Lauf mit leeren Sheets:** `Events`, `AgentNotes`, `DiseaseScans` und `Notifications` dürfen im ersten Zyklus leer sein. Der Workflow hat für diese Verlaufs-/Log-Reads „Always Output Data“ aktiviert; leere Historie liefert trotzdem eine normale Entscheidung (z. B. Gießen verweigert bei leerem Tank). Nur `SystemConfig` muss vor der Aktivierung die Seed-Schlüssel enthalten — ist sie leer, ist das ein echter Einrichtungsfehler (der Workflow schlägt bewusst laut fehl). **Eine leere 200-Antwort eines Webhooks heißt: der Workflow wurde vorzeitig gestoppt** — im n8n-Executions-View prüfen, welcher Node die Kette beendet hat. „Always Output Data“ ist jetzt Teil der Workflow-Konfiguration; keine manuelle Aktion nötig.
+
 ## 7. Zugangsdaten und private Kennungen
 
 In diesem ZIP sind **keine** Zugangsdaten, Tokens, Passwörter, OAuth-Secrets, persönlichen E-Mail-Adressen, privaten Webhook-URLs oder Produktions-IDs enthalten. Alle derartigen Werte wurden entfernt oder durch Platzhalter ersetzt. Die Lizenz und Urheberangaben sind in `LICENSE` bzw. unten dokumentiert.

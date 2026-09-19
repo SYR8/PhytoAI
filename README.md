@@ -504,6 +504,14 @@ Confirmed issues and lessons:
   the spreadsheet and Drive folders; that sharing is the access boundary.
 - **Workflow webhook returns 404** — the workflow must be active (or use the test listener with the
   `/webhook-test` prefix).
+- **First run with empty sheets is valid** — `Events`, `AgentNotes`, `DiseaseScans`, and
+  `Notifications` can legitimately be empty on the first cycle. The workflow configures "Always
+  Output Data" on those history/log reads, so empty history still produces a normal decision (e.g.
+  watering denied because the tank is empty). Only `SystemConfig` must contain its seed keys before
+  activation — if it is empty, that is a real setup error and the workflow fails loudly on purpose.
+  **An empty 200 response from a webhook means the workflow halted early** — check the n8n
+  Executions view to see which node stopped the chain. "Always Output Data" is now part of the
+  workflow configuration; no manual action is needed.
 - *Requires your own verification:* open hardware questions in `STATUS.md` (relay board specifics,
   power supply, free GPIOs) stay open until measured on your build.
 

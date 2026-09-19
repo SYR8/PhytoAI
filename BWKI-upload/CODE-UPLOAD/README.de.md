@@ -254,6 +254,7 @@ Bestätigte Probleme und Lehren:
 - **Häufige HTTPS-Testaufrufe wurden vom Heimrouter blockiert**; wenn Geräte-Uploads scheitern, obwohl der Server erreichbar ist, die Sicherheits-/DoS-Einstellungen des Routers prüfen.
 - **Dashboard-API-Aufrufe scheitern trotz vorhandener Daten** — das angemeldete Google-Konto muss Zugriff auf Tabelle und Drive-Ordner haben; dieses Teilen ist die Zugriffsgrenze.
 - **Workflow-Webhook liefert 404** — der Workflow muss aktiv sein (oder Testlistener + `/webhook-test`-Präfix nutzen).
+- **Erster Lauf mit leeren Sheets ist gültig:** `Events`, `AgentNotes`, `DiseaseScans` und `Notifications` dürfen im ersten Zyklus leer sein. Der Workflow hat für diese Verlaufs-/Log-Reads „Always Output Data“ aktiviert; leere Historie liefert trotzdem eine normale Entscheidung (z. B. Gießen verweigert bei leerem Tank). Nur `SystemConfig` muss vor der Aktivierung die Seed-Schlüssel enthalten — ist sie leer, ist das ein echter Einrichtungsfehler (der Workflow schlägt bewusst laut fehl). **Eine leere 200-Antwort eines Webhooks heißt: der Workflow wurde vorzeitig gestoppt** — im n8n-Executions-View prüfen, welcher Node die Kette beendet hat. „Always Output Data“ ist jetzt Teil der Workflow-Konfiguration; keine manuelle Aktion nötig.
 - *Noch zu verifizieren:* `STATUS.md` §5/§6 listet offene Hardware-Fragen (Relaisplatine, Netzteil, freie GPIOs); bis zur eigenen Messung als offen behandeln.
 
 ## 21. Datenschutz und Sicherheit
