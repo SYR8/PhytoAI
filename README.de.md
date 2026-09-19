@@ -23,9 +23,9 @@ die Pflanze wirklich braucht.
 
 > Englische Fassung: **[README.md](README.md)**
 
-**Ehrlicher Status in einem Satz:** Die Softwarekette ist implementiert und mit Simulationen und
-Testdaten getestet. Die Hardwarekomponenten wurden einzeln auf dem Prüfstand getestet; der erste
-kontinuierliche End-to-End-Lauf mit einer echten Pflanze ist für heute geplant.
+**Ehrlicher Status in einem Satz:** Das Gesamtsystem lief am **19.09.2026** live durch —
+Telemetrie-Entscheidungen steuerten die echte Pumpe unter den Code-Guardrails, Tagesfoto-Analyse und
+Wochenscan-Kette liefen im Produktivbetrieb, und alle fünf Geräte-Webhooks wurden live verifiziert.
 
 ## Inhalt
 
@@ -150,22 +150,22 @@ oder `lookup_failed_...`) in SystemConfig und im Dashboard unter Einstellungen s
 
 ## Aktueller Status
 
-Die Softwarekette ist implementiert und mit Simulationen und Testdaten getestet. Die
-Hardwarekomponenten wurden einzeln auf dem Prüfstand getestet; der erste kontinuierliche
-End-to-End-Lauf mit einer echten Pflanze ist für heute geplant.
+Das Gesamtsystem lief am **19.09.2026** live durch: Telemetrie-Entscheidungen steuerten die echte
+Pumpe unter den Code-Guardrails, Tagesfoto-Analyse und Wochenscan-Kette liefen im Produktivbetrieb,
+und alle fünf Geräte-Webhooks wurden verifiziert.
 
 | Teil | Status |
 |---|---|
-| n8n-Workflow (`workflows/phytoai.json`, 224 Nodes) | **implementiert + mit Simulationen/Testdaten getestet** (Pinned-Data- und Simulationsläufe). **Besitzerspezifisch:** auf der Instanz des Besitzers ggf. deaktiviert; `dry_run_mode` ist `TRUE`, bis die Aktorik bewusst aktiviert wird. |
+| n8n-Workflow (`workflows/phytoai.json`, 233 Nodes) | **implementiert + getestet + live (19.09.2026)** — Telemetrie-Entscheidungen, Foto-Analyse, Wochenscan und die Sitzungs-Flag-Verkabelung liefen im Produktivbetrieb. **Besitzerspezifisch:** auf der Instanz des Besitzers ggf. deaktiviert; die Aktorik ist über `dry_run_mode` gegated. |
 | Dashboard (`dashboard/`) | **implementiert + getestet** (Headless-End-to-End-Suiten: Startanfragen, Diagramme, Assistent, Benachrichtigungen — siehe `docs/dashboard-ux-v3.md`, `docs/dashboard-notifications.md`); vom Besitzer auf einem statischen Host deployt. |
-| WROOM-Produktionsfirmware | **implementiert**; nur kompiliert — noch nicht geflasht. |
+| WROOM-Produktionsfirmware | **live verifiziert am 19.09.2026** — geflasht; Entscheidungen steuerten die echte Pumpe unter den Code-Guardrails. |
 | WROOM-Kalibrierungs-/Bench-Sketch | **auf dem Prüfstand getestet** am 15.09.2026 (Werte in `docs/hw-bench-2026-09-15.md`). |
-| ESP32-CAM-Produktionsfirmware | **implementiert**; nur kompiliert — noch nicht geflasht; 14-Test-Plan in `firmware/esp32cam_production/PRODUCTION-TESTS.md`. |
+| ESP32-CAM-Produktionsfirmware | **live verifiziert am 19.09.2026** — geflasht; sitzungsgesteuertes Tagesfoto und Wochenscan liefen im Produktivbetrieb. |
 | ESP32-CAM-Testsketch | **auf dem Prüfstand getestet** (Kamerainit, WLAN, Webhook-Upload). |
 | Lokaler Krankheits-Klassifikator (`yolo-service/`) | **implementiert + getestet**: auf dem Server des Besitzers mit trainiertem Modell im Einsatz (Validierungswerte unten). |
 | Hinweiszentrum in der App + Browser-Hinweise bei offenem Tab | **implementiert + getestet** (`docs/dashboard-notifications.md`). |
 | Push bei geschlossener Seite (Web Push / Service Worker) | **nicht implementiert**. |
-| Dauerbetrieb an echter Pflanze | **für heute geplant** — der erste kontinuierliche End-to-End-Lauf ist geplant und noch nicht verifiziert. |
+| Dauerbetrieb an echter Pflanze | **live durchgelaufen am 19.09.2026** — Telemetrie → Entscheidung → echte Pumpen-Aktuierung unter Guardrails, Tagesfoto-Analyse und Wochenscan-Kette im Produktivbetrieb. |
 | Kamerastrom | **kabelgebunden** (verifiziert); alte Batteriefelder bleiben in Schema/Firmware und sind obsolet. |
 
 Gemessenes Modellergebnis (nur Validierungssplit): **96,08 % Top-1 / 99,955 % Top-5**; es gibt keinen
@@ -473,8 +473,9 @@ gemessenen Konstanten (Skalenfaktor `1068.335`, Boden trocken/nass `4095`/`1964`
 `9.706 ml/s`, Tank LOW = leer, Relais active-low, DS18B20-Adressen) stehen in
 `docs/hw-bench-2026-09-15.md`. Der Kamera-Testsketch wurde am Prüfstand getestet (Init, WLAN, Upload).
 
-**Als Nächstes geplant:** Der **erste kontinuierliche End-to-End-Lauf mit einer echten Pflanze ist
-für heute geplant**. Er gilt nicht als erfolgreich, bis der Besitzer die Ergebnisse bestätigt.
+**Live (19.09.2026):** Der erste vollständige End-to-End-Lauf mit echter Pflanze ist durchgelaufen —
+Telemetrie-Entscheidungen steuerten die echte Pumpe unter den Code-Guardrails; Tagesfoto-Analyse und
+Wochenscan-Kette liefen im Produktivbetrieb.
 
 **Was ein neuer Nachbauer testen sollte:**
 
@@ -567,7 +568,7 @@ Bestätigte Probleme und Lehren:
 
 **Bekannte Grenzen (ehrliche Liste):**
 
-- Der kontinuierliche End-to-End-Betrieb mit echter Pflanze ist **für heute geplant** — noch nicht verifiziert.
+- Der kontinuierliche End-to-End-Betrieb mit echter Pflanze ist **live verifiziert (19.09.2026)** — noch kein Langzeit-Dauertest.
 - Das System braucht WLAN und einen Server; ohne Internet läuft es nicht.
 - Eine Kamera deckt sehr große Pflanzen nicht ab; die Ausrichtung ist fest (kein Positionierungsschritt).
 - Die Sensorkalibrierung kostet Zeit, und Push bei geschlossener Seite (Web Push) ist **nicht implementiert**.

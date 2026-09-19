@@ -22,9 +22,9 @@ actually needs.
 
 > German version: **[README.de.md](README.de.md)**
 
-**Honest one-line status:** The software chain is implemented and tested with simulations and test data.
-Hardware components have been bench-tested individually, and the first continuous real-plant
-end-to-end run is planned for today.
+**Honest one-line status:** The full system ran live end-to-end on **2026-09-19** — telemetry
+decisions drove real pump actuation under the code guardrails, the daily photo analysis and the
+weekly-scan chain ran in production, and all five device webhooks were verified live.
 
 ## Contents
 
@@ -151,21 +151,22 @@ enrichment runs. The cached state is visible as `perenual_status` (`ok`, `not_fo
 
 ## Current status
 
-The software chain is implemented and tested with simulations and test data. Hardware components have
-been bench-tested individually, and the first continuous real-plant end-to-end run is planned for today.
+The full system ran live end-to-end on **2026-09-19**: telemetry decisions drove real pump actuation
+under the code guardrails, the daily photo analysis and the weekly-scan chain ran in production, and
+all five device webhooks were verified.
 
 | Part | Status |
 |---|---|
-| n8n workflow (`workflows/phytoai.json`, 224 nodes) | **implemented + tested with simulations/test data** (pinned-data and simulated executions). **Owner-specific:** may be deactivated on the owner's instance; `dry_run_mode` is `TRUE` until actuation is intentionally enabled. |
+| n8n workflow (`workflows/phytoai.json`, 233 nodes) | **implemented + tested + live (2026-09-19)** — telemetry decisions, photo analysis, weekly scan and the session-flag plumbing ran in production. **Owner-specific:** may be deactivated on the owner's instance; actuation is gated by `dry_run_mode`. |
 | Dashboard (`dashboard/`) | **implemented + tested** (headless end-to-end suites: startup requests, charts, assistant, notifications — see `docs/dashboard-ux-v3.md`, `docs/dashboard-notifications.md`); deployed by the owner on a static host. |
-| WROOM production firmware | **implemented**; compile-verified only — not flashed yet. |
+| WROOM production firmware | **live-verified 2026-09-19** — flashed; decisions drove real pump actuation under the code guardrails. |
 | WROOM calibration/bench sketch | **bench-tested** 2026-09-15 (constants recorded in `docs/hw-bench-2026-09-15.md`). |
-| ESP32-CAM production firmware | **implemented**; compile-verified only — not flashed yet; 14-test plan in `firmware/esp32cam_production/PRODUCTION-TESTS.md`. |
+| ESP32-CAM production firmware | **live-verified 2026-09-19** — flashed; session-gated daily photo and weekly scan ran in production. |
 | ESP32-CAM test sketch | **bench-tested** (camera init, Wi-Fi, webhook upload). |
 | Local disease classifier (`yolo-service/`) | **implemented + tested**: deployed on the owner's server with the trained model (validation metrics below). |
 | In-app notification center + open-tab browser alerts | **implemented + tested** (`docs/dashboard-notifications.md`). |
 | Closed-site push notifications (Web Push / service worker) | **not implemented**. |
-| Continuous real-plant operation | **planned for today** — the first continuous real-plant end-to-end run is planned; it has not been verified yet. |
+| Continuous real-plant operation | **live end-to-end 2026-09-19** — telemetry → decision → real pump actuation under guardrails, daily photo analysis and the weekly-scan chain all ran in production. |
 | Camera power | **wired-only** (verified); legacy battery fields remain in schema/firmware and are obsolete. |
 
 Measured model result (validation split only): **96.08 % top-1 / 99.955 % top-5**; no separate test
@@ -464,8 +465,9 @@ assistant paths, notification controls); test spreadsheets use the safe seed dat
 active-low, DS18B20 addresses) are recorded in `docs/hw-bench-2026-09-15.md`. The camera test sketch
 was bench-tested (init, Wi-Fi, upload).
 
-**Planned next:** the **first continuous real-plant end-to-end run is planned for today**. It is not
-claimed to have succeeded — results will be reported only after the owner verifies them.
+**Live (2026-09-19):** the first full real-plant end-to-end run completed — telemetry decisions drove
+real pump actuation under the code guardrails, and the daily photo analysis and weekly-scan chain ran
+in production.
 
 **What a new builder should test:**
 
@@ -558,7 +560,7 @@ Confirmed issues and lessons:
 
 **Known limitations (honest list):**
 
-- Continuous real-plant end-to-end operation is **planned for today** — not verified yet.
+- Continuous real-plant end-to-end operation is **live-verified (2026-09-19)** — not yet a long-duration soak test.
 - The system needs Wi-Fi and a server; without internet it does not run.
 - One camera cannot cover very large plants; framing is fixed (no positioning step).
 - Sensor calibration takes time, and closed-site push (Web Push) is **not implemented**.
