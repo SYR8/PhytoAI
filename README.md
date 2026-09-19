@@ -181,7 +181,8 @@ sensors + camera -> WROOM/ESP32 device -> n8n workflow -> Sheets/Drive
 
 1. **Sense:** the WROOM wakes on schedule, reads all sensors, and POSTs JSON to the workflow
    (`POST /webhook/core/sensor`). The camera posts a daily photo (`/webhook/core/photo`) and a weekly
-   scan photo (`/webhook/yolo-scan`).
+   scan photo (`/webhook/yolo-scan`); the scan is session-gated and fully automatic (the weekly
+   schedule opens the session, the CAM sweeps on its next wake, `/yolo-scan/done` closes it).
 2. **Decide:** the workflow reads history and SystemConfig, an AI agent proposes a decision from the
    history, and deterministic guardrails (code, never AI) enforce the safety rules. The WROOM only
    executes the decision JSON — it never decides locally.
@@ -289,9 +290,16 @@ before flashing or operating the devices.
 
 This is the part that makes PhytoAI more than a sensor logger.
 
-- **Visual observation:** the ESP32-CAM takes a daily photo and a weekly scan photo of the plant
-  (manual repositioning, fixed default view). Camera power is **wired** — there is no battery
+- **Visual observation:** the ESP32-CAM takes a daily photo and a weekly scan photo of the plant.
+  Camera power is **wired** and the camera is fixed — there is no positioning step and no battery
   behavior to invent or rely on.
+- **Weekly scan is fully automatic:** the Monday schedule opens a scan session
+  (`scan_session_active=true`), the CAM picks it up from `GET /config` at its next wake and posts
+  the scan, and the session closes on `/yolo-scan/done`. One informational notification is created;
+  nothing waits for human input.
+- **Session-gated scanning (rule):** the CAM never posts to `/webhook/yolo-scan` unless the latest
+  `/config` reports `scan_session_active=true`. On boot or any non-scan wake it only posts to
+  `/core/photo`.
 - **Upload:** the camera posts images over HTTPS to the workflow (daily photo and scan photo paths),
   fire-and-forget with retries; timestamps are UTC.
 - **Storage:** images land in Google Drive folders referenced from `SystemConfig`.
@@ -315,6 +323,7 @@ One spreadsheet, **five tabs** (headers exactly as in `test-data/dashboard-seed/
 **`SystemConfig`** — key/value store. Reference keys: `pot_latitude`, `pot_longitude`,
 `last_watered_utc`, `last_species_guess`, `species_confidence`, `next_sunrise_utc`, `next_sunset_utc`,
 `last_tank_empty_alert_sent`, `dry_run_mode`, `min_rewater_interval_hours`, `scan_session_active`,
+`scan_next_utc`, `scan_auto`,
 `max_pump_seconds`, `max_water_temp_c`, `preheat_margin_c`, `preheat_lead_minutes`,
 `heater_hysteresis_c`, `flash_dark_threshold`, plus optional `camera_battery_*`, `drive_*_folder_id`,
 `push_vapid_public_key` (unused today).
@@ -485,6 +494,20 @@ cycle.
 | `i` | Status | Prints uptime, Wi-Fi, dry-run state, HX711 offset/scale, actuator cap, tank and water state. | — |
 | `h` or `?` | Help | Lists the commands. | — |
 
+### ESP32-CAM serial commands
+
+The production CAM sketch (`firmware/esp32cam_production/`) accepts single-key commands over the
+serial monitor at **115200 baud** (also listed in the boot banner and via `h`).
+
+| Key | Command | Usage | Safety bounds |
+|---|---|---|---|
+| `s` | Send photo now | GET `/config`, then one daily photo via the same code path as the scheduled photo (POST `/core/photo`); prints HTTP status + response body, then the next scheduled events. | Normal code path; never triggers a scan. |
+| `c` | Scan now (test) | GET `/config`; if `scan_session_active` is false it prints `[scan] cloud session not active - scan would be rejected` and **aborts with no uploads**. If true it runs the full sweep (POST `/yolo-scan`, then `/yolo-scan/done`) and prints the next events. | Cloud-session-gated; a manual test never records a weekly miss. |
+| `i` or `t` | Status | Last/next scheduled events, `scan_session_active` as last seen in `/config`, flash mode, free heap/PSRAM. | — |
+| `h` | Help | Lists all commands. | — |
+| `w` / `n` / `g` | Wi-Fi / NTP / get config | Diagnostics. | — |
+| `b` / `d` / `f` / `r` | Battery / scan-done test / flash torch / reboot | Diagnostics. | — |
+
 ## Troubleshooting
 
 Confirmed issues and lessons:
@@ -537,7 +560,7 @@ Confirmed issues and lessons:
 
 - Continuous real-plant end-to-end operation is **planned for today** — not verified yet.
 - The system needs Wi-Fi and a server; without internet it does not run.
-- One camera cannot cover very large plants; framing is fixed and only manually adjustable.
+- One camera cannot cover very large plants; framing is fixed (no positioning step).
 - Sensor calibration takes time, and closed-site push (Web Push) is **not implemented**.
 
 **Future ideas (owner-selected, not implemented):**

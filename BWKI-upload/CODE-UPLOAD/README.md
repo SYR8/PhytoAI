@@ -39,7 +39,7 @@ Es ist kein Video und keine Formularantwort — nur das nachbaubare Projekt.
 
 1. **ESP32-WROOM-Firmware** (`firmware/wroom_production/`): liest alle Sensoren, sendet Telemetrie per HTTPS an den Workflow, führt das zurückgegebene Entscheidungs-JSON aus (Pumpe/Heizung) und erzwingt Hardware-Sicherheitsgrenzen (40,0 °C Abschaltung, 39,5 °C Verweigerung, 120 s Aktuatorgrenze, 8 s Watchdog). Entscheidet nie lokal.
 2. **Sensoren & Hardware:** kapazitiver Bodenfeuchtesensor, 2× DS18B20 (Boden/Wasser, ein OneWire-Bus), DHT22 (Luft), 1-kg-Wägezelle + HX711 (Gewicht), LDR (Licht), Tank-Sensor, Relais, Pumpe, Heizung. Pin-Belegung und Messwerte: `docs/hw-bench-2026-09-15.md`. Der wasserdichte DS18B20-Wasserfühler muss **frei im Tank schwimmen — rundum von Wasser umgeben** und darf Tankwand, Tankboden oder andere Objekte **nicht berühren**: Kontakt leitet Fremdwärme und verfälscht die Wassertemperatur, die über die Heizung entscheidet.
-3. **Kamera:** ESP32-CAM (`firmware/esp32cam_production/`) sendet Tagesfotos und wöchentliche Scan-Fotos; kabelgebunden (keine Batterie).
+3. **Kamera:** ESP32-CAM (`firmware/esp32cam_production/`) sendet Tagesfotos und wöchentliche Scan-Fotos; kabelgebunden (keine Batterie), fest montiert (kein Positionierungsschritt). Der Wochenscan ist vollautomatisch und sitzungsgesteuert: der Montags-Trigger öffnet die Sitzung (`scan_session_active=true`), die CAM scannt beim nächsten Aufwachen und `/yolo-scan/done` schließt sie; die CAM sendet nie an `/yolo-scan`, wenn die Sitzung nicht aktiv ist.
 4. **n8n-Workflow** (`workflows/phytoai.json`): orchestriert alle Zweige, ruft KI-Agenten (Gemma über OpenRouter) auf, hält Sicherheits-Guardrails als Code vor, verwaltet Human-in-the-Loop-Waits.
 5. **Google Sheets/Drive:** fünf Tabs als Datenbank (`Events`, `SystemConfig`, `DiseaseScans`, `Notifications`, `AgentNotes`); Drive speichert Fotos.
 6. **PlantVillage-YOLO-Modell/-Dienst** (`yolo-service/`): lokaler 38-Klassen-Bildklassifikator als Zweitmeinung für Scan-Fotos; Details unten.
@@ -72,6 +72,22 @@ Diagnose-Sendezyklus.
 | `s` | Diagnose-Senden | `s` drücken — führt sofort einen vollständigen Telemetrie-Zyklus aus: `GET /webhook/config`, dann derselbe 12-Feld-`POST /webhook/core/sensor` wie beim geplanten Lauf; zeigt HTTP-Status und Entscheidungs-Schlüssel, danach den nächsten geplanten Termin. | Nutzt den normalen Codepfad; `dry_run` blockiert weiterhin alle Aktuierung. |
 | `i` | Status | Uptime, WLAN, Dry-Run, HX711-Offset/Faktor, Aktuatorgrenze, Tank-/Wasserzustand. | — |
 | `h` oder `?` | Hilfe | Listet die Befehle auf. | — |
+
+### ESP32-CAM-Serienbefehle (Diagnose)
+
+Die Produktions-CAM (`firmware/esp32cam_production/`) nimmt am seriellen Monitor (**115200 Baud**)
+Einzelbefehle entgegen (auch im Boot-Banner und über `h`). Die CAM ist fest montiert — es gibt
+keinen Positionierungsschritt; der wöchentliche Scan läuft vollautomatisch und nur bei aktiver
+Cloud-Sitzung.
+
+| Taste | Befehl | Verwendung | Sicherheitsgrenzen |
+|---|---|---|---|
+| `s` | Foto jetzt senden | `GET /config`, dann ein Tagesfoto über denselben Codepfad wie das geplante Foto (`POST /core/photo`); zeigt HTTP-Status + Antwort-Body und danach die nächsten Termine. | Normaler Codepfad; löst nie einen Scan aus. |
+| `c` | Scan jetzt (Test) | `GET /config`; ist `scan_session_active` false, kommt `[scan] cloud session not active - scan would be rejected` und es wird **ohne Uploads abgebrochen**. Ist sie true, läuft der komplette Sweep (`POST /yolo-scan`, dann `/yolo-scan/done`) plus die nächsten Termine. | Nur bei aktiver Cloud-Sitzung; ein manueller Test erzeugt nie einen Wochen-Fehlschlag. |
+| `i` oder `t` | Status | Letzte/nächste Termine, `scan_session_active` zuletzt gesehen, Blitzmodus, freier Heap/PSRAM. | — |
+| `h` | Hilfe | Listet alle Befehle auf. | — |
+| `w` / `n` / `g` | WLAN / NTP / Config holen | Diagnose. | — |
+| `b` / `d` / `f` / `r` | Batterie / Scan-Done-Test / Blitz-Torch / Reboot | Diagnose. | — |
 
 ## 6. Platzhalter, die Nutzer selbst konfigurieren müssen
 

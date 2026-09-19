@@ -181,7 +181,9 @@ Sensoren + Kamera -> WROOM/ESP32-Gerät -> n8n-Workflow -> Sheets/Drive
 
 1. **Messen:** Der WROOM wacht nach Plan auf, liest alle Sensoren und sendet JSON an den Workflow
    (`POST /webhook/core/sensor`). Die Kamera sendet ein Tagesfoto (`/webhook/core/photo`) und ein
-   wöchentliches Scan-Foto (`/webhook/yolo-scan`).
+   wöchentliches Scan-Foto (`/webhook/yolo-scan`); der Scan ist sitzungsgesteuert und vollautomatisch
+   (der Wochen-Trigger öffnet die Sitzung, die CAM scannt beim nächsten Aufwachen, `/yolo-scan/done`
+   schließt sie).
 2. **Entscheiden:** Der Workflow liest Historie und SystemConfig, ein KI-Agent schlägt aus der
    Historie eine Entscheidung vor, und deterministische Guardrails (Code, nie KI) erzwingen die
    Sicherheitsregeln. Der WROOM führt nur das Entscheidungs-JSON aus — er entscheidet nie lokal.
@@ -291,9 +293,16 @@ Workflow in n8n aktivieren, bevor die Geräte geflasht oder betrieben werden.
 
 Das ist der Teil, der PhytoAI mehr macht als einen Sensor-Logger.
 
-- **Visuelle Beobachtung:** Die ESP32-CAM nimmt ein Tagesfoto und ein wöchentliches Scan-Foto auf
-  (manuelles Umstellen, feste Standardansicht). Der Kamerastrom ist **kabelgebunden** — es gibt kein
-  Batterieverhalten, das man erfinden oder erwarten könnte.
+- **Visuelle Beobachtung:** Die ESP32-CAM nimmt ein Tagesfoto und ein wöchentliches Scan-Foto auf.
+  Der Kamerastrom ist **kabelgebunden** und die Kamera ist fest montiert — es gibt keinen
+  Positionierungsschritt und kein Batterieverhalten, das man erfinden oder erwarten könnte.
+- **Wöchentlicher Scan, vollautomatisch:** Der Montags-Trigger öffnet eine Scan-Sitzung
+  (`scan_session_active=true`), die CAM liest sie beim nächsten Aufwachen aus `GET /config` und
+  sendet den Scan; `/yolo-scan/done` schließt die Sitzung. Es entsteht genau eine informative
+  Benachrichtigung; nichts wartet auf eine menschliche Eingabe.
+- **Sitzungsregel:** Die CAM sendet **niemals** an `/webhook/yolo-scan`, wenn das letzte `/config`
+  nicht `scan_session_active=true` meldet. Beim Boot oder jedem Nicht-Scan-Aufwachen sendet sie nur
+  an `/core/photo`.
 - **Upload:** Die Kamera sendet Bilder per HTTPS an den Workflow (Tagesfoto- und Scan-Pfad),
   Fire-and-Forget mit Wiederholungen; Zeitstempel in UTC.
 - **Speicher:** Bilder landen in Google-Drive-Ordnern, referenziert aus `SystemConfig`.
@@ -317,6 +326,7 @@ Eine Tabelle, **fünf Tabs** (Kopfzeilen exakt wie in `test-data/dashboard-seed/
 **`SystemConfig`** — Key/Value-Speicher. Referenzschlüssel: `pot_latitude`, `pot_longitude`,
 `last_watered_utc`, `last_species_guess`, `species_confidence`, `next_sunrise_utc`, `next_sunset_utc`,
 `last_tank_empty_alert_sent`, `dry_run_mode`, `min_rewater_interval_hours`, `scan_session_active`,
+`scan_next_utc`, `scan_auto`,
 `max_pump_seconds`, `max_water_temp_c`, `preheat_margin_c`, `preheat_lead_minutes`,
 `heater_hysteresis_c`, `flash_dark_threshold`, optional `camera_battery_*`, `drive_*_folder_id`,
 `push_vapid_public_key` (heute ungenutzt).
@@ -493,6 +503,20 @@ Diagnose-Sendezyklus.
 | `i` | Status | Uptime, WLAN, Dry-Run, HX711-Offset/Faktor, Aktuatorgrenze, Tank-/Wasserzustand. | — |
 | `h` oder `?` | Hilfe | Listet die Befehle auf. | — |
 
+### ESP32-CAM-Serienbefehle
+
+Die Produktions-CAM (`firmware/esp32cam_production/`) nimmt am seriellen Monitor (**115200 Baud**)
+Einzelbefehle entgegen (auch im Boot-Banner und über `h`).
+
+| Taste | Befehl | Verwendung | Sicherheitsgrenzen |
+|---|---|---|---|
+| `s` | Foto jetzt senden | `GET /config`, dann ein Tagesfoto über denselben Codepfad wie das geplante Foto (`POST /core/photo`); zeigt HTTP-Status + Antwort-Body und danach die nächsten Termine. | Normaler Codepfad; löst nie einen Scan aus. |
+| `c` | Scan jetzt (Test) | `GET /config`; ist `scan_session_active` false, kommt `[scan] cloud session not active - scan would be rejected` und es wird **ohne Uploads abgebrochen**. Ist sie true, läuft der komplette Sweep (`POST /yolo-scan`, dann `/yolo-scan/done`) plus die nächsten Termine. | Nur bei aktiver Cloud-Sitzung; ein manueller Test erzeugt nie einen Wochen-Fehlschlag. |
+| `i` oder `t` | Status | Letzte/nächste Termine, `scan_session_active` zuletzt gesehen, Blitzmodus, freier Heap/PSRAM. | — |
+| `h` | Hilfe | Listet alle Befehle auf. | — |
+| `w` / `n` / `g` | WLAN / NTP / Config holen | Diagnose. | — |
+| `b` / `d` / `f` / `r` | Batterie / Scan-Done-Test / Blitz-Torch / Reboot | Diagnose. | — |
+
 ## Fehlersuche
 
 Bestätigte Probleme und Lehren:
@@ -545,7 +569,7 @@ Bestätigte Probleme und Lehren:
 
 - Der kontinuierliche End-to-End-Betrieb mit echter Pflanze ist **für heute geplant** — noch nicht verifiziert.
 - Das System braucht WLAN und einen Server; ohne Internet läuft es nicht.
-- Eine Kamera deckt sehr große Pflanzen nicht ab; die Ausrichtung ist fest und nur manuell verstellbar.
+- Eine Kamera deckt sehr große Pflanzen nicht ab; die Ausrichtung ist fest (kein Positionierungsschritt).
 - Die Sensorkalibrierung kostet Zeit, und Push bei geschlossener Seite (Web Push) ist **nicht implementiert**.
 
 **Zukunftsideen (vom Besitzer ausgewählt, nicht implementiert):**

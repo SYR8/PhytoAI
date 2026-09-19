@@ -63,7 +63,7 @@ Gemessenes Modellergebnis (nur Validierungssplit): **96,08 % Top-1 / 99,955 % To
 |---|---|
 | **ESP32-WROOM-Firmware** (`firmware/wroom_production/`) | Liest Sensoren, sendet Telemetrie, führt das Entscheidungs-JSON aus (Pumpe/Heizung), erzwingt Hardware-Grenzen, entscheidet nie lokal. `GET /webhook/config` liefert Sonnenzeiten, Dry-Run- und Preheat-Kontext. |
 | **Sensoren** | Kapazitiver Bodenfeuchtesensor, 2× DS18B20 (Boden- und Wassertemperatur an einem Bus), DHT22 (Lufttemperatur/-feuchte), 1-kg-Wägezelle + HX711 (Topfgewicht), LDR (Licht), XKC-Y25-Tanksensor. |
-| **Kamera-Hardware** (`firmware/esp32cam_production/`) | Statische ESP32-CAM; Tagesfoto + wöchentliches Scan-Foto; kabelgebundene Stromversorgung. |
+| **Kamera-Hardware** (`firmware/esp32cam_production/`) | Statische ESP32-CAM; Tagesfoto + wöchentliches Scan-Foto; kabelgebundene Stromversorgung; fest montiert (kein Positionierungsschritt). Der Wochenscan läuft vollautomatisch und nur bei aktiver Cloud-Sitzung (`scan_session_active`). |
 | **Automatisierungs-Workflow** (n8n, `workflows/phytoai.json`) | Das Gehirn des Systems: orchestriert die Zweige A–E, spricht mit Sheets/Drive, betreibt KI-Agenten, HITL-Waits und Guardrails. |
 | **Speicher** (Google Sheets + Drive) | Eine Tabelle (fünf Tabs, siehe Datenmodell) ist die Datenbank; Drive speichert die Fotos. |
 | **KI/ML** | Cloud-Agenten über OpenRouter (`google/gemma-4-26b-a4b-it`, Temperatur 0,2) für Historie/Entscheidung/Vision/Behandlung; ein **lokaler** YOLOv8n-cls-Klassifikator (`yolo-service/`, FastAPI + Ultralytics, CPU) liefert eine niedrig gewichtete Zweitmeinung für Krankheits-Scans. |
@@ -152,8 +152,8 @@ Aus `Hardware/Hardware-list.txt` plus der bench-verifizierten Pin-Belegung in `d
 
 - **Strom:** Die Kamera ist im Aufbau des Besitzers **kabelgebunden** (besitzerverifiziert). Gib der ESP32-CAM eine eigene stabile 5-V-Versorgung; versorge sie nicht über einen freien GPIO oder den Regler des WROOM-Boards. Alte Batteriefelder (`camera_battery_percent`, `camera_battery_min_percent`, Batterietest in `PRODUCTION-TESTS.md`) sind Überreste eines früheren Entwurfs und obsolet.
 - **Optional:** Ja — Stufen A und B aus Abschnitt 6 funktionieren ohne Kamera.
-- **Bildweg:** Die CAM sendet das Tagesfoto an `POST /webhook/core/photo` und das wöchentliche Scan-Foto an `POST /webhook/yolo-scan` (sitzungsgesteuert), danach schließt `/webhook/yolo-scan/done` die Sitzung. Fotos landen in Google Drive; der Workflow analysiert sie (Vision-Agent + lokaler YOLO-Dienst) und schreibt das Ergebnis in `DiseaseScans`.
-- **Grenzen:** Eine Kamera kann nicht alle Blätter einer großen Pflanze sehen (vom Besitzer genannte Schwäche); die Ausrichtung ist fest und nur manuell verstellbar; Aufnahme-Grund und Lichtbedingung werden **nicht persistiert**; das Vision-Urteil ist eine unbestätigte KI-Hypothese, bis der Besitzer es bestätigt.
+- **Bildweg:** Die CAM sendet das Tagesfoto an `POST /webhook/core/photo` und das wöchentliche Scan-Foto an `POST /webhook/yolo-scan` — aber **nur bei aktiver Cloud-Sitzung** (`scan_session_active=true` aus `GET /config`); danach schließt `/webhook/yolo-scan/done` die Sitzung. Der Wochenscan ist vollautomatisch (Montags-Trigger öffnet die Sitzung, CAM scannt beim nächsten Aufwachen; eine einzige informative Benachrichtigung, kein Warten auf Eingaben). Fotos landen in Google Drive; der Workflow analysiert sie (Vision-Agent + lokaler YOLO-Dienst) und schreibt das Ergebnis in `DiseaseScans`.
+- **Grenzen:** Eine Kamera kann nicht alle Blätter einer großen Pflanze sehen (vom Besitzer genannte Schwäche); die Ausrichtung ist fest (kein Positionierungsschritt); Aufnahme-Grund und Lichtbedingung werden **nicht persistiert**; das Vision-Urteil ist eine unbestätigte KI-Hypothese, bis der Besitzer es bestätigt (informativ — blockiert den nächsten Zyklus nicht).
 
 ## 14. Datenmodell
 
@@ -162,7 +162,7 @@ Eine Tabelle, **fünf Tabs** (Kopfzeilen exakt wie in `test-data/dashboard-seed/
 **`Events`** — eine Zeile pro Sensor-/Foto-Ereignis:
 `EventID, Timestamp, EventType, MoisturePercent, SoilTempC, WaterTempC, AirTempC, AirHumidityPercent, WeightGrams, LightLevel, TankEmpty, WateringTriggered, WaterDurationSeconds, HeaterUsed, HeaterDurationSeconds, SpeciesGuess, SpeciesConfidence, PhotoFileID, AnomalyDetected, AnomalyDescription, AI_Notes, ReasoningSummary, WateringAborted, FinalWaterTempC, WaterAddedGrams`
 
-**`SystemConfig`** — Key/Value-Speicher. Referenzschlüssel (Seed): `pot_latitude`, `pot_longitude`, `last_watered_utc`, `last_species_guess`, `species_confidence`, `next_sunrise_utc`, `next_sunset_utc`, `last_tank_empty_alert_sent`, `dry_run_mode`, `min_rewater_interval_hours`, `scan_session_active`, `max_pump_seconds`, `max_water_temp_c`, `preheat_margin_c`, `preheat_lead_minutes`, `heater_hysteresis_c`, `flash_dark_threshold`, optional `camera_battery_*`, `drive_*_folder_id`, `push_vapid_public_key` (heute ungenutzt).
+**`SystemConfig`** — Key/Value-Speicher. Referenzschlüssel (Seed): `pot_latitude`, `pot_longitude`, `last_watered_utc`, `last_species_guess`, `species_confidence`, `next_sunrise_utc`, `next_sunset_utc`, `last_tank_empty_alert_sent`, `dry_run_mode`, `min_rewater_interval_hours`, `scan_session_active`, `scan_next_utc`, `scan_auto` (Default true; false = kein automatischer Session-Start), `max_pump_seconds`, `max_water_temp_c`, `preheat_margin_c`, `preheat_lead_minutes`, `heater_hysteresis_c`, `flash_dark_threshold`, optional `camera_battery_*`, `drive_*_folder_id`, `push_vapid_public_key` (heute ungenutzt).
 
 **`DiseaseScans`** — Scan-Ergebnisse:
 `timestamp, drive_links, vision_opinion, yolo_opinion, judge_verdict, judge_reasoning, treatment_plan, user_verdict, treatment_outcome, ai_notes`
@@ -242,6 +242,21 @@ Diagnose-Sendezyklus.
 | `s` | Diagnose-Senden | `s` drücken — führt sofort einen vollständigen Telemetrie-Zyklus aus: `GET /webhook/config`, dann derselbe 12-Feld-`POST /webhook/core/sensor` wie beim geplanten Lauf; zeigt HTTP-Status und Entscheidungs-Schlüssel, danach den nächsten geplanten Termin. | Nutzt den normalen Codepfad; `dry_run` blockiert weiterhin alle Aktuierung. |
 | `i` | Status | Uptime, WLAN, Dry-Run, HX711-Offset/Faktor, Aktuatorgrenze, Tank-/Wasserzustand. | — |
 | `h` oder `?` | Hilfe | Listet die Befehle auf. | — |
+
+### ESP32-CAM-Serienbefehle (Diagnose)
+
+Die Produktions-CAM (`firmware/esp32cam_production/`) nimmt am seriellen Monitor (**115200 Baud**)
+Einzelbefehle entgegen (auch im Boot-Banner und über `h`). Die CAM ist fest montiert — kein
+Positionierungsschritt; der wöchentliche Scan läuft vollautomatisch und nur bei aktiver Cloud-Sitzung.
+
+| Taste | Befehl | Verwendung | Sicherheitsgrenzen |
+|---|---|---|---|
+| `s` | Foto jetzt senden | `GET /config`, dann ein Tagesfoto über denselben Codepfad wie das geplante Foto (`POST /core/photo`); zeigt HTTP-Status + Antwort-Body und danach die nächsten Termine. | Normaler Codepfad; löst nie einen Scan aus. |
+| `c` | Scan jetzt (Test) | `GET /config`; ist `scan_session_active` false, kommt `[scan] cloud session not active - scan would be rejected` und es wird **ohne Uploads abgebrochen**. Ist sie true, läuft der komplette Sweep (`POST /yolo-scan`, dann `/yolo-scan/done`) plus die nächsten Termine. | Nur bei aktiver Cloud-Sitzung; ein manueller Test erzeugt nie einen Wochen-Fehlschlag. |
+| `i` oder `t` | Status | Letzte/nächste Termine, `scan_session_active` zuletzt gesehen, Blitzmodus, freier Heap/PSRAM. | — |
+| `h` | Hilfe | Listet alle Befehle auf. | — |
+| `w` / `n` / `g` | WLAN / NTP / Config holen | Diagnose. | — |
+| `b` / `d` / `f` / `r` | Batterie / Scan-Done-Test / Blitz-Torch / Reboot | Diagnose. | — |
 
 ## 20. Fehlersuche
 
