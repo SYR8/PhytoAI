@@ -1,4 +1,4 @@
-// PhytoAI ESP32-WROOM — production firmware v1.1 (2026-09-19)
+// PhytoAI ESP32-WROOM — production firmware v1.2 (2026-09-19)
 //
 // WHAT:   The pot's "body": reads all sensors, reports telemetry to n8n over WiFi/HTTPS,
 //         executes the returned watering/heating decision under local hard safety limits.
@@ -7,9 +7,12 @@
 //         POST <base>/webhook/core/sensor      (12-field telemetry body, see below)
 // OUTPUTS: decision JSON (12 fields, Build Decision Response -- workflows/phytoai.json L327/L405)
 //          pump relay CH1 (GPIO13), heater relay CH2 (GPIO16), status LED (GPIO2), serial logs
-// LIMITS: heater hard cutoff 40.0 C; refuse start >= 39.5 C; actuator hard cap 120 s/pulse;
-//         8 s task watchdog; dry_run (config or decision) gates ALL GPIO actuation; tank-empty
+// LIMITS: heater hard cutoff 40.0 C; refuse start >= 39.5 C; actuator runtime cap default 120 s
+//         ('l' = 5-600 s, NVS); 8 s task watchdog (loop task unsubscribed ONLY during the
+//         decision wait); dry_run (config or decision) gates ALL GPIO actuation; tank-empty
 //         and invalid sensor readings always block the affected actuator.
+// HTTP:   decision POST waits up to 300 s for the full n8n pipeline (LLM latency), single
+//         attempt, no retry storm; GET /config 8 s. Actuation verdicts are always logged.
 // OPERATING RULES (owner-verified 2026-09-15):
 //   1. The HX711 is NEVER auto-tared — not at boot, not on load/pot detection. Startup only
 //      RESTORES a previously recorded empty-platform offset from NVS. Live weight is GROSS:
@@ -105,7 +108,7 @@ const uint32_t SETTLE_AFTER_PUMP_MS = 3000; // weight settle before the post-wat
 const char*    NVS_NS = "phytoai-wroom";
 const uint32_t WDT_TIMEOUT_S   = 8;
 const uint32_t SAMPLE_MS       = 2000;
-const uint32_t HTTP_POST_TIMEOUT_MS = 15000;
+const uint32_t DECISION_TIMEOUT_MS = 300000UL;  // full n8n pipeline (LLM agents) can take minutes
 const uint32_t HTTP_CONFIG_TIMEOUT_MS = 8000;
 const uint32_t CONFIG_RETRY_MS = 15UL * 60UL * 1000UL;
 const uint32_t FALLBACK_INTERVAL_MS = 12UL * 3600UL * 1000UL;
@@ -207,6 +210,12 @@ void wdtSetup() {
 #endif
 }
 
+// Long network waits (decision POST can take minutes) run with the loop task
+// unsubscribed from the 8 s task WDT; it is re-subscribed before any actuation,
+// so pump/heater execution stays fully watchdog-covered.
+void wdtPause()  { esp_task_wdt_delete(NULL); }
+void wdtResume() { esp_task_wdt_add(NULL); }
+
 void ledWrite(bool on) { digitalWrite(PIN_LED, on ? HIGH : LOW); }
 
 void ledBootPattern() {
@@ -301,7 +310,9 @@ bool httpRequest(const char* method, const String& endpoint, const String& body,
   http.setTimeout(timeoutMs);
   if (!http.begin(client, url)) { Serial.println(F("[http] begin failed")); return false; }
   http.addHeader("Content-Type", "application/json");
+  wdtPause();   // a blocking HTTP call can exceed the 8 s task WDT
   int code = String(method) == "GET" ? http.GET() : http.POST(body);
+  wdtResume();
   wdtPet();
   bool ok = code >= 200 && code < 300;
   if (ok) out = http.getString();
@@ -313,6 +324,120 @@ bool httpRequest(const char* method, const String& endpoint, const String& body,
   Serial.println(code);
   http.end();
   return ok;
+}
+
+// ---------------------------------------------------------------------------
+// Decision POST — the n8n pipeline (LLM agents) can take minutes, and
+// HTTPClient's timeout is uint16 ms (65 s max), so the decision request uses a
+// raw TLS client with a >= 300 s overall deadline. decisionCycle() keeps the
+// loop task off the WDT for the whole wait; actuation remains WDT-covered.
+// ---------------------------------------------------------------------------
+int readByteDeadline(WiFiClientSecure& client, uint32_t t0, uint32_t timeoutMs) {
+  while (millis() - t0 < timeoutMs) {
+    if (client.available()) return client.read();
+    if (!client.connected()) return -2;   // peer closed
+    wdtPet();
+    delay(10);
+  }
+  return -1;                              // deadline exceeded
+}
+
+String readLineDeadline(WiFiClientSecure& client, uint32_t t0, uint32_t timeoutMs, bool& timedOut) {
+  String line;
+  timedOut = false;
+  while (true) {
+    int c = readByteDeadline(client, t0, timeoutMs);
+    if (c == -1) { timedOut = true; return line; }
+    if (c == -2) return line;
+    if (c == '\n') return line;
+    if (c != '\r' && line.length() < 300) line += (char)c;
+  }
+}
+
+bool postDecision(const String& body, int& status, String& respBody, uint32_t timeoutMs) {
+  status = -1;
+  respBody = "";
+  if (!String(SECRET_BASE_URL).startsWith("https://")) {
+    Serial.println(F("[decision] SECRET_BASE_URL must be https://"));
+    return false;
+  }
+  String host = hostFromBaseUrl(String(SECRET_BASE_URL));
+  WiFiClientSecure client;
+  client.setInsecure();
+  client.setConnectionTimeout(15000);
+  uint32_t t0 = millis();
+  if (!client.connect(host.c_str(), 443)) {
+    Serial.println(F("[decision] TLS connect failed"));
+    return false;
+  }
+  String path = String(SECRET_WEBHOOK_PREFIX) + "/core/sensor";
+  client.print(String("POST ") + path + " HTTP/1.1\r\n");
+  client.print(String("Host: ") + host + "\r\n");
+  client.print(F("Content-Type: application/json\r\n"));
+  client.print(String("Content-Length: ") + String((unsigned long)body.length()) + "\r\n");
+  client.print(F("Connection: close\r\n\r\n"));
+  client.print(body);
+
+  bool timedOut = false;
+  String statusLine = readLineDeadline(client, t0, timeoutMs, timedOut);
+  if (timedOut) { status = -2; client.stop(); return false; }
+  if (statusLine.length() == 0) { client.stop(); return false; }
+  int sp1 = statusLine.indexOf(' ');
+  if (sp1 > 0) status = statusLine.substring(sp1 + 1, sp1 + 4).toInt();
+
+  bool chunked = false;
+  long contentLen = -1;
+  while (true) {
+    String h = readLineDeadline(client, t0, timeoutMs, timedOut);
+    if (timedOut) { status = -2; client.stop(); return false; }
+    h.trim();
+    if (h.length() == 0) break;
+    String hl = h;
+    hl.toLowerCase();
+    if (hl.startsWith("transfer-encoding") && hl.indexOf("chunked") >= 0) chunked = true;
+    else if (hl.startsWith("content-length")) contentLen = h.substring(h.indexOf(':') + 1).toInt();
+  }
+
+  const unsigned int MAX_BODY = 4096;
+  if (chunked) {
+    while (millis() - t0 < timeoutMs) {
+      String sz = readLineDeadline(client, t0, timeoutMs, timedOut);
+      if (timedOut) { status = -2; client.stop(); return false; }
+      sz.trim();
+      long n = strtol(sz.c_str(), nullptr, 16);
+      if (n <= 0) break;
+      long remaining = n;
+      while (remaining > 0) {
+        int c = readByteDeadline(client, t0, timeoutMs);
+        if (c < 0) break;
+        if (respBody.length() < MAX_BODY) respBody += (char)c;
+        remaining--;
+      }
+      readLineDeadline(client, t0, timeoutMs, timedOut);   // trailing CRLF
+    }
+  } else if (contentLen > 0) {
+    long remaining = contentLen;
+    while (remaining > 0) {
+      int c = readByteDeadline(client, t0, timeoutMs);
+      if (c < 0) break;
+      if (respBody.length() < MAX_BODY) respBody += (char)c;
+      remaining--;
+    }
+  } else {
+    uint32_t lastData = millis();
+    while (client.connected() && millis() - t0 < timeoutMs && millis() - lastData < 5000) {
+      if (client.available()) {
+        int c = client.read();
+        if (respBody.length() < MAX_BODY) respBody += (char)c;
+        lastData = millis();
+      } else {
+        wdtPet();
+        delay(10);
+      }
+    }
+  }
+  client.stop();
+  return true;
 }
 
 bool fetchConfig() {
@@ -568,9 +693,77 @@ void executeDecision(const Decision& d, const Reading& r, bool configDryRun) {
   float targetC = (d.maxWaterTempC > 0.0f) ? d.maxWaterTempC : POLICY_TARGET_C_DEFAULT;
   float mlEst = pumpSec * PUMP_FLOW_ML_PER_SEC;   // ESTIMATE only (rule 3/4)
 
-  if (pumpSec > 0 && r.tankEmpty) { Serial.println(F("[pump] blocked: tank empty")); pumpSec = 0; mlEst = 0; }
-  if (pumpSec > 0 && !r.moistureValid) { Serial.println(F("[pump] blocked: soil reading invalid")); pumpSec = 0; mlEst = 0; }
-  if (pumpSec > 0 && !r.waterValid) { Serial.println(F("[pump] blocked: invalid water probe (unsafe state)")); pumpSec = 0; mlEst = 0; }
+  // --- explicit actuation verdicts (permanent: makes silent skips impossible) ---
+  Serial.print(F("[actuate] water: decided="));
+  Serial.print(d.needsWatering ? F("true") : F("false"));
+  Serial.print(F(" requested="));
+  Serial.print(d.waterSec, 1);
+  Serial.print(F(" s -> capped="));
+  Serial.print(pumpSec);
+  Serial.print(F(" s (decision cap "));
+  Serial.print(d.maxPumpSec, 1);
+  Serial.print(F(" s, runtime cap "));
+  Serial.print(actuatorCapS);
+  Serial.print(F(" s) tank_empty="));
+  Serial.print(r.tankEmpty ? F("true") : F("false"));
+  Serial.print(F(" soil_probe="));
+  Serial.print(r.moistureValid ? F("ok") : F("invalid"));
+  Serial.print(F(" water_probe="));
+  Serial.print(r.waterValid ? F("ok") : F("invalid"));
+  Serial.print(F(" dry_run="));
+  Serial.println(dry ? F("true") : F("false"));
+
+  bool pumpBlocked = false;
+  if (pumpSec > 0 && r.tankEmpty) { Serial.println(F("[actuate] water: BLOCKED because tank is empty")); pumpSec = 0; mlEst = 0; pumpBlocked = true; }
+  if (pumpSec > 0 && !r.moistureValid) { Serial.println(F("[actuate] water: BLOCKED because soil reading invalid")); pumpSec = 0; mlEst = 0; pumpBlocked = true; }
+  if (pumpSec > 0 && !r.waterValid) { Serial.println(F("[actuate] water: BLOCKED because invalid water probe (unsafe state)")); pumpSec = 0; mlEst = 0; pumpBlocked = true; }
+  if (pumpBlocked) {
+    // reason already printed above
+  } else if (!d.needsWatering) {
+    Serial.println(F("[actuate] water: none requested"));
+  } else if (pumpSec == 0) {
+    Serial.println(F("[actuate] water: requested but capped to 0 s"));
+  } else if (dry) {
+    Serial.println(F("[actuate] water: SIMULATED - dry_run blocks the pump"));
+  } else {
+    Serial.print(F("[actuate] water: RUNNING PUMP for "));
+    Serial.print(pumpSec);
+    Serial.println(F(" s"));
+  }
+
+  Serial.print(F("[actuate] heater: decided="));
+  Serial.print(d.heaterOn ? F("true") : F("false"));
+  Serial.print(F(" requested="));
+  Serial.print(d.maxHeaterSec, 1);
+  Serial.print(F(" s -> capped="));
+  Serial.print(heatSec);
+  Serial.print(F(" s target="));
+  Serial.print(targetC, 1);
+  Serial.print(F(" C water="));
+  Serial.print(r.waterValid ? String(r.waterT, 2) : String("invalid"));
+  Serial.print(F(" refuse>="));
+  Serial.print(HEATER_REFUSE_C, 1);
+  Serial.print(F(" C cutoff>="));
+  Serial.print(HEATER_CUTOFF_C, 1);
+  Serial.print(F(" C dry_run="));
+  Serial.println(dry ? F("true") : F("false"));
+  if (heatSec > 0 && !r.waterValid) {
+    Serial.println(F("[actuate] heater: BLOCKED because invalid water probe"));
+  } else if (heatSec > 0 && r.waterT >= HEATER_REFUSE_C) {
+    Serial.print(F("[actuate] heater: BLOCKED because water already >= "));
+    Serial.print(HEATER_REFUSE_C, 1);
+    Serial.println(F(" C"));
+  } else if (!d.heaterOn) {
+    Serial.println(F("[actuate] heater: none requested"));
+  } else if (heatSec == 0) {
+    Serial.println(F("[actuate] heater: requested but capped to 0 s"));
+  } else if (dry) {
+    Serial.println(F("[actuate] heater: SIMULATED - dry_run blocks the heater"));
+  } else {
+    Serial.print(F("[actuate] heater: RUNNING HEATER for "));
+    Serial.print(heatSec);
+    Serial.println(F(" s"));
+  }
 
   if (dry) {
     // Rule 4: completions are log-only; a dry run reports NO measured delta.
@@ -671,15 +864,44 @@ void decisionCycle() {
   String eventId = "wroom-" + String((uint32_t)time(nullptr));
   String eventType = nextPostIsSunrise ? "sunrise" : "sunset";
   String body = buildTelemetryJson(r, eventType, eventId);
+  Serial.print(F("[cycle] telemetry bytes="));
+  Serial.println(body.length());
 
+  int status = -1;
   String resp;
-  bool ok = false;
-  for (int attempt = 1; attempt <= 3 && !ok; attempt++) {
-    ok = httpRequest("POST", "/core/sensor", body, resp, HTTP_POST_TIMEOUT_MS);
-    if (!ok) { Serial.print(F("[cycle] post attempt ")); Serial.print(attempt); Serial.println(F(" failed")); delay(5000); }
-    wdtPet();
+  Serial.print(F("[http] awaiting decision (timeout "));
+  Serial.print(DECISION_TIMEOUT_MS / 1000UL);
+  Serial.println(F(" s)..."));
+  uint32_t t0 = millis();
+  wdtPause();   // the AI pipeline can take minutes - keep the 8 s WDT off the wait
+  bool ok = postDecision(body, status, resp, DECISION_TIMEOUT_MS);
+  wdtResume();  // actuation below is WDT-covered again
+  wdtPet();
+  uint32_t waitedS = (millis() - t0) / 1000UL;
+
+  if (!ok || status < 200 || status >= 300) {
+    Serial.print(F("[cycle] DECISION POST FAILED after "));
+    Serial.print(waitedS);
+    Serial.print(F(" s (status="));
+    Serial.print(status);
+    Serial.println(F(") - NO actuation this cycle, no retry"));
+    if (status == -2) Serial.println(F("[cycle] reason: decision TIMEOUT - n8n did not answer in time"));
+    else if (status == -1) Serial.println(F("[cycle] reason: TLS/connect error or empty response"));
+    fetchConfig();
+    computeNextPost();
+    return;
   }
-  if (!ok) { Serial.println(F("[cycle] no valid decision (post failed) - NO actuation this cycle")); fetchConfig(); computeNextPost(); return; }
+
+  Serial.print(F("[decision] HTTP "));
+  Serial.print(status);
+  Serial.print(F(", "));
+  Serial.print(resp.length());
+  Serial.print(F(" bytes, decision received after "));
+  Serial.print(waitedS);
+  Serial.println(F(" s"));
+  Serial.print(F("[decision] raw: "));
+  if (resp.length() > 600) { Serial.print(resp.substring(0, 600)); Serial.println(F(" ...[truncated]")); }
+  else { Serial.println(resp); }
 
   Decision d = parseDecision(resp);
   if (!d.valid) { Serial.println(F("[cycle] decision invalid - NO actuation this cycle")); fetchConfig(); computeNextPost(); return; }
@@ -839,6 +1061,17 @@ void commandStatus() {
   Serial.print(lastReading.tankEmpty ? F("true") : F("false"));
   Serial.print(F(" water_c="));
   Serial.println(lastReading.waterValid ? String(lastReading.waterT, 2) : String("invalid"));
+  Serial.print(F("[status] relay_logic="));
+  Serial.print(RELAY_ACTIVE_LOW ? F("ACTIVE_LOW") : F("ACTIVE_HIGH"));
+  Serial.print(F(" (ON level="));
+  Serial.print(relayOnLevel() == HIGH ? F("HIGH") : F("LOW"));
+  Serial.print(F(", OFF level="));
+  Serial.print(relayOffLevel() == HIGH ? F("HIGH") : F("LOW"));
+  Serial.print(F(") pump_gpio13="));
+  Serial.print(digitalRead(PIN_PUMP) == HIGH ? F("HIGH") : F("LOW"));
+  Serial.print(F(" heater_gpio16="));
+  Serial.print(digitalRead(PIN_HEATER) == HIGH ? F("HIGH") : F("LOW"));
+  Serial.println(F(" (compare with the physical module)"));
 }
 
 void handleSerial() {
@@ -868,7 +1101,7 @@ void setup() {
   delay(400);
   loadActuatorCap();
   Serial.println();
-  Serial.println(F("PhytoAI WROOM production v1.1 (2026-09-19)"));
+  Serial.println(F("PhytoAI WROOM production v1.2 (2026-09-19)"));
   Serial.println(F("[safety] pump CH1 + heater CH2 forced OFF; dry-run gates all actuation"));
   Serial.print(F("[safety] heater hard cutoff 40.0 C, refuse 39.5 C, actuator cap "));
   Serial.print(actuatorCapS);
