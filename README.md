@@ -243,9 +243,15 @@ from an arbitrary GPIO.
 (LOW = empty), DHT22 **14**, LDR **25**, LED **2**.
 
 **Safety notes (mandatory):** operate the heater **submerged only**; firmware enforces a 40.0 °C
-cutoff, refuses to start at ≥ 39.5 °C, and caps continuous actuation at 120 s; relays default OFF at
-boot. An early brief contained a stale pin map (pump 4, HX711 5/25, OneWire 13, soil 26) — it is
-superseded; use the map above.
+cutoff, refuses to start at ≥ 39.5 °C, and caps continuous actuation at a runtime-settable limit
+(default 120 s, hard bounds 5–600 s via serial `l`); relays default OFF at boot. An early brief
+contained a stale pin map (pump 4, HX711 5/25, OneWire 13, soil 26) — it is superseded; use the map
+above.
+
+**DS18B20 water probe placement (mandatory):** the waterproof water-temperature probe must float
+**freely in the tank — fully surrounded by water on all sides** — and must **not** touch the tank
+wall, the tank bottom, or any other object. Contact conducts stray heat and skews the
+water-temperature readings that gate the heater.
 
 ## Software and services needed
 
@@ -272,8 +278,12 @@ Accounts you create yourself (placeholder values only — never commit real cred
 **Configuration:** copy [`dashboard/config.example.js`](dashboard/config.example.js) to
 `dashboard/config.js` and fill in your client ID, spreadsheet ID, and n8n host. Each firmware sketch
 has a `secrets.h` section (`SECRET_WIFI_SSID`, `SECRET_WIFI_PASSWORD`, `SECRET_BASE_URL`,
-`SECRET_WEBHOOK_PREFIX`); `secrets.h` is git-ignored — never commit it. Use the `/webhook` prefix in
-production (`/webhook-test` is the n8n test listener).
+`SECRET_WEBHOOK_PREFIX`); `secrets.h` is git-ignored — never commit it.
+
+**Production webhooks:** set `SECRET_WEBHOOK_PREFIX` to `/webhook` for production; `/webhook-test` is
+the n8n **editor test listener** and only responds once after you click “Execute workflow”.
+Production webhooks only register while the workflow is **ACTIVE**, so activate the workflow in n8n
+before flashing or operating the devices.
 
 ## Camera and AI plant inspection
 
@@ -328,8 +338,9 @@ One spreadsheet, **five tabs** (headers exactly as in `test-data/dashboard-seed/
 **Important semantics:** `ml_est` is an **estimate** from pump runtime × calibrated flow
 (`9.706 ml/s` reference). The **measured** weight delta is currently **device-log only** — the
 workflow does not persist it, so `WaterAddedGrams` stays empty by design. Capture reason and per-photo
-light condition are **not persisted**. Firmware hard limits (40.0 °C cutoff, 39.5 °C refuse, 120 s cap,
-8 s watchdog) are authoritative over everything; workflow guardrails (tank-empty forces watering off,
+light condition are **not persisted**. Firmware hard limits (40.0 °C cutoff, 39.5 °C refuse, runtime
+actuator cap — default 120 s, settable 5–600 s, 8 s watchdog) are authoritative over everything;
+workflow guardrails (tank-empty forces watering off,
 `min_rewater_interval_hours`, `max_pump_seconds`, `max_water_temp_c`, `dry_run_mode`) are authoritative
 over AI output; the AI is advisory only.
 
@@ -459,6 +470,20 @@ claimed to have succeeded — results will be reported only after the owner veri
 - [ ] Dashboard loads and shows your data; test-sheet override works (`?sheet=`).
 - [ ] Browser permission is requested only after the Settings click; all states render.
 - [ ] Camera: follow `firmware/esp32cam_production/PRODUCTION-TESTS.md` (14 tests; several need hardware).
+
+### WROOM serial commands
+
+The production WROOM sketch (`firmware/wroom_production/`) accepts single-key commands over the
+serial monitor at **115200 baud**. `dry_run` gates **all** GPIO actuation, including the debug-send
+cycle.
+
+| Key | Command | Usage | Safety bounds |
+|---|---|---|---|
+| `t` | INSTALLATION tare | Press `t`, then `y` to confirm. The platform must be **EMPTY**; records the empty-platform offset in NVS and is never part of normal operation. | Only with an empty platform; the HX711 is never auto-tared. |
+| `l` | Runtime actuator cap | Press `l`, type the new cap in seconds, press Enter. Applies to pump and heater and is persisted to NVS (survives reboots). | Hard bounds **5–600 s**; non-numeric or out-of-range input is rejected with a printed reason; default `120 s`. |
+| `s` | Debug send | Press `s` — runs one full telemetry cycle immediately: `GET /webhook/config`, then the same 12-field `POST /webhook/core/sensor` as the scheduled event; prints the HTTP status and returned decision keys, then the next scheduled event. | Uses the normal code path; `dry_run` still gates all actuation. |
+| `i` | Status | Prints uptime, Wi-Fi, dry-run state, HX711 offset/scale, actuator cap, tank and water state. | — |
+| `h` or `?` | Help | Lists the commands. | — |
 
 ## Troubleshooting
 
