@@ -7,6 +7,8 @@
 Dieses ZIP enthält den öffentlichen Projektstand (Code + Dokumentation) für die Begutachtung.
 Es ist kein Video und keine Formularantwort — nur das nachbaubare Projekt.
 
+**Live-Stand 19.09.2026:** Das Gesamtsystem lief live durch — Telemetrie-Entscheidungen steuerten die echte Pumpe unter den Code-Guardrails, Tagesfoto-Analyse und Wochenscan-Kette liefen im Produktivbetrieb, und alle fünf Geräte-Webhooks wurden live verifiziert.
+
 ---
 
 ## 1. Was in diesem ZIP enthalten ist
@@ -20,7 +22,9 @@ Es ist kein Video und keine Formularantwort — nur das nachbaubare Projekt.
 | `yolo-service/` | Lokaler Bildklassifikator-Dienst (FastAPI + Ultralytics, CPU) inkl. `models/model.pt`. |
 | `docs/` | Technische Dokumentation: Plan/Schemas, Hardware-Bench-Werte, Dashboard-Verträge, Benachrichtigungen, Firmware-Briefs, Specs. |
 | `Hardware/` | Hardware-Liste (Bauteile). |
-| `test-data/` | Sichere Beispieldaten (Seed-CSV) für eine Test-Tabelle — keine echten Pflanzen- oder Personendaten. |
+| `test-data/` | Sichere Beispieldaten: Seed-CSVs **und `PhytoAI-demo-data.xlsx`** (exakte Tab-/Kopfzeilen-Struktur, nötige `SystemConfig`-Seeds und ein kleiner, echter Demo-Ausschnitt) — keine privaten Daten. |
+| `SETUP-GUIDE.md` | **Schritt-für-Schritt-Einrichtung + Live-Test-Rezept für Gutachter** (Tabelle → n8n → Firmware → Inbetriebnahme → Tests, inkl. Serial-Monitor-Einstellungen und erwarteten Zeiten). |
+| `SETUP-GUIDE.de.md` | Dieselbe Anleitung auf Deutsch. |
 | `README.md` | Diese Datei (Übersicht für die Begutachtung). |
 | `README.de.md` | Deutsche Projekt-README (Newcomer-Bauanleitung). |
 | `STATUS.md` | Aktueller Projektstatus inkl. offener Punkte. |

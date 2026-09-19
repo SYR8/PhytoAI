@@ -4,7 +4,7 @@ PhytoAI ist ein DIY-Smart-Pot-System: Ein ESP32-Gerät misst Bodenfeuchte, Tempe
 
 > Englische Fassung: **[README.md](README.md)**.
 
-**Ehrlicher Status in einem Satz:** Die Software-Kette ist implementiert und mit Simulationen und Testdaten getestet; die Hardware ist in Einzelteilen am Bench-Aufbau geprüft; ein Dauerbetrieb an einer echten Pflanze hat **noch nicht** stattgefunden. Siehe [Aktueller Status](#4-aktueller-status).
+**Ehrlicher Status in einem Satz:** Das Gesamtsystem lief am **19.09.2026** live durch — Telemetrie-Entscheidungen steuerten die echte Pumpe unter den Code-Guardrails, Tagesfoto-Analyse und Wochenscan-Kette liefen im Produktivbetrieb, und alle fünf Geräte-Webhooks wurden live verifiziert. Siehe [Aktueller Status](#4-aktueller-status).
 
 ---
 
@@ -42,17 +42,17 @@ Legende: **implementiert** (Code existiert und funktioniert in Tests) · **getes
 
 | Teil | Status |
 |---|---|
-| n8n-Workflow (`workflows/phytoai.json`, 224 Nodes) | **implementiert + getestet** über viele simulierte Ausführungen und Pinned-Data-Tests. **Besitzerspezifisch:** derzeit vom Besitzer deaktiviert (jederzeit reaktivierbar); `dry_run_mode` ist `TRUE`. |
+| n8n-Workflow (`workflows/phytoai.json`, 233 Nodes) | **implementiert + getestet + live (19.09.2026)** — Telemetrie-Entscheidungen, Foto-Analyse, Wochenscan und die Sitzungs-Flag-Verkabelung liefen im Produktivbetrieb. **Besitzerspezifisch:** auf der Instanz des Besitzers aktiv; die Aktorik ist über `dry_run_mode` gegated. |
 | Dashboard (`dashboard/`) | **implementiert + getestet** (Headless-End-to-End-Suiten: Startanfragen, Diagramme, Assistent, Benachrichtigungen — siehe `docs/dashboard-ux-v3.md`, `docs/dashboard-notifications.md`); vom Besitzer auf statischem Host deployt. |
-| WROOM-Produktionsfirmware | **implementiert**; nur kompiliert — **noch nicht geflasht**. |
+| WROOM-Produktionsfirmware | **live verifiziert am 19.09.2026** — geflasht; Entscheidungen steuerten die echte Pumpe unter den Code-Guardrails. |
 | WROOM-Kalibrierungs-/Bench-Sketch | **getestet**: geflasht und am 15.09.2026 am Bench gelaufen (Werte in `docs/hw-bench-2026-09-15.md`). |
-| ESP32-CAM-Produktionsfirmware | **implementiert**; nur kompiliert — **noch nicht geflasht**; 14-Test-Plan in `firmware/esp32cam_production/PRODUCTION-TESTS.md`. |
+| ESP32-CAM-Produktionsfirmware | **live verifiziert am 19.09.2026** — geflasht; sitzungsgesteuertes Tagesfoto und Wochenscan liefen im Produktivbetrieb. |
 | ESP32-CAM-Testsketch | am Bench **getestet** (Kamerainit, WLAN, Webhook-Upload). |
 | Lokaler Krankheits-Klassifikator (`yolo-service/`) | **implementiert + getestet**: auf dem Server des Besitzers mit trainiertem Modell im Einsatz (Validierungswerte unten). |
 | Benachrichtigungszentrum in der App | **implementiert + getestet** (`docs/dashboard-notifications.md`). |
 | Browser-Hinweise bei offenem Tab | **implementiert + getestet** (Berechtigung nur nach Klick). |
 | Push bei geschlossener Seite | **nicht implementiert** (kein Service Worker, kein Web Push). |
-| Dauerbetrieb an echter Pflanze | **noch nicht** — erster vollständiger End-to-End-Lauf steht aus. |
+| Dauerbetrieb an echter Pflanze | **live durchgelaufen am 19.09.2026** — Telemetrie → Entscheidung → echte Pumpen-Aktuierung unter Guardrails, Tagesfoto-Analyse und Wochenscan-Kette im Produktivbetrieb. |
 | Kamerastrom | **besitzerspezifisch:** kabelgebunden; alte Batterie-Felder bleiben in Schema/Firmware und sind obsolet. |
 
 Gemessenes Modellergebnis (nur Validierungssplit): **96,08 % Top-1 / 99,955 % Top-5**; kein separater Testsatz und kein Trainingsgenauigkeits-Messwert, daher wird keiner behauptet. Details: [Datenmodell](#14-datenmodell) und `docs/yolo-service-spec.md`.
