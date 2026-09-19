@@ -1,7 +1,12 @@
-// PhytoAI ESP32-CAM — production autonomous firmware (separate from the esp32cam.ino test baseline).
+// PhytoAI ESP32-CAM — production autonomous firmware v1.1 (2026-09-19)
+//           (separate from the esp32cam.ino test baseline).
 //
 // Autonomy: Wi-Fi -> NTP (UTC) -> GET /config -> scheduled daily photo (POST /core/photo)
 //           and scheduled weekly scan (POST /yolo-scan, then POST /yolo-scan/done).
+//           The scan runs ONLY while /config reports scan_session_active=true (cloud
+//           session opened by the weekly n8n trigger); a boot or any non-scan wake
+//           never posts to /yolo-scan without it. Fixed wired camera: no positioning.
+// Serial:   h=help s=send photo now c=scan now (session-gated) i=status; see 'h'.
 // Safety:   NO actuators. This firmware never waters or heats; the camera is static
 //           (no servo/pan-tilt/aiming). Watering/heating stay on the WROOM + n8n guardrails.
 // Secrets:  read from the gitignored secrets.h (SECRET_WIFI_SSID, SECRET_WIFI_PASSWORD,
@@ -11,11 +16,14 @@
 // Reliability summary (see firmware/esp32cam/PRODUCTION-TESTS.md for the test plan):
 //   Wi-Fi: 3 tries x 20 s per pass, then deep-sleep 15 min and retry (RETRY_SOON_SECONDS).
 //   NTP:   2 tries x 15 s; without a valid UTC clock no capture is attempted (retry soon).
-//   HTTP:  15 s upload / 8 s config timeout; uploads retried 3x with 5 s exponential backoff.
-//   Scan:  session window 90 min after the target time, retry every 10 min (handles
-//          no_active_session, e.g. after a watchdog auto-close); bookkeeping prevents a
-//          second scan in the same week bucket. /yolo-scan has no idempotency key -> a retry
-//          after an already-processing POST can duplicate; the miss is recorded and not retried.
+//   HTTP:  60 s upload / 8 s config timeout; uploads retried 3x with 5 s exponential backoff.
+//   Scan:  due ONLY inside the 90-min window after the target; gated on
+//          scan_session_active=true from the latest /config. If the session is not open
+//          yet the pass re-checks every 15 min inside the window and sends NO uploads;
+//          a manual 'c' test also aborts with no uploads when the session is closed.
+//          Bookkeeping prevents a second scan in the same week bucket; manual test scans
+//          never record a miss. /yolo-scan has no idempotency key -> a retry after an
+//          already-processing POST can duplicate; the miss is recorded and not retried.
 //   Daily: event_id "cam-<YYYYMMDD>" is upserted by n8n, so reboots/retries cannot duplicate.
 //   Sleep: deep sleep until the next event minus WAKE_LEAD_SECONDS, capped at 12 h per sleep.
 
@@ -58,7 +66,7 @@ const char* PATH_CONFIG = "/config";
 #define WIFI_TIMEOUT_MS       20000
 #define NTP_RETRIES           2
 #define NTP_TIMEOUT_MS        15000
-#define HTTP_TIMEOUT_MS       15000
+#define HTTP_TIMEOUT_MS       60000
 #define CONFIG_TIMEOUT_MS     8000
 #define UPLOAD_RETRIES        3
 #define UPLOAD_BACKOFF_MS     5000
@@ -120,6 +128,7 @@ String cfgLightUtc = "";
 double cfgLight = -1;
 double cfgThr = -1;
 bool cfgFetched = false;
+bool cfgScanSessionActive = false;   // scan_session_active as last seen in /config
 
 struct MultipartField {
   const char* name;
@@ -443,13 +452,16 @@ bool pollConfig() {
   cfgFetched = true;
   jsonFindValue(body, "next_sunrise_utc", cfgNextSunriseUtc);
   jsonFindValue(body, "next_sunset_utc", cfgNextSunsetUtc);
-  jsonFindValue(body, "next_scan_utc", cfgNextScanUtc);
+  if (!jsonFindValue(body, "scan_next_utc", cfgNextScanUtc)) jsonFindValue(body, "next_scan_utc", cfgNextScanUtc);
   jsonFindValue(body, "last_lightlevel_utc", cfgLightUtc);
+  String sessionVal;
+  cfgScanSessionActive = jsonFindValue(body, "scan_session_active", sessionVal) && sessionVal == "true";
   double v = 0;
   if (jsonNumber(body, "last_lightlevel", v)) cfgLight = v; else cfgLight = -1;
   if (jsonNumber(body, "flash_dark_threshold", v)) cfgThr = v; else cfgThr = -1;
   Serial.print(F("[config] ok"));
   if (cfgNextScanUtc.length()) Serial.print(String(" next_scan_utc=") + cfgNextScanUtc);
+  Serial.print(String(" scan_session_active=") + (cfgScanSessionActive ? "true" : "false"));
   if (cfgLight >= 0) Serial.print(String(" light=") + fmtNum(cfgLight));
   Serial.println();
   return true;
@@ -588,10 +600,34 @@ time_t localWeeklyScanAfter(time_t from) {
   return target;
 }
 
-time_t scanTargetFor(time_t now) {
+// Most recent local weekly target (Monday SCAN_HOUR_UTC) at or before `from`.
+time_t localWeeklyScanBefore(time_t from) {
+  struct tm tmv;
+  gmtime_r(&from, &tmv);
+  int wday = tmv.tm_wday;
+  tmv.tm_hour = SCAN_HOUR_UTC;
+  tmv.tm_min = SCAN_MIN_UTC;
+  tmv.tm_sec = 0;
+  tmv.tm_isdst = 0;
+  time_t base = mktime(&tmv);
+  int back = (wday - SCAN_WEEKDAY_UTC + 7) % 7;
+  return base - (time_t)back * 86400;
+}
+
+// Scan is due ONLY inside the 90-min window after the target. The caller applies
+// the cloud session gate (scan_session_active) separately.
+bool scanDue(time_t now) {
   long t = cfgNextScanUtc.length() ? isoToEpoch(cfgNextScanUtc) : 0;
-  if (t > 0 && t >= now - (long)(SCAN_WINDOW_MS / 1000)) return (time_t)t;
-  return localWeeklyScanAfter(now - 7 * 86400 + 60);
+  if (t > 0) return now >= t && (long)now - t <= (long)(SCAN_WINDOW_MS / 1000);
+  time_t local = localWeeklyScanBefore(now);
+  return now >= local && (long)now - local <= (long)(SCAN_WINDOW_MS / 1000);
+}
+
+// Next future target for wake scheduling (config override first, else next Monday).
+time_t nextScanTarget(time_t now) {
+  long t = cfgNextScanUtc.length() ? isoToEpoch(cfgNextScanUtc) : 0;
+  if (t > 0 && t >= now) return (time_t)t;
+  return localWeeklyScanAfter(now);
 }
 
 bool postDailyPhoto() {
@@ -653,10 +689,10 @@ bool postScanDone(const String& startedIso) {
   return false;
 }
 
-bool postScanWindow() {
+bool postScanWindow(bool manual) {
   time_t now = time(nullptr);
   uint32_t bucket = weekBucket(now);
-  if (stLastScanB == bucket) {
+  if (!manual && stLastScanB == bucket) {
     Serial.println(F("[scan] already completed this week bucket"));
     return true;
   }
@@ -709,26 +745,77 @@ bool postScanWindow() {
     postScanDone(capturedIso);
     return true;
   }
-  saveScanMiss(bucket);
-  Serial.println(failed ? F("[scan] window ended without success - recorded miss for this week") : F("[scan] window ended (session never opened) - recorded miss for this week"));
+  if (!manual) saveScanMiss(bucket);
+  Serial.println(manual ? F("[scan] manual test ended without success - no miss recorded")
+                        : (failed ? F("[scan] window ended without success - recorded miss for this week")
+                                  : F("[scan] window ended (session never opened) - recorded miss for this week")));
   return false;
 }
 
 bool diagnosticMode = false;
 
-void printState() {
+String isoUtc(time_t t) {
+  struct tm tmv;
+  gmtime_r(&t, &tmv);
+  char buf[24];
+  strftime(buf, sizeof(buf), "%Y-%m-%dT%H:%M:%SZ", &tmv);
+  return String(buf);
+}
+
+String flashModeString() {
+  if (g_torchOn) return String("TORCH");
+  if (cfgLight >= 0 && cfgThr >= 0) return String("auto(sensor)");
+  if (cfgNextSunriseUtc.length() && cfgNextSunsetUtc.length()) return String("auto(suntimes)");
+  return String("auto(fallback ON)");
+}
+
+void printNextEvents() {
   time_t now = time(nullptr);
-  Serial.println(F("--- state ---"));
-  Serial.print(String("device: ") + DEVICE_ID + " | wifi: " + (WiFi.status() == WL_CONNECTED ? "connected" : "off") + " | utc: " + isoNow() + "\n");
-  Serial.print(String("last_daily: ") + (stLastDaily.length() ? stLastDaily : "-") + " | last_scan_bucket: " + (stLastScanB == 0xFFFFFFFF ? String("-") : String(stLastScanB)) + " | scan_miss: " + (stScanMissB == 0xFFFFFFFF ? String("-") : String(stScanMissB)) + "\n");
-  if (now >= CLOCK_VALID_AFTER) {
-    Serial.print(String("daily target: ") + isoNow() + " (next: " + String((long)nextDailyTarget(now)) + ")\n");
-    Serial.print(String("scan target epoch: ") + String((long)scanTargetFor(now)) + "\n");
+  if (now < CLOCK_VALID_AFTER) { Serial.println(F("[sched] clock invalid - next events unknown")); return; }
+  Serial.print(String("[sched] next daily photo at ") + isoUtc(nextDailyTarget(now)) + " UTC");
+  Serial.println(String(" | next weekly scan at ") + isoUtc(nextScanTarget(now)) + " UTC (session-gated)");
+}
+
+void commandStatus() {
+  time_t now = time(nullptr);
+  Serial.println(F("--- status ---"));
+  Serial.print(String("[status] device=") + DEVICE_ID + " wifi=" + (WiFi.status() == WL_CONNECTED ? "up" : "down") + " utc=" + isoNow() + "\n");
+  Serial.print(String("[status] last_daily=") + (stLastDaily.length() ? stLastDaily : String("-")) +
+               " last_scan_bucket=" + (stLastScanB == 0xFFFFFFFF ? String("-") : String(stLastScanB)) +
+               " scan_miss_bucket=" + (stScanMissB == 0xFFFFFFFF ? String("-") : String(stScanMissB)) + "\n");
+  Serial.print(String("[status] scan_session_active=") + (cfgScanSessionActive ? "true" : "false") + " (as last seen in /config; config_fetched=" + (cfgFetched ? "yes" : "no") + ")\n");
+  Serial.print(String("[status] flash_mode=") + flashModeString() + " torch=" + (g_torchOn ? "ON" : "OFF") + "\n");
+  Serial.print(String("[status] free_heap=") + ESP.getFreeHeap() + " free_psram=" + (psramFound() ? String(ESP.getFreePsram()) : String("none")) + "\n");
+  printNextEvents();
+}
+
+void commandSendNow() {
+  Serial.println(F("[s] send now: GET /config, one daily photo via the scheduled path"));
+  if (!connectWifi()) { Serial.println(F("[s] aborted: no WiFi")); return; }
+  if (!syncClock()) { Serial.println(F("[s] aborted: no valid UTC clock")); return; }
+  pollConfig();
+  postDailyPhoto();
+  printNextEvents();
+}
+
+void commandScanNow() {
+  Serial.println(F("[c] scan now: GET /config, require scan_session_active=true, then the scan sweep"));
+  if (!connectWifi()) { Serial.println(F("[c] aborted: no WiFi")); return; }
+  if (!syncClock()) { Serial.println(F("[c] aborted: no valid UTC clock")); return; }
+  pollConfig();
+  if (!cfgScanSessionActive) {
+    Serial.println(F("[scan] cloud session not active - scan would be rejected"));
+    Serial.println(F("[c] aborted: no uploads sent"));
+    printNextEvents();
+    return;
   }
+  Serial.println(F("[scan] cloud session ACTIVE - running the sweep now"));
+  postScanWindow(true);
+  printNextEvents();
 }
 
 void printMenu() {
-  Serial.println(F("Commands: h=help w=wifi n=ntp c=config b=battery p=daily photo now s=scan now d=scan-done test f=flash torch t=state r=reboot"));
+  Serial.println(F("Commands: h=help s=send photo now c=scan now (needs session) i=status w=wifi n=ntp g=get config b=battery d=scan-done test f=torch r=reboot"));
 }
 
 void runDiagnostic() {
@@ -736,7 +823,7 @@ void runDiagnostic() {
   while (Serial.available()) Serial.read();
   Serial.println(F("[diag] commissioning/diagnostic mode (no deep sleep)"));
   printMenu();
-  printState();
+  commandStatus();
   while (true) {
     if (!Serial.available()) {
       delay(50);
@@ -747,13 +834,13 @@ void runDiagnostic() {
       case 'h': printMenu(); break;
       case 'w': connectWifi(); break;
       case 'n': if (connectWifi()) syncClock(); break;
-      case 'c': if (connectWifi()) pollConfig(); break;
+      case 'g': if (connectWifi()) pollConfig(); break;
       case 'b': Serial.print(String("[battery] raw_avg=") + batteryRawAvg() + " percent=" + batteryPercentNow() + "\n"); break;
-      case 'p': if (connectWifi() && syncClock()) { pollConfig(); postDailyPhoto(); } break;
-      case 's': if (connectWifi() && syncClock()) { pollConfig(); postScanWindow(); } break;
+      case 's': commandSendNow(); break;
+      case 'c': commandScanNow(); break;
+      case 'i': case 't': commandStatus(); break;
       case 'd': if (connectWifi()) postScanDone(isoNow()); break;
       case 'f': g_torchOn = !g_torchOn; pinMode(PIN_FLASH_LED, OUTPUT); digitalWrite(PIN_FLASH_LED, g_torchOn ? FLASH_LED_ON_LEVEL : FLASH_LED_OFF_LEVEL); Serial.println(g_torchOn ? F("[flash] ON (torch)") : F("[flash] OFF")); break;
-      case 't': printState(); break;
       case 'r': Serial.println(F("[diag] rebooting")); delay(200); ESP.restart(); break;
       default: break;
     }
@@ -801,10 +888,13 @@ void runAutonomousPass() {
 
   uint32_t bucket = weekBucket(time(nullptr));
   bool scanHandled = (stLastScanB == bucket) || (stScanMissB == bucket);
-  time_t scanTarget = scanTargetFor(time(nullptr));
-  if (!scanHandled && time(nullptr) >= scanTarget) {
-    Serial.println(F("[plan] weekly scan due"));
-    postScanWindow();
+  if (!scanHandled && scanDue(time(nullptr))) {
+    if (cfgScanSessionActive) {
+      Serial.println(F("[plan] weekly scan due + cloud session ACTIVE"));
+      postScanWindow(false);
+    } else {
+      Serial.println(F("[scan] due but cloud session not active - no uploads, re-check soon"));
+    }
   }
 
   now = time(nullptr);
@@ -812,7 +902,10 @@ void runAutonomousPass() {
   bucket = weekBucket(now);
   scanHandled = (stLastScanB == bucket) || (stScanMissB == bucket);
   time_t nextDaily = dailyDone ? nextDailyTarget(now) : (now < nextDailyTarget(now - 86400) ? nextDailyTarget(now - 86400) : now + RETRY_SOON_SECONDS);
-  time_t nextScan = scanHandled ? localWeeklyScanAfter(now + 60) : scanTargetFor(now);
+  time_t nextScan;
+  if (scanHandled) nextScan = localWeeklyScanAfter(now + 60);
+  else if (scanDue(now)) nextScan = now + RETRY_SOON_SECONDS;   // session not open yet - re-check inside the window
+  else nextScan = nextScanTarget(now);
   if (nextScan < now) nextScan = now + RETRY_SOON_SECONDS;
   time_t nextEvent = nextDaily < nextScan ? nextDaily : nextScan;
   time_t wakeAt = nextEvent - WAKE_LEAD_SECONDS;
@@ -828,8 +921,9 @@ void setup() {
   analogSetAttenuation(ADC_11db);
   loadState();
   Serial.println();
-  Serial.println(F("PhytoAI ESP32-CAM production firmware (autonomous)"));
+  Serial.println(F("PhytoAI ESP32-CAM production firmware v1.1 (autonomous, session-gated scan)"));
   Serial.print(String("device_id=") + DEVICE_ID + " | base_url_configured=" + (String(SECRET_BASE_URL).length() > 0 ? "yes" : "no") + "\n");
+  printMenu();
 
   uint32_t waitStart = millis();
   while (millis() - waitStart < DIAGNOSTIC_WINDOW_MS) {
