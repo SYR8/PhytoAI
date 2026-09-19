@@ -2676,15 +2676,15 @@
     },
     {
       "parameters": {
-        "jsCode": "const norm = $('Normalize Photo Output').first().json;\nconst updates = [];\nconst nowIso = $now.toISO();\nconst newConf = Number(norm.species_confidence ?? 0);\nconst storedConf = Number(norm.species_confidence_stored ?? 0);\nif (newConf > storedConf) {\nupdates.push({ Key: 'last_species_guess', Value: norm.species_guess, LastUpdated: nowIso });\nupdates.push({ Key: 'species_confidence', Value: String(newConf), LastUpdated: nowIso });\n}\nreturn updates.map((u) => ({ json: u }));"
+        "jsCode": "const norm = $('Normalize Photo Output').first().json;\nconst updates = [];\nconst nowIso = $now.toISO();\n// Deliberate no-op: only overwrite the stored species when this analysis beats the\n// stored confidence. Zero items here (e.g. exec 953: Aloe vera 0.3 vs stored 0.7)\n// means Update Species Config is skipped BY DESIGN - not a failure.\nconst newConf = Number(norm.species_confidence ?? 0);\nconst storedConf = Number(norm.species_confidence_stored ?? 0);\nif (newConf > storedConf) {\nupdates.push({ Key: 'last_species_guess', Value: norm.species_guess, LastUpdated: nowIso });\nupdates.push({ Key: 'species_confidence', Value: String(newConf), LastUpdated: nowIso });\n}\nreturn updates.map((u) => ({ json: u }));"
       },
       "id": "2a3192d7-2ef0-449f-ba9f-edeb3cf0787c",
       "name": "Build Species Update",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        2640,
-        528
+        2768,
+        656
       ]
     },
     {
@@ -6478,7 +6478,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const webhookItem = $('Daily Photo Webhook').first();\nconst body = webhookItem.json.body || {};\nconst configRows = $('Read SystemConfig B').all().map((i) => i.json).filter((r) => r && Object.keys(r).length > 0);\nconst eventRows = $('Read Event History B').all().map((i) => i.json).filter((r) => r && Object.keys(r).length > 0);\nconst matchRows = $('Read Matching Event Row').all().map((i) => i.json).filter((r) => r && Object.keys(r).length > 0);\nconst cfg = {};\nfor (const row of configRows) {\nif (row.Key !== undefined && row.Key !== null && String(row.Key).trim() !== '') {\ncfg[String(row.Key).trim()] = row.Value;\n}\n}\nconst lastWatered = cfg['last_watered_utc'] || '';\nlet elapsedHours = null;\nif (lastWatered) {\nconst t = Date.parse(lastWatered);\nif (!isNaN(t)) {\nelapsedHours = Math.round(((Date.now() - t) / 3600000) * 10) / 10;\n}\n}\nconst speciesGuess = cfg['last_species_guess'] || 'unknown';\nconst speciesConfidence = cfg['species_confidence'] || '0';\nconst dryRun = String(cfg['dry_run_mode'] || 'false').toLowerCase() === 'true';\nconst eventId = body.event_id || '';\nconst todayRow = matchRows[0] || null;\nconst hasSensorRow = todayRow !== null;\nconst historyCompact = eventRows.slice(-10).map((r) => ({\ntimestamp: r.Timestamp,\nevent_type: r.EventType,\nmoisture_percent: r.MoisturePercent,\nweight_grams: r.WeightGrams,\nsoil_temp_c: r.SoilTempC,\nwater_temp_c: r.WaterTempC,\nwatered: r.WateringTriggered,\nwater_duration_seconds: r.WaterDurationSeconds,\nheater_used: r.HeaterUsed,\nspecies_guess: r.SpeciesGuess,\nanomaly_detected: r.AnomalyDetected,\n}));\nconst lines = [\n\"PHOTO: today's quick-check image of the plant.\",\n\"SAME EVENT'S SENSOR DATA (event_id \" + eventId + '): ' + (hasSensorRow ? JSON.stringify(todayRow) : '{}'),\n'HISTORY - last 10 events (compact):',\nJSON.stringify(historyCompact),\n'LAST WATERED: ' + (lastWatered || 'never') + (elapsedHours !== null ? ' (' + elapsedHours + ' h ago)' : ''),\n'SPECIES ON RECORD: ' + speciesGuess + ' (confidence ' + speciesConfidence + ')',\n];\nif (hasSensorRow) {\nlines.push(\"TODAY'S DECISION (for your review): see the matching event row above (WateringTriggered, WaterDurationSeconds).\");\n} else {\nlines.push('CONTEXT NOTE: no sensor row for this event_id (WROOM may not have posted yet)');\n}\nlines.push('Return strict JSON: species_guess, species_confidence (0-1), anomaly_detected (bool), anomaly_description (string|null), watering_review (string: agree/disagree + one-sentence reason), ai_notes (string).');\nreturn [{\njson: {\ncontext_text: lines.join('\\n'),\nevent_id: eventId,\nevent_type: body.event_type || (todayRow && todayRow.EventType) || '',\ncaptured_at_utc: body.captured_at_utc || (todayRow && todayRow.Timestamp) || '',\nspecies_confidence_stored: speciesConfidence,\ndrive_daily_photos_folder_id: cfg['drive_daily_photos_folder_id'] || '',\nbattery_percent: body.battery_percent ?? null,\ndry_run_mode: dryRun,\ntoday_row: todayRow,\n},\nbinary: webhookItem.binary,\n}];"
+        "jsCode": "const webhookItem = $('Daily Photo Webhook').first();\nconst body = webhookItem.json.body || {};\nconst configRows = $('Read SystemConfig B').all().map((i) => i.json).filter((r) => r && Object.keys(r).length > 0);\nconst eventRows = $('Read Event History B').all().map((i) => i.json).filter((r) => r && Object.keys(r).length > 0);\nconst matchRows = $('Read Matching Event Row').all().map((i) => i.json).filter((r) => r && Object.keys(r).length > 0);\nconst cfg = {};\nfor (const row of configRows) {\nif (row.Key !== undefined && row.Key !== null && String(row.Key).trim() !== '') {\ncfg[String(row.Key).trim()] = row.Value;\n}\n}\nconst lastWatered = cfg['last_watered_utc'] || '';\nlet elapsedHours = null;\nif (lastWatered) {\nconst t = Date.parse(lastWatered);\nif (!isNaN(t)) {\nelapsedHours = Math.round(((Date.now() - t) / 3600000) * 10) / 10;\n}\n}\nconst speciesGuess = cfg['last_species_guess'] || 'unknown';\nconst speciesConfidence = cfg['species_confidence'] || '0';\nconst dryRun = String(cfg['dry_run_mode'] || 'false').toLowerCase() === 'true';\nconst eventId = body.event_id || '';\nconst todayRow = matchRows[0] || null;\nconst hasSensorRow = todayRow !== null;\nconst historyCompact = eventRows.slice(-10).map((r) => ({\ntimestamp: r.Timestamp,\nevent_type: r.EventType,\nmoisture_percent: r.MoisturePercent,\nweight_grams: r.WeightGrams,\nsoil_temp_c: r.SoilTempC,\nwater_temp_c: r.WaterTempC,\nwatered: r.WateringTriggered,\nwater_duration_seconds: r.WaterDurationSeconds,\nheater_used: r.HeaterUsed,\nspecies_guess: r.SpeciesGuess,\nanomaly_detected: r.AnomalyDetected,\n}));\nconst lines = [\n\"PHOTO: today's quick-check image of the plant.\",\n\"SAME EVENT'S SENSOR DATA (event_id \" + eventId + '): ' + (hasSensorRow ? JSON.stringify(todayRow) : '{}'),\n'HISTORY - last 10 events (compact):',\nJSON.stringify(historyCompact),\n'LAST WATERED: ' + (lastWatered || 'never') + (elapsedHours !== null ? ' (' + elapsedHours + ' h ago)' : ''),\n'SPECIES ON RECORD: ' + speciesGuess + ' (confidence ' + speciesConfidence + ')',\n];\nif (hasSensorRow) {\nlines.push(\"TODAY'S DECISION (for your review): see the matching event row above (WateringTriggered, WaterDurationSeconds).\");\n} else {\nlines.push('CONTEXT NOTE: no sensor row for this event_id (WROOM may not have posted yet)');\n}\nlines.push('Return strict JSON only (no markdown, no code fences, no prose): species_guess, species_confidence (0-1), anomaly_detected (bool), anomaly_description (string|null), watering_review (string: agree/disagree + one-sentence reason), ai_notes (string).');\nreturn [{\njson: {\ncontext_text: lines.join('\\n'),\nevent_id: eventId,\nevent_type: body.event_type || (todayRow && todayRow.EventType) || '',\ncaptured_at_utc: body.captured_at_utc || (todayRow && todayRow.Timestamp) || '',\nspecies_confidence_stored: speciesConfidence,\nspecies_guess_stored: speciesGuess,\ndrive_daily_photos_folder_id: cfg['drive_daily_photos_folder_id'] || '',\nbattery_percent: body.battery_percent ?? null,\ndry_run_mode: dryRun,\ntoday_row: todayRow,\n},\nbinary: webhookItem.binary,\n}];"
       },
       "id": "99abe7a1-f6af-4133-961b-273920f932c8",
       "name": "Build Multimodal Context",
@@ -6505,7 +6505,11 @@
       "position": [
         1056,
         528
-      ]
+      ],
+      "retryOnFail": true,
+      "maxTries": 2,
+      "waitBetweenTries": 3000,
+      "onError": "continueRegularOutput"
     },
     {
       "parameters": {
@@ -6541,13 +6545,13 @@
             {
               "id": "1",
               "name": "species_guess",
-              "value": "={{ $json.output?.species_guess ?? \"\" }}",
+              "value": "={{ $json.output?.species_guess ?? $('Build Multimodal Context').item.json.species_guess_stored ?? \"\" }}",
               "type": "string"
             },
             {
               "id": "2",
               "name": "species_confidence",
-              "value": "={{ $json.output?.species_confidence ?? 0 }}",
+              "value": "={{ $json.output?.species_confidence ?? Number($('Build Multimodal Context').item.json.species_confidence_stored || 0) }}",
               "type": "number"
             },
             {
@@ -6571,7 +6575,7 @@
             {
               "id": "6",
               "name": "ai_notes",
-              "value": "={{ $json.output?.ai_notes ?? \"\" }}",
+              "value": "={{ $json.output?.ai_notes ?? \"analysis unavailable this cycle\" }}",
               "type": "string"
             },
             {
@@ -9267,7 +9271,7 @@
       "typeVersion": 2.3,
       "position": [
         560,
-        1900
+        1904
       ]
     }
   ],
