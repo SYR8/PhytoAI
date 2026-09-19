@@ -6949,21 +6949,6 @@
     },
     {
       "parameters": {
-        "respondWith": "json",
-        "responseBody": "={{ { \"status\": \"ok\" } }}",
-        "options": {}
-      },
-      "id": "68c06945-2465-42f7-8d6e-9c7a7398f2b3",
-      "name": "Respond Scan Done",
-      "type": "n8n-nodes-base.respondToWebhook",
-      "typeVersion": 1.5,
-      "position": [
-        1104,
-        3200
-      ]
-    },
-    {
-      "parameters": {
         "rule": {
           "interval": [
             {
@@ -11072,17 +11057,6 @@
         [
           {
             "node": "Update Close Session",
-            "type": "main",
-            "index": 0
-          }
-        ]
-      ]
-    },
-    "Update Close Session": {
-      "main": [
-        [
-          {
-            "node": "Respond Scan Done",
             "type": "main",
             "index": 0
           }
