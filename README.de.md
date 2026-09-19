@@ -47,11 +47,12 @@ kontinuierliche End-to-End-Lauf mit einer echten Pflanze ist für heute geplant.
 16. [Workflow-Karte](#workflow-karte)
 17. [Aufbauanleitung](#aufbauanleitung)
 18. [Test und Verifikation](#test-und-verifikation)
-19. [Fehlersuche](#fehlersuche)
-20. [Datenschutz und Sicherheit](#datenschutz-und-sicherheit)
-21. [Grenzen und Zukunftsideen](#grenzen-und-zukunftsideen)
-22. [Lizenz und Attribution](#lizenz-und-attribution)
-23. [Mitmachen und selbst bauen](#mitmachen-und-selbst-bauen)
+19. [WROOM-Serienbefehle (Diagnose)](#wroom-serienbefehle-diagnose)
+20. [Fehlersuche](#fehlersuche)
+21. [Datenschutz und Sicherheit](#datenschutz-und-sicherheit)
+22. [Grenzen und Zukunftsideen](#grenzen-und-zukunftsideen)
+23. [Lizenz und Attribution](#lizenz-und-attribution)
+24. [Mitmachen und selbst bauen](#mitmachen-und-selbst-bauen)
 
 ## Überblick
 
@@ -245,8 +246,14 @@ Tank **27** (LOW = leer), DHT22 **14**, LDR **25**, LED **2**.
 
 **Sicherheitshinweise (verbindlich):** Heizung **nur untergetaucht** betreiben; die Firmware erzwingt
 40,0 °C Abschaltung, verweigert den Start ab ≥ 39,5 °C und begrenzt durchgehende Ansteuerung auf
-120 s; Relais sind beim Boot AUS. Ein früher Brief enthielt eine veraltete Pin-Belegung (Pumpe 4,
+eine zur Laufzeit einstellbare Grenze (Standard 120 s, harte Grenzen 5–600 s über Serienbefehl `l`);
+Relais sind beim Boot AUS. Ein früher Brief enthielt eine veraltete Pin-Belegung (Pumpe 4,
 HX711 5/25, OneWire 13, Boden 26) — sie ist überholt; nutze die Tabelle oben.
+
+**Platzierung des DS18B20-Wasserfühlers (verbindlich):** Der wasserdichte Wasserfühler muss **frei im
+Tank schwimmen — rundum von Wasser umgeben** — und darf Tankwand, Tankboden oder andere Objekte
+**nicht berühren**. Kontakt leitet Fremdwärme und verfälscht die Wassertemperatur, die über die
+Heizung entscheidet.
 
 ## Benötigte Software und Dienste
 
@@ -273,8 +280,12 @@ Konten, die man selbst anlegt (nur Platzhalter — niemals echte Zugangsdaten co
 **Konfiguration:** [`dashboard/config.example.js`](dashboard/config.example.js) nach
 `dashboard/config.js` kopieren und Client-ID, Spreadsheet-ID und n8n-Host eintragen. Jeder
 Firmware-Sketch hat einen `secrets.h`-Abschnitt (`SECRET_WIFI_SSID`, `SECRET_WIFI_PASSWORD`,
-`SECRET_BASE_URL`, `SECRET_WEBHOOK_PREFIX`); `secrets.h` ist git-ignored — niemals committen. In
-Produktion den Präfix `/webhook` nutzen (`/webhook-test` gehört zum n8n-Testlistener).
+`SECRET_BASE_URL`, `SECRET_WEBHOOK_PREFIX`); `secrets.h` ist git-ignored — niemals committen.
+
+**Produktions-Webhooks:** In Produktion `SECRET_WEBHOOK_PREFIX` auf `/webhook` setzen;
+`/webhook-test` ist der n8n-**Editor-Testlistener** und antwortet nur einmal nach einem Klick auf
+„Execute workflow“. Produktions-Webhooks registrieren sich **nur bei AKTIVEM Workflow** — den
+Workflow in n8n aktivieren, bevor die Geräte geflasht oder betrieben werden.
 
 ## Kamera und KI-Pflanzeninspektion
 
@@ -329,7 +340,8 @@ Eine Tabelle, **fünf Tabs** (Kopfzeilen exakt wie in `test-data/dashboard-seed/
 **Wichtige Semantik:** `ml_est` ist eine **Schätzung** aus Laufzeit × kalibriertem Fluss
 (`9.706 ml/s` Referenz). Das **gemessene** Gewichtsdelta ist derzeit **nur Gerätelog** — der Workflow
 persistiert es nicht, daher bleibt `WaterAddedGrams` bewusst leer. Aufnahme-Grund und Lichtbedingung
-pro Foto sind **nicht persistiert**. Firmware-Grenzen (40,0 °C, 39,5 °C, 120 s, 8 s Watchdog) sind
+pro Foto sind **nicht persistiert**. Firmware-Grenzen (40,0 °C, 39,5 °C, Laufzeit-Aktuatorgrenze —
+Standard 120 s, einstellbar 5–600 s, 8 s Watchdog) sind
 allem übergeordnet; Workflow-Guardrails (Tank leer erzwingt Gießen aus, `min_rewater_interval_hours`,
 `max_pump_seconds`, `max_water_temp_c`, `dry_run_mode`) sind der KI übergeordnet; die KI ist nur
 beratend.
@@ -466,6 +478,20 @@ für heute geplant**. Er gilt nicht als erfolgreich, bis der Besitzer die Ergebn
 - [ ] Dashboard lädt und zeigt die eigenen Daten; Testtabellen-Override funktioniert (`?sheet=`).
 - [ ] Browser-Berechtigung wird nur nach dem Klick in den Einstellungen angefragt; alle Zustände erscheinen.
 - [ ] Kamera: `firmware/esp32cam_production/PRODUCTION-TESTS.md` abarbeiten (14 Tests; mehrere brauchen Hardware).
+
+## WROOM-Serienbefehle (Diagnose)
+
+Die Produktions-Firmware (`firmware/wroom_production/`) nimmt am seriellen Monitor (**115200 Baud**)
+Einzelbefehle entgegen. `dry_run` blockiert weiterhin **jede** GPIO-Aktuierung — auch beim
+Diagnose-Sendezyklus.
+
+| Taste | Befehl | Verwendung | Sicherheitsgrenzen |
+|---|---|---|---|
+| `t` | INSTALLATIONS-Tare | `t` drücken, dann mit `y` bestätigen. Plattform muss **LEER** sein; speichert den Offset der leeren Plattform in NVS — nie im Normalbetrieb. | Nur leere Plattform; der HX711 wird niemals automatisch getared. |
+| `l` | Aktuatorgrenze zur Laufzeit | `l` drücken, neue Grenze in Sekunden eingeben, Enter. Gilt für Pumpe und Heizung und wird in NVS gespeichert (übersteht Reboots). | Harte Grenzen **5–600 s**; nicht-numerische oder außerhalb liegende Eingaben werden mit Begründung abgelehnt; Standard `120 s`. |
+| `s` | Diagnose-Senden | `s` drücken — führt sofort einen vollständigen Telemetrie-Zyklus aus: `GET /webhook/config`, dann derselbe 12-Feld-`POST /webhook/core/sensor` wie beim geplanten Lauf; zeigt HTTP-Status und Entscheidungs-Schlüssel, danach den nächsten geplanten Termin. | Nutzt den normalen Codepfad; `dry_run` blockiert weiterhin alle Aktuierung. |
+| `i` | Status | Uptime, WLAN, Dry-Run, HX711-Offset/Faktor, Aktuatorgrenze, Tank-/Wasserzustand. | — |
+| `h` oder `?` | Hilfe | Listet die Befehle auf. | — |
 
 ## Fehlersuche
 
